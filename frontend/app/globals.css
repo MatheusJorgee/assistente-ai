@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Ocultar a barra de rolagem (scrollbar-hide) para um visual mais limpo na interface */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
