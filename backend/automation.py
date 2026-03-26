@@ -6,6 +6,8 @@ import urllib.parse
 import time
 import shlex
 import re
+import json
+import unicodedata
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from youtubesearchpython import VideosSearch
@@ -57,6 +59,8 @@ class OSAutomation:
         self.pw_motor = None
         self.browser_instance = None
         self.page = None
+        self.youtube_volume_path = os.path.join(os.path.dirname(__file__), "temp_vision", "youtube_volume_pref.json")
+        self.youtube_default_volume = self._carregar_volume_preferido()
 
         self.sites_conhecidos = {
             "youtube": "https://www.youtube.com",
@@ -83,6 +87,99 @@ class OSAutomation:
             "tuitch": "twitch",
             "twitrc": "twitch",
         }
+
+    def _normalizar_ascii(self, texto: str) -> str:
+        if not texto:
+            return ""
+        return "".join(
+            c for c in unicodedata.normalize("NFD", texto)
+            if unicodedata.category(c) != "Mn"
+        ).lower().strip()
+
+    def _query_musical_otimizada(self, pesquisa: str) -> str:
+        bruto = (pesquisa or "").strip()
+        if not bruto:
+            return ""
+
+        texto_norm = self._normalizar_ascii(bruto)
+        query = re.sub(r"\s+", " ", bruto).strip()
+
+        # Remove ruído comum de comandos falados para focar no que identifica a música.
+        padroes_ruido = [
+            r"^(toca|toque|play|coloca|ponha|poe|poe ai|coloca ai)\b",
+            r"\baquela\s+musica\b",
+            r"\baquela\b",
+            r"\bmusica\b",
+            r"\bque\s+fala\b",
+            r"\bque\s+diz\b",
+            r"\bque\s+tem\b",
+            r"\bisso\s+isso\s+isso\b",
+        ]
+        query_limpa = texto_norm
+        for p in padroes_ruido:
+            query_limpa = re.sub(p, " ", query_limpa, flags=re.IGNORECASE)
+        query_limpa = re.sub(r"\s+", " ", query_limpa).strip()
+
+        # Se parece um pedido por trecho/letra, força busca por letra/lyrics.
+        modo_letra = any(
+            token in texto_norm
+            for token in ["que fala", "que diz", "trecho", "letra", "lyrics", "refr\u00e3o", "refrain"]
+        )
+
+        if modo_letra and query_limpa:
+            return f"{query_limpa} letra lyrics"
+
+        return query if len(query) >= 3 else bruto
+
+    def _resolver_video_youtube(self, pesquisa: str):
+        query = self._query_musical_otimizada(pesquisa)
+        if not query:
+            return None
+
+        tentativas = [query]
+        if "letra" not in query.lower() and "lyrics" not in query.lower():
+            tentativas.append(f"{query} official audio")
+
+        for tentativa in tentativas:
+            try:
+                resultados = VideosSearch(tentativa, limit=3).result()
+                videos = resultados.get("result", [])
+                if videos:
+                    return {
+                        "id": videos[0].get("id", ""),
+                        "title": videos[0].get("title", ""),
+                        "query": tentativa,
+                    }
+            except Exception:
+                continue
+
+        return None
+
+    def _shutdown_controlado(self, comando: str) -> bool:
+        c = (comando or "").strip().lower()
+        padrao = r"^shutdown\s+/(s|r|g|l|h|a)\b(?:\s+/t\s+\d+)?(?:\s+/f)?\s*$"
+        return bool(re.match(padrao, c, flags=re.IGNORECASE))
+
+    def _normalizar_volume_decimal(self, volume: float) -> float:
+        return max(0.0, min(1.0, float(volume)))
+
+    def _carregar_volume_preferido(self) -> float:
+        """Carrega o volume preferido persistido; fallback para 5%."""
+        try:
+            if not os.path.exists(self.youtube_volume_path):
+                return 0.05
+            with open(self.youtube_volume_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            return self._normalizar_volume_decimal(payload.get("volume", 0.05))
+        except Exception:
+            return 0.05
+
+    def _guardar_volume_preferido(self, volume: float) -> None:
+        """Persiste o volume preferido para próximas execuções."""
+        volume = self._normalizar_volume_decimal(volume)
+        os.makedirs(os.path.dirname(self.youtube_volume_path), exist_ok=True)
+        with open(self.youtube_volume_path, "w", encoding="utf-8") as f:
+            json.dump({"volume": volume}, f)
 
     def _extrair_canal_twitch(self, consulta: str) -> str:
         consulta_original = (consulta or "").strip()
@@ -236,6 +333,10 @@ class OSAutomation:
         if not comando_limpo:
             return False
 
+        # No perfil trusted-local, permite desligar/reiniciar via shutdown controlado.
+        if self.security_profile != "strict" and self._shutdown_controlado(comando_limpo):
+            return True
+
         for padrao in self.padroes_criticos:
             if re.search(padrao, comando_limpo):
                 return False
@@ -351,12 +452,18 @@ class OSAutomation:
         # 3. O MOTOR DE BUSCA AVANÇADO (Agora com suporte a Jogos da Steam/Epic)
         print(f">>> [ROUTER] A procurar o atalho de '{app_nome}' no PC...")
         
-        # Este script PowerShell é uma obra de arte tática. 
-        # Ele remove espaços das palavras para comparar "deadbydaylight" com "Dead by Daylight"
-        # e procura tanto programas (.lnk) quanto jogos (.url).
+        # Este script PowerShell remove ruído dos nomes e tenta 3 caminhos:
+        # 1) atalhos (.lnk/.url), 2) executável no PATH, 3) app registrada no Start Menu.
+        app_nome_ps = app_nome.replace('"', '`"')
         ps_script = f"""
-        $appName = "{app_nome}"
-        $cleanQuery = $appName -replace '\s+', '' -replace '[^\w]', ''
+        $appName = "{app_nome_ps}"
+        $cleanQuery = $appName -replace '\\s+', '' -replace '[^\\w]', ''
+        
+        function Normalize-Name([string]$value) {{
+            return ($value -replace '\\s+', '' -replace '[^\\w]', '').ToLower()
+        }}
+        
+        $cleanQuery = Normalize-Name $appName
         
         $paths = @("$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs", "$env:ALLUSERSPROFILE\\Microsoft\\Windows\\Start Menu\\Programs", "$env:PUBLIC\\Desktop", "$env:USERPROFILE\\Desktop")
         
@@ -364,7 +471,7 @@ class OSAutomation:
         
         $target = $null
         foreach ($shortcut in $allShortcuts) {{
-            $cleanName = $shortcut.BaseName -replace '\s+', '' -replace '[^\w]', ''
+            $cleanName = Normalize-Name $shortcut.BaseName
             if ($cleanName -match $cleanQuery -or $cleanQuery -match $cleanName) {{
                 $target = $shortcut
                 break
@@ -374,18 +481,40 @@ class OSAutomation:
         if ($target) {{
             Invoke-Item $target.FullName
             Write-Output "SUCESSO"
-        }} else {{
-            Write-Output "FALHA"
+            exit
         }}
+
+        $cmd = Get-Command $appName -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($cmd) {{
+            Start-Process -FilePath $cmd.Source
+            Write-Output "SUCESSO"
+            exit
+        }}
+
+        $startApp = Get-StartApps | Where-Object {{
+            $n = Normalize-Name $_.Name
+            $n -match $cleanQuery -or $cleanQuery -match $n
+        }} | Select-Object -First 1
+
+        if ($startApp) {{
+            Start-Process "shell:AppsFolder\\$($startApp.AppID)"
+            Write-Output "SUCESSO"
+            exit
+        }}
+
+        Write-Output "FALHA"
         """
         
         try:
-            resultado = subprocess.run(["powershell", "-Command", ps_script], capture_output=True, text=True)
+            resultado = subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], capture_output=True, text=True)
             
             if "SUCESSO" in resultado.stdout:
                 return f"Sucesso absoluto: Encontrei o atalho de '{app_nome}' (seja jogo ou programa) e iniciei!"
             else:
-                return f"Aviso: Não encontrei '{app_nome}' no Desktop nem no Menu Iniciar. Tem certeza que o atalho existe lá?"
+                detalhe = (resultado.stderr or "").strip()
+                if detalhe:
+                    return f"Aviso: Não consegui abrir '{app_nome}'. Detalhe técnico: {detalhe}"
+                return f"Aviso: Não encontrei '{app_nome}' no Desktop/Menu Iniciar/PATH. Confirma o nome exato do app?"
                 
         except Exception as e:
             return f"Erro interno ao procurar o programa: {str(e)}"
@@ -417,6 +546,7 @@ class OSAutomation:
         """Abre o YouTube com capa de invisibilidade contra bots e pula anúncios silenciosamente."""
         print(f">>> [YOUTUBE] A preparar motor web para: '{pesquisa}'...")
         query_url = urllib.parse.quote(pesquisa)
+        video_resolvido = self._resolver_video_youtube(pesquisa)
         
         try:
             if not self.playwright_ativo:
@@ -445,10 +575,12 @@ class OSAutomation:
             self.page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
             print(">>> [PLAYWRIGHT] A navegar e procurar o vídeo...")
-            self.page.goto(f"https://www.youtube.com/results?search_query={query_url}")
-            
-            self.page.wait_for_selector("a#video-title")
-            self.page.click("a#video-title")
+            if video_resolvido and video_resolvido.get("id"):
+                self.page.goto(f"https://www.youtube.com/watch?v={video_resolvido['id']}")
+            else:
+                self.page.goto(f"https://www.youtube.com/results?search_query={query_url}")
+                self.page.wait_for_selector("a#video-title")
+                self.page.click("a#video-title")
             
             print(">>> [PLAYWRIGHT] A aguardar o player...")
             self.page.wait_for_selector("video", timeout=15000)
@@ -456,13 +588,60 @@ class OSAutomation:
             
             codigo_magico = """
             () => {
+                const DEFAULT_VOLUME = __DEFAULT_VOLUME__;
+                if (typeof window.__assistentePreferredVolume !== 'number') {
+                    window.__assistentePreferredVolume = DEFAULT_VOLUME;
+                }
+                let lastVideoSrc = null;
+                let lastUrl = location.href;
+                let hookedVideo = null;
+
+                const obterVolumePreferido = () => {
+                    const v = window.__assistentePreferredVolume;
+                    if (typeof v !== 'number' || Number.isNaN(v)) return DEFAULT_VOLUME;
+                    return Math.max(0, Math.min(1, v));
+                };
+
+                const aplicarVolumePadrao = (video) => {
+                    if (!video) return;
+                    video.muted = false;
+                    video.volume = obterVolumePreferido();
+                };
+
+                const anexarHooks = (video) => {
+                    if (!video || video === hookedVideo) return;
+                    hookedVideo = video;
+                    const aplicar = () => aplicarVolumePadrao(video);
+                    video.addEventListener('loadedmetadata', aplicar);
+                    video.addEventListener('play', aplicar);
+                    aplicar();
+                };
+
                 const v = document.querySelector('video');
-                if(v) { v.muted = false; v.volume = 1.0; if(v.paused) v.play(); }
+                if(v) {
+                    aplicarVolumePadrao(v);
+                    anexarHooks(v);
+                    if(v.paused) v.play();
+                    lastVideoSrc = v.currentSrc || v.src || null;
+                }
                 
                 setInterval(() => {
                     try {
                         const video = document.querySelector('video');
                         if (!video) return;
+
+                        anexarHooks(video);
+
+                        const currentSrc = video.currentSrc || video.src || null;
+                        const trocouDeMusica = currentSrc && currentSrc !== lastVideoSrc;
+                        if (trocouDeMusica) {
+                            lastVideoSrc = currentSrc;
+                        }
+
+                        const urlMudou = location.href !== lastUrl;
+                        if (urlMudou) {
+                            lastUrl = location.href;
+                        }
 
                         // DETEÇÃO DEFINITIVA: Olha para todos os elementos que o YouTube usa para exibir anúncios
                         const isAd = document.querySelector('.ytp-ad-player-overlay, .ytp-ad-player-overlay-instream-info, .ad-showing');
@@ -482,9 +661,8 @@ class OSAutomation:
                             }
                         } else {
                             // NÃO É ANÚNCIO: Restaura o som e a velocidade com segurança
-                            if (video.muted || video.volume === 0 || video.playbackRate !== 1.0) {
-                                video.muted = false;
-                                video.volume = 1.0;
+                            if (video.muted || video.playbackRate !== 1.0 || trocouDeMusica || urlMudou || video.volume !== obterVolumePreferido()) {
+                                aplicarVolumePadrao(video);
                                 video.playbackRate = 1.0;
                             }
                         }
@@ -492,12 +670,15 @@ class OSAutomation:
                         // Esmaga banners
                         document.querySelectorAll('.ytp-ad-overlay-close-button').forEach(b => b.click());
                     } catch (err) {}
-                }, 500);
+                }, 150);
             }
             """
+            codigo_magico = codigo_magico.replace("__DEFAULT_VOLUME__", str(self.youtube_default_volume))
             self.page.evaluate(codigo_magico)
             print(">>> [PLAYWRIGHT] Motor furtivo injetado!")
-            
+
+            if video_resolvido and video_resolvido.get("title"):
+                return f"Sucesso! Encontrei e coloquei '{video_resolvido['title']}' a tocar."
             return f"Sucesso! Coloquei '{pesquisa}' a tocar. Anti-Bot evadido."
             
         except Exception as e:
@@ -526,9 +707,6 @@ class OSAutomation:
 
     def ajustar_volume(self, nivel) -> str:
         """Ajusta o volume do vídeo blindado contra textos sujos."""
-        if not self.page:
-            return "Erro: O YouTube não está aberto no momento."
-            
         try:
             # Limpa qualquer lixo que a IA mande (como "%" ou espaços) e converte com segurança
             if isinstance(nivel, str):
@@ -537,9 +715,16 @@ class OSAutomation:
             # Converte para float primeiro (caso ela mande "50.0") e depois para inteiro
             numero_limpo = int(float(nivel))
             vol_decimal = max(0, min(100, numero_limpo)) / 100.0
+            self.youtube_default_volume = vol_decimal
+            self._guardar_volume_preferido(vol_decimal)
             
-            self.page.evaluate(f"() => {{ const v = document.querySelector('video'); if(v) v.volume = {vol_decimal}; }}")
-            return f"O volume da música foi ajustado para {numero_limpo}%."
+            if self.page:
+                self.page.evaluate(
+                    f"() => {{ window.__assistentePreferredVolume = {vol_decimal}; const v = document.querySelector('video'); if(v) {{ v.muted = false; v.volume = {vol_decimal}; }} }}"
+                )
+                return f"O volume da música foi ajustado para {numero_limpo}% e ficará assim nas próximas músicas."
+
+            return f"Guardei {numero_limpo}% como volume padrão. As próximas músicas no YouTube abrirão nesse volume."
         except Exception as e:
             return f"Erro interno ao ajustar o volume. Diga ao Matheus para passar apenas números. Erro: {str(e)}"
         

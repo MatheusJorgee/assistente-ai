@@ -71,6 +71,21 @@ class BaseDadosMemoria:
                     UNIQUE(contexto, termo_original)
                 )
             ''')
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS cache_planos_gerais (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    pedido_original TEXT NOT NULL,
+                    categoria TEXT NOT NULL,
+                    alvo_principal TEXT NOT NULL,
+                    alvo_secundario TEXT NOT NULL DEFAULT '',
+                    plataforma_preferida TEXT NOT NULL DEFAULT 'auto',
+                    confianca TEXT NOT NULL DEFAULT 'MEDIA',
+                    fonte TEXT NOT NULL DEFAULT 'oraculo',
+                    data_registo DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(pedido_original)
+                )
+            ''')
             conexao.commit()
 
     # --- MÉTODOS DE MEMÓRIA DECLARATIVA (ORIGINAIS) ---
@@ -217,5 +232,147 @@ class BaseDadosMemoria:
                     data_registo = CURRENT_TIMESTAMP
                 ''',
                 (contexto_limpo, termo_limpo, alvo_limpo, confianca_limpa, fonte_limpa)
+            )
+            conexao.commit()
+
+    def buscar_plano_geral(self, pedido_original: str):
+        """Busca um plano de ação já aprendido para um pedido semelhante."""
+        if not self.memoria_ativa:
+            return None
+
+        pedido = (pedido_original or "").strip().lower()
+        if not pedido:
+            return None
+
+        with sqlite3.connect(self.caminho_db) as conexao:
+            cursor = conexao.cursor()
+            cursor.execute(
+                '''
+                SELECT categoria, alvo_principal, alvo_secundario, plataforma_preferida, confianca, fonte
+                FROM cache_planos_gerais
+                WHERE pedido_original = ?
+                ORDER BY data_registo DESC
+                LIMIT 1
+                ''',
+                (pedido,)
+            )
+            linha = cursor.fetchone()
+
+        if not linha:
+            return None
+
+        return {
+            "categoria": linha[0],
+            "alvo_principal": linha[1],
+            "alvo_secundario": linha[2],
+            "plataforma_preferida": linha[3],
+            "confianca": linha[4],
+            "fonte": linha[5],
+        }
+
+    def buscar_planos_gerais_candidatos(self, pedido_original: str, limite: int = 30):
+        """Retorna candidatos de planos para matching por similaridade fora do SQL."""
+        if not self.memoria_ativa:
+            return []
+
+        pedido = (pedido_original or "").strip().lower()
+        if not pedido:
+            return []
+
+        tokens = [t for t in pedido.split() if len(t) >= 3]
+        with sqlite3.connect(self.caminho_db) as conexao:
+            cursor = conexao.cursor()
+
+            if tokens:
+                filtros = " OR ".join(["pedido_original LIKE ?" for _ in tokens])
+                params = [f"%{t}%" for t in tokens]
+                params.append(int(limite))
+                cursor.execute(
+                    f'''
+                    SELECT pedido_original, categoria, alvo_principal, alvo_secundario, plataforma_preferida, confianca, fonte
+                    FROM cache_planos_gerais
+                    WHERE {filtros}
+                    ORDER BY data_registo DESC
+                    LIMIT ?
+                    ''',
+                    params
+                )
+            else:
+                cursor.execute(
+                    '''
+                    SELECT pedido_original, categoria, alvo_principal, alvo_secundario, plataforma_preferida, confianca, fonte
+                    FROM cache_planos_gerais
+                    ORDER BY data_registo DESC
+                    LIMIT ?
+                    ''',
+                    (int(limite),)
+                )
+
+            linhas = cursor.fetchall()
+
+        retorno = []
+        for linha in linhas:
+            retorno.append({
+                "pedido_original": linha[0],
+                "categoria": linha[1],
+                "alvo_principal": linha[2],
+                "alvo_secundario": linha[3],
+                "plataforma_preferida": linha[4],
+                "confianca": linha[5],
+                "fonte": linha[6],
+            })
+        return retorno
+
+    def salvar_plano_geral(
+        self,
+        pedido_original: str,
+        categoria: str,
+        alvo_principal: str,
+        alvo_secundario: str = "",
+        plataforma_preferida: str = "auto",
+        confianca: str = "MEDIA",
+        fonte: str = "oraculo",
+    ):
+        """Salva o plano de execução de um pedido geral para reaproveitar no futuro."""
+        if not self.memoria_ativa:
+            return
+
+        pedido = (pedido_original or "").strip().lower()
+        categoria_limpa = (categoria or "conversa").strip().lower()
+        alvo_principal_limpo = (alvo_principal or "").strip()
+        alvo_secundario_limpo = (alvo_secundario or "").strip()
+        plataforma_limpa = (plataforma_preferida or "auto").strip().lower()
+        confianca_limpa = (confianca or "MEDIA").strip().upper()
+        fonte_limpa = (fonte or "oraculo").strip().lower()
+
+        if not pedido or not alvo_principal_limpo:
+            return
+
+        with sqlite3.connect(self.caminho_db) as conexao:
+            cursor = conexao.cursor()
+            cursor.execute(
+                '''
+                INSERT INTO cache_planos_gerais
+                (pedido_original, categoria, alvo_principal, alvo_secundario, plataforma_preferida, confianca, fonte)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(pedido_original)
+                DO UPDATE SET
+                    categoria = excluded.categoria,
+                    alvo_principal = excluded.alvo_principal,
+                    alvo_secundario = excluded.alvo_secundario,
+                    plataforma_preferida = excluded.plataforma_preferida,
+                    confianca = excluded.confianca,
+                    fonte = excluded.fonte,
+                    data_registo = CURRENT_TIMESTAMP
+                ''',
+                (
+                    pedido,
+                    categoria_limpa,
+                    alvo_principal_limpo,
+                    alvo_secundario_limpo,
+                    plataforma_limpa,
+                    confianca_limpa,
+                    fonte_limpa,
+                )
             )
             conexao.commit()

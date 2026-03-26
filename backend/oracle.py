@@ -179,3 +179,126 @@ class OraculoEngine:
                 "confianca": "BAIXA",
                 "desambiguacao": "Qual termo exato você quer abrir ou pesquisar?"
             }
+
+    def consultar_busca_musical(self, pedido: str) -> dict:
+        """
+        Converte pedido musical livre em consulta otimizada, com sugestão de plataforma.
+        """
+        pedido = (pedido or "").strip()
+        print(f">>> [ORÁCULO] A inferir busca musical para: '{pedido}'...")
+
+        prompt = f"""
+        Você é um especialista em descoberta musical para automação.
+        Entrada do usuário: '{pedido}'
+
+        Objetivo:
+        - Produzir a melhor busca para encontrar a música correta mesmo com descrição vaga ou trecho de letra.
+
+        Regras:
+        1) Limpe ruído de comando falado (ex.: "toca", "aquela música", "que fala").
+        2) Preserve palavras-chave úteis do trecho/letra.
+        3) Se parecer letra/trecho, acrescente termos úteis para busca (ex.: letra, lyrics, official audio).
+        4) Se o usuário mencionar plataforma explicitamente (spotify/youtube), respeite.
+        5) Se não mencionar plataforma, retorne plataforma_preferida = "auto".
+        6) Não invente artista com confiança ALTA quando não houver evidência.
+
+        Saída em JSON válido sem markdown.
+        """
+
+        esquema = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "busca_otimizada": types.Schema(type=types.Type.STRING, description="Consulta otimizada para encontrar a música"),
+                "plataforma_preferida": types.Schema(type=types.Type.STRING, description="auto, spotify ou youtube"),
+                "confianca": types.Schema(type=types.Type.STRING, description="ALTA, MEDIA ou BAIXA"),
+                "pergunta_curta": types.Schema(type=types.Type.STRING, description="Pergunta de desambiguação quando confiança for baixa")
+            },
+            required=["busca_otimizada", "plataforma_preferida", "confianca", "pergunta_curta"]
+        )
+
+        try:
+            resposta = self.client.models.generate_content(
+                model=self.modelo,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.15,
+                    response_mime_type="application/json",
+                    response_schema=esquema
+                )
+            )
+            dados = json.loads(resposta.text)
+            return dados
+        except Exception as e:
+            print(f">>> [ERRO ORÁCULO] Falha ao inferir busca musical: {e}")
+            return {
+                "busca_otimizada": pedido,
+                "plataforma_preferida": "auto",
+                "confianca": "BAIXA",
+                "pergunta_curta": "Pode dizer mais um trecho da música?"
+            }
+
+    def consultar_plano_geral(self, pedido: str) -> dict:
+        """
+        Converte um pedido aberto em plano executável (categoria + alvos + plataforma).
+        """
+        pedido = (pedido or "").strip()
+        print(f">>> [ORÁCULO] A inferir plano geral para: '{pedido}'...")
+
+        prompt = f"""
+        Você é um roteador de intenções para automação pessoal.
+        Entrada: '{pedido}'
+
+        Gere um plano objetivo com categoria e alvos.
+
+        Categorias permitidas:
+        - musica
+        - abrir_app
+        - pesquisar_web
+        - terminal
+        - conversa
+
+        Regras:
+        1) Se for música (inclusive por trecho/letra), categoria = musica.
+        2) Se for abrir algo no computador (app/site), categoria = abrir_app.
+        3) Se for busca genérica na web, categoria = pesquisar_web.
+        4) Use terminal apenas quando claramente for comando técnico/sistema.
+        5) Se não houver certeza, confiança BAIXA e uma pergunta curta.
+
+        Saída em JSON válido sem markdown.
+        """
+
+        esquema = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "categoria": types.Schema(type=types.Type.STRING, description="musica, abrir_app, pesquisar_web, terminal ou conversa"),
+                "alvo_principal": types.Schema(type=types.Type.STRING, description="alvo principal da execução"),
+                "alvo_secundario": types.Schema(type=types.Type.STRING, description="parâmetro auxiliar, quando existir"),
+                "plataforma_preferida": types.Schema(type=types.Type.STRING, description="auto, spotify, youtube, windows, android ou web"),
+                "confianca": types.Schema(type=types.Type.STRING, description="ALTA, MEDIA ou BAIXA"),
+                "pergunta_curta": types.Schema(type=types.Type.STRING, description="pergunta curta para desambiguar")
+            },
+            required=["categoria", "alvo_principal", "alvo_secundario", "plataforma_preferida", "confianca", "pergunta_curta"]
+        )
+
+        try:
+            resposta = self.client.models.generate_content(
+                model=self.modelo,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.15,
+                    response_mime_type="application/json",
+                    response_schema=esquema
+                )
+            )
+            dados = json.loads(resposta.text)
+            return dados
+        except Exception as e:
+            print(f">>> [ERRO ORÁCULO] Falha ao inferir plano geral: {e}")
+            return {
+                "categoria": "conversa",
+                "alvo_principal": pedido,
+                "alvo_secundario": "",
+                "plataforma_preferida": "auto",
+                "confianca": "BAIXA",
+                "pergunta_curta": "Pode detalhar melhor o que você quer que eu execute?"
+            }

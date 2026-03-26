@@ -20,6 +20,9 @@ export default function QuintaFeiraInterface() {
   const aguardandoComandoRef = useRef(false);
   const comandoBufferRef = useRef("");
   const comandoFlushTimeoutRef = useRef<any>(null);
+  const comandoRapidoBufferRef = useRef("");
+  const comandoRapidoFlushTimeoutRef = useRef<any>(null);
+  const comandoRapidoRecognitionRef = useRef<any>(null);
   const pendingSilentAckRef = useRef(false);
 
   const isGoogleChrome = () => {
@@ -133,32 +136,93 @@ export default function QuintaFeiraInterface() {
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'pt-BR';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    if (comandoRapidoRecognitionRef.current) {
+      try {
+        comandoRapidoRecognitionRef.current.onend = null;
+        comandoRapidoRecognitionRef.current.stop();
+      } catch {}
+      comandoRapidoRecognitionRef.current = null;
+    }
+
+    comandoRapidoBufferRef.current = "";
+    if (comandoRapidoFlushTimeoutRef.current) {
+      clearTimeout(comandoRapidoFlushTimeoutRef.current);
+      comandoRapidoFlushTimeoutRef.current = null;
+    }
+    comandoRapidoRecognitionRef.current = recognition;
 
     recognition.onstart = () => {
       setIsListening(true);
+      setDiagnosticoVoz("Microfone ativo. Pode falar...");
     };
 
-    recognition.onresult = (event: any) => {
-      const transcricaoBruta = event.results[0][0].transcript;
+    const flushComandoRapido = () => {
+      const transcricaoBruta = comandoRapidoBufferRef.current.trim();
+      comandoRapidoBufferRef.current = "";
+
+      if (!transcricaoBruta) {
+        setDiagnosticoVoz("Não consegui capturar a frase inteira. Tente novamente.");
+        return;
+      }
+
       const transcricao = transcricaoBruta
         .replace(/quinta\s*feira/gi, "")
         .replace(/quintafeira/gi, "")
         .trim();
 
-      console.log(">>> [VOZ CAPTURADA]: ", transcricao);
       if (transcricao) {
-        enviarMensagemTexto(transcricao);
+        const comandoAjustado = ajustarComandoBilingue(transcricao);
+        setDiagnosticoVoz(`Comando enviado: ${comandoAjustado}`);
+        enviarMensagemTexto(comandoAjustado);
+      }
+    };
+
+    recognition.onresult = (event: any) => {
+      let houveFinal = false;
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const resultado = event.results[i];
+        if (!resultado?.isFinal) continue;
+        houveFinal = true;
+        comandoRapidoBufferRef.current = `${comandoRapidoBufferRef.current} ${resultado[0].transcript || ""}`.trim();
+      }
+
+      if (houveFinal) {
+        if (comandoRapidoFlushTimeoutRef.current) {
+          clearTimeout(comandoRapidoFlushTimeoutRef.current);
+        }
+        // Aguarda uma pequena pausa para juntar frases quebradas pelo motor de voz.
+        comandoRapidoFlushTimeoutRef.current = setTimeout(() => {
+          comandoRapidoFlushTimeoutRef.current = null;
+          try {
+            recognition.stop();
+          } catch {
+            flushComandoRapido();
+          }
+        }, 1400);
       }
     };
 
     recognition.onerror = (event: any) => {
-      console.error("Erro no microfone: ", event.error);
+      if (event.error !== "no-speech") {
+        console.error("Erro no microfone: ", event.error);
+      }
+      if (event.error !== "no-speech") {
+        setDiagnosticoVoz(`Erro no microfone: ${event.error}`);
+      }
       setIsListening(false);
     };
 
     recognition.onend = () => {
+      if (comandoRapidoFlushTimeoutRef.current) {
+        clearTimeout(comandoRapidoFlushTimeoutRef.current);
+        comandoRapidoFlushTimeoutRef.current = null;
+      }
+      flushComandoRapido();
+      comandoRapidoRecognitionRef.current = null;
       setIsListening(false);
     };
 
@@ -287,8 +351,8 @@ export default function QuintaFeiraInterface() {
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'pt-BR';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     wakeDesiredRef.current = true;
@@ -313,7 +377,7 @@ export default function QuintaFeiraInterface() {
           comandoFlushTimeoutRef.current = setTimeout(() => {
             comandoFlushTimeoutRef.current = null;
             flushComandoBuffer();
-          }, 2500);
+          }, 3200);
           setDiagnosticoVoz("Capturando comando...");
           continue;
         }
@@ -436,6 +500,15 @@ export default function QuintaFeiraInterface() {
   useEffect(() => {
     return () => {
       pararModoDespertar();
+      if (comandoRapidoRecognitionRef.current) {
+        try {
+          comandoRapidoRecognitionRef.current.onend = null;
+          comandoRapidoRecognitionRef.current.stop();
+        } catch {}
+      }
+      if (comandoRapidoFlushTimeoutRef.current) {
+        clearTimeout(comandoRapidoFlushTimeoutRef.current);
+      }
     };
   }, []);
 

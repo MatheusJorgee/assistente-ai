@@ -2,6 +2,8 @@ import os
 import sys
 import subprocess
 import time
+import re
+from difflib import SequenceMatcher
 from PIL import Image
 import json
 import base64
@@ -210,6 +212,125 @@ def pedir_proxima_musica() -> str:
     """
     return automacao.pular_musica()
 
+def _resposta_sucesso(texto: str) -> bool:
+    t = (texto or "").strip().lower()
+    if not t:
+        return False
+    if any(k in t for k in ["erro", "falha", "não consegui", "nao consegui", "bloqueado"]):
+        return False
+    return any(k in t for k in ["sucesso", "a tocar", "abri", "iniciei", "enviado", "ajustado"])
+
+def _normalizar_pedido(pedido: str) -> str:
+    p = (pedido or "").strip().lower()
+    p = re.sub(r"\s+", " ", p)
+    return p
+
+def _pontuacao_similaridade(pedido_a: str, pedido_b: str) -> float:
+    a = _normalizar_pedido(pedido_a)
+    b = _normalizar_pedido(pedido_b)
+    if not a or not b:
+        return 0.0
+
+    score_seq = SequenceMatcher(None, a, b).ratio()
+    tokens_a = {t for t in a.split() if len(t) >= 3}
+    tokens_b = {t for t in b.split() if len(t) >= 3}
+    if not tokens_a or not tokens_b:
+        return score_seq
+
+    inter = len(tokens_a.intersection(tokens_b))
+    uniao = len(tokens_a.union(tokens_b))
+    score_jaccard = (inter / uniao) if uniao else 0.0
+
+    # Pondera semelhança de frase e de intenção por palavras-chave.
+    return (score_seq * 0.65) + (score_jaccard * 0.35)
+
+def executar_com_aprendizado_geral(pedido_original: str) -> str:
+    """
+    Resolve pedidos gerais com aprendizado contínuo: consulta cache, usa Oráculo quando necessário,
+    executa e guarda o plano vencedor para próximas vezes.
+    """
+    pedido = (pedido_original or "").strip()
+    if not pedido:
+        return "Pedido vazio. Diga o que você quer que eu execute."
+
+    def executar_plano(plano: dict, origem: str) -> str:
+        categoria = (plano.get("categoria") or "conversa").strip().lower()
+        alvo_principal = (plano.get("alvo_principal") or "").strip()
+        alvo_secundario = (plano.get("alvo_secundario") or "").strip()
+        plataforma = (plano.get("plataforma_preferida") or "auto").strip().lower()
+        confianca = (plano.get("confianca") or "MEDIA").strip().upper()
+
+        if confianca == "BAIXA" and origem != "cache":
+            pergunta = (plano.get("pergunta_curta") or "Pode detalhar um pouco mais?").strip()
+            return pergunta
+
+        if categoria == "musica":
+            consulta = alvo_principal or pedido
+            if plataforma == "spotify":
+                resposta = pedir_musica_spotify(consulta)
+            else:
+                resposta = pedir_musica_youtube(consulta)
+        elif categoria == "abrir_app":
+            app = alvo_principal or "google"
+            acao = alvo_secundario or "abrir"
+            resposta = interagir_com_aplicativo(app, acao)
+        elif categoria == "pesquisar_web":
+            consulta = alvo_principal or pedido
+            resposta = interagir_com_aplicativo("google", consulta)
+        elif categoria == "terminal":
+            objetivo = alvo_principal or pedido
+            resposta = aprender_e_executar_acao(objetivo, "Windows PowerShell")
+        else:
+            resposta = f"Entendi o pedido, mas preciso de mais contexto para executar com segurança: '{pedido}'."
+
+        if _resposta_sucesso(resposta):
+            db.salvar_plano_geral(
+                pedido_original=pedido,
+                categoria=categoria,
+                alvo_principal=alvo_principal or pedido,
+                alvo_secundario=alvo_secundario,
+                plataforma_preferida=plataforma,
+                confianca=confianca,
+                fonte=origem,
+            )
+
+        return resposta
+
+    cache = db.buscar_plano_geral(pedido)
+    if cache and (cache.get("confianca") or "MEDIA").upper() in ["ALTA", "MEDIA"]:
+        resposta_cache = executar_plano(cache, "cache")
+        if _resposta_sucesso(resposta_cache):
+            return f"{resposta_cache} (aprendizado aplicado do histórico)"
+
+    candidatos = db.buscar_planos_gerais_candidatos(pedido, limite=40)
+    melhor = None
+    melhor_score = 0.0
+    for c in candidatos:
+        conf = (c.get("confianca") or "BAIXA").upper()
+        if conf == "BAIXA":
+            continue
+        score = _pontuacao_similaridade(pedido, c.get("pedido_original", ""))
+        if score > melhor_score:
+            melhor_score = score
+            melhor = c
+
+    if melhor and melhor_score >= 0.62:
+        resposta_similar = executar_plano(melhor, "cache-similar")
+        if _resposta_sucesso(resposta_similar):
+            db.salvar_plano_geral(
+                pedido_original=pedido,
+                categoria=(melhor.get("categoria") or "conversa"),
+                alvo_principal=(melhor.get("alvo_principal") or pedido),
+                alvo_secundario=(melhor.get("alvo_secundario") or ""),
+                plataforma_preferida=(melhor.get("plataforma_preferida") or "auto"),
+                confianca="MEDIA",
+                fonte="cache-similar",
+            )
+            return f"{resposta_similar} (aprendizado aplicado por similaridade: {melhor_score:.2f})"
+
+    plano = oraculo.consultar_plano_geral(pedido)
+    return executar_plano(plano, "oraculo")
+
 def navegar_waze_inteligente(destino: str, latitude: float, longitude: float) -> str:
     """
     Inicia navegação no Waze do celular usando coordenadas precisas.
@@ -311,6 +432,7 @@ class QuintaFeiraBrain:
         Regra: não inventar ferramenta, não inventar resultado e não afirmar execução sem retorno real da ferramenta.
 
         [ROTEAMENTO DE FERRAMENTAS]
+        - executar_com_aprendizado_geral(pedido_original): ferramenta principal para pedidos abertos; aprende e reaproveita execução bem-sucedida.
         - guardar_memoria_permanente(informacao, categoria): quando Matheus pedir explicitamente para lembrar algo no longo prazo.
         - executar_comando_terminal(comando_powershell_cmd, justificacao): quando a tarefa exigir terminal no Windows.
         - interagir_com_aplicativo(nome_do_app, o_que_fazer): abrir apps no computador e pesquisas web.
@@ -341,6 +463,7 @@ class QuintaFeiraBrain:
         - Evite dizer que abriu se não houver execução de ferramenta com retorno de sucesso.
 
         [PROTOCOLO DE APRENDIZADO GERAL]
+        - Para pedidos abertos de ação (sem ferramenta explícita), use primeiro executar_com_aprendizado_geral.
         - Para abrir aba/guia/site/perfil/canal ou pesquisar algo com termo ambíguo, use abrir_ou_pesquisar_com_aprendizado.
         - Primeiro tente cache de memória; se não existir, consulte o Oráculo; quando resolver, persista em memória longa.
         - Com confiança baixa, faça uma pergunta curta de desambiguação antes de executar.
@@ -370,6 +493,7 @@ class QuintaFeiraBrain:
         
         # Catálogo único de ferramentas para evitar perda de tool-calling em overrides por mensagem.
         self.tools_disponiveis = [
+            executar_com_aprendizado_geral,
             guardar_memoria_permanente,
             executar_comando_terminal,
             interagir_com_aplicativo,
