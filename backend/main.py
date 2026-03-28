@@ -3,9 +3,12 @@ import json
 import os
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from brain import QuintaFeiraBrain
+from brain_v2 import QuintaFeiraBrain
 
-app = FastAPI(title="Quinta-Feira Modular Core")
+app = FastAPI(
+    title="Quinta-Feira Modular Core v2",
+    description="Backend FastAPI com Tool Registry e Injeção de Dependência"
+)
 
 
 def _parse_allowed_origins() -> list[str]:

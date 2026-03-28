@@ -1,6 +1,22 @@
-google-genai
-python-dotenv
-requests
-fastapi
-uvicorn[standard]
-websockets
+# Core LLM
+google-genai>=0.3.0
+python-dotenv>=1.0.0
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+
+# Utilities
+requests>=2.31.0
+Pillow>=10.0.0  # Image processing (WebP compression)
+pyttsx3>=2.90   # Text-to-speech fallback
+pyautogui>=0.9.53  # Screen automation
+
+# Audio/Music
+spotipy>=2.22.0  # Spotify API
+youtubesearchpython>=1.14.0  # YouTube search
+playwright>=1.40.0  # YouTube automation
+
+# Monitoring/Async
+screeninfo>=0.8.1  # Multi-monitor detection (optional)

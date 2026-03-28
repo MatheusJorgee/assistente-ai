@@ -1,0 +1,226 @@
+"""
+Ferramentas de Memória e Aprendizado.
+"""
+
+import asyncio
+from typing import Dict, Any
+
+from backend.core.tool_registry import Tool, ToolMetadata
+
+
+class GuardarMemoriaTool(Tool):
+    """
+    Ferramenta para guardar informações na memória longa de forma estruturada.
+    """
+    
+    def __init__(self, database=None):
+        super().__init__(
+            metadata=ToolMetadata(
+                name="save_memory",
+                description="Guarda informações na memória de longo prazo com categorização",
+                version="1.0.0",
+                tags=["memory", "learning", "persistence"]
+            )
+        )
+        self.db = database
+    
+    def validate_input(self, **kwargs) -> bool:
+        return 'informacao' in kwargs and 'categoria' in kwargs
+    
+    async def execute(self, **kwargs) -> str:
+        """
+        Guarda informação na memória.
+        
+        Args:
+            informacao (str): O que guardar
+            categoria (str): Categoria (ex: "resolucao_contextual", "skill", "fato")
+            
+        Returns:
+            str: Confirmação
+        """
+        if not self.db:
+            return "[AVISO] Database não configurado - memória temporária apenas"
+        
+        informacao = kwargs.get('informacao', '').strip()
+        categoria = kwargs.get('categoria', 'general').strip()
+        
+        try:
+            resultado = await asyncio.to_thread(
+                self.db.guardar_memoria,
+                informacao,
+                categoria
+            )
+            
+            if self._event_bus:
+                self._event_bus.emit('cortex_thinking', {
+                    'step': 'memory_saved',
+                    'category': categoria,
+                    'info_length': len(informacao)
+                })
+            
+            return resultado
+            
+        except Exception as e:
+            return f"[ERRO Memória] {str(e)}"
+
+
+class BuscarMemoriaTool(Tool):
+    """
+    Ferramenta para buscar informações na memória.
+    """
+    
+    def __init__(self, database=None):
+        super().__init__(
+            metadata=ToolMetadata(
+                name="search_memory",
+                description="Busca informações na memória de longo prazo",
+                version="1.0.0",
+                tags=["memory", "search"]
+            )
+        )
+        self.db = database
+    
+    def validate_input(self, **kwargs) -> bool:
+        return 'categoria' in kwargs or 'termos' in kwargs
+    
+    async def execute(self, **kwargs) -> str:
+        """
+        Busca na memória.
+        
+        Args:
+            categoria (str): Filtrar por categoria (opcional)
+            termos (str): Termos de busca (opcional)
+            
+        Returns:
+            str: Resultados encontrados
+        """
+        if not self.db:
+            return "[AVISO] Database não configurado"
+        
+        categoria = kwargs.get('categoria', '').strip()
+        termos = kwargs.get('termos', '').strip()
+        
+        try:
+            # Dependendo da implementação do DB
+            if categoria:
+                resultados = await asyncio.to_thread(
+                    self.db.buscar_memoria_por_categoria,
+                    categoria
+                )
+            else:
+                resultados = await asyncio.to_thread(
+                    self.db.buscar_memoria,
+                    termos
+                )
+            
+            if self._event_bus:
+                self._event_bus.emit('cortex_thinking', {
+                    'step': 'memory_searched',
+                    'category': categoria,
+                    'results_count': len(resultados) if isinstance(resultados, list) else 1
+                })
+            
+            return str(resultados)
+            
+        except Exception as e:
+            return f"[ERRO Busca Memória] {str(e)}"
+
+
+class ResolverAlvoComAprendizadoTool(Tool):
+    """
+    Ferramenta inteligente para resolver termos ambíguos usando Oráculo + cache.
+    """
+    
+    def __init__(self, oraculo_engine=None, database=None):
+        super().__init__(
+            metadata=ToolMetadata(
+                name="resolve_target",
+                description="Resolve termos ambíguos com Oráculo e cache de aprendizado",
+                version="2.0.0",
+                tags=["resolving", "learning", "disambiguation"]
+            )
+        )
+        self.oraculo = oraculo_engine
+        self.db = database
+    
+    def validate_input(self, **kwargs) -> bool:
+        return 'termo' in kwargs and 'contexto' in kwargs
+    
+    async def execute(self, **kwargs) -> str:
+        """
+        Resolve termo com Oráculo + cache.
+        
+        Args:
+            termo (str): Termo ambíguo
+            contexto (str): Contexto (twitch, youtube, web, etc)
+            
+        Returns:
+            str: Resultado JSON com alvo canonico, confiança, etc
+        """
+        termo = kwargs.get('termo', '').strip()
+        contexto = kwargs.get('contexto', 'web').strip().lower()
+        
+        if not termo:
+            return '{"erro": "Termo vazio"}'
+        
+        # Tentar buscar no cache primeiro
+        if self.db:
+            try:
+                cache = await asyncio.to_thread(
+                    self.db.buscar_resolucao,
+                    contexto,
+                    termo
+                )
+                if cache:
+                    if self._event_bus:
+                        self._event_bus.emit('cortex_thinking', {
+                            'step': 'target_resolved_from_cache',
+                            'term': termo,
+                            'context': contexto
+                        })
+                    return str(cache)
+            except:
+                pass
+        
+        # Consultar Oráculo
+        if not self.oraculo:
+            return f'{{"erro": "Oráculo não disponível"}}'
+        
+        if self._event_bus:
+            self._event_bus.emit('cortex_thinking', {
+                'step': 'consulting_oracle_for_disambiguation',
+                'term': termo,
+                'context': contexto
+            })
+        
+        try:
+            resultado = await asyncio.to_thread(
+                self.oraculo.consultar_alvo_canonico,
+                termo,
+                contexto
+            )
+            
+            # Guardar no cache
+            if self.db:
+                try:
+                    await asyncio.to_thread(
+                        self.db.salvar_resolucao,
+                        contexto,
+                        termo,
+                        resultado.get('alvo_canonico', ''),
+                        resultado.get('confianca', 'MEDIA'),
+                        'oraculo'
+                    )
+                except:
+                    pass
+            
+            if self._event_bus:
+                self._event_bus.emit('cortex_thinking', {
+                    'step': 'target_resolved_from_oracle',
+                    'confidence': resultado.get('confianca')
+                })
+            
+            return str(resultado)
+            
+        except Exception as e:
+            return f'{{"erro": "{str(e)}"}}'
