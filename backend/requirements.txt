@@ -16,7 +16,16 @@ pyautogui>=0.9.53  # Screen automation
 # Audio/Music
 spotipy>=2.22.0  # Spotify API
 youtubesearchpython>=1.14.0  # YouTube search
-playwright>=1.40.0  # YouTube automation
+playwright>=1.40.0  # YouTube automation (Playwright for cross-browser)
+
+# WhatsApp Integration (Optional - for production use)
+# pywhatkit>=6.0  # WhatsApp automation
+# selenium>=4.0  # Browser automation alternative
+
+# Browser Automation
+# selenium>=4.0  # For advanced browser control (optional)
+# webdriver-manager>=3.8.0  # Automatic webdriver management
+
 
 # Monitoring/Async
 screeninfo>=0.8.1  # Multi-monitor detection (optional)
