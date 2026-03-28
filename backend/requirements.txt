@@ -26,6 +26,10 @@ playwright>=1.40.0  # YouTube automation (Playwright for cross-browser)
 # selenium>=4.0  # For advanced browser control (optional)
 # webdriver-manager>=3.8.0  # Automatic webdriver management
 
+# Process & System Management (Fase 3)
+psutil>=5.9.0  # System and process utilities
+pygetwindow>=0.0.9  # Window management (Windows)
+# pycaw>=20211107  # Audio control by application (optional for v2.2)
 
 # Monitoring/Async
 screeninfo>=0.8.1  # Multi-monitor detection (optional)
