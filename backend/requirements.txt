@@ -18,13 +18,9 @@ spotipy>=2.22.0  # Spotify API
 youtubesearchpython>=1.14.0  # YouTube search
 playwright>=1.40.0  # YouTube automation (Playwright for cross-browser)
 
-# WhatsApp Integration (Optional - for production use)
-# pywhatkit>=6.0  # WhatsApp automation
-# selenium>=4.0  # Browser automation alternative
-
-# Browser Automation
-# selenium>=4.0  # For advanced browser control (optional)
-# webdriver-manager>=3.8.0  # Automatic webdriver management
+# WhatsApp & Browser Automation (Fase 3)
+selenium>=4.15.0  # WhatsApp Web automation with zero-touch persistence
+webdriver-manager>=4.0.0  # Automatic WebDriver management (Chrome/Edge/Firefox)
 
 # Process & System Management (Fase 3)
 psutil>=5.9.0  # System and process utilities
