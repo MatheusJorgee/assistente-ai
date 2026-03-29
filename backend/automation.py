@@ -131,7 +131,7 @@ class OSAutomation:
                     pass
             
             self.playwright_ativo = False
-            print("[CLEANUP] ✓ Recurso Playwright encerrado com sucesso")
+            print("[CLEANUP] Recurso Playwright encerrado com sucesso")
         except Exception as e:
             print(f"[CLEANUP] Erro ao encerrar: {e}")
 

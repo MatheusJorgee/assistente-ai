@@ -155,7 +155,7 @@ async def kill_orphaned_processes():
     
     A ser chamado no startup do FastAPI (main.py)
     """
-    print("[CLEANUP] 🔍 Procurando processos órfãos de Playwright...")
+    print("[CLEANUP] Procurando processos orfaos de Playwright...")
     
     try:
         # Windows: usar tasklist/taskkill
@@ -194,7 +194,7 @@ async def kill_orphaned_processes():
                 if 'chromium' in line.lower() or 'chrome' in line.lower():
                     print(f"[CLEANUP] Processo encontrado: {line.strip()[:80]}")
         
-        print("[CLEANUP] ✓ Scan de processos completado")
+        print("[CLEANUP] Scan de processos completado")
         
     except Exception as e:
-        print(f"[CLEANUP] ⚠️  Erro ao procurar processos: {e}")
+        print(f"[CLEANUP] [WARN] Erro ao procurar processos: {e}")
