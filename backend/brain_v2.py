@@ -291,10 +291,16 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
         ferramentas_gemini = []
         
         try:
-            tools_disponiveis = self.tool_registry.list_tools()
+            # ✓ USAR get_all_tools() que retorna objetos Tool (não dicionários)
+            tools_disponiveis = self.tool_registry.get_all_tools()
             
             for tool in tools_disponiveis:
                 try:
+                    # ✓ Validação robusta: verificar se tool tem metadata
+                    if not hasattr(tool, 'metadata') or not tool.metadata:
+                        print(f"⚠️  [TOOLS] Ferramenta sem metadata válida: {tool}")
+                        continue
+                    
                     tool_name = tool.metadata.name
                     tool_desc = tool.metadata.description or f"Executa {tool_name}"
                     
@@ -374,34 +380,58 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                         }
                         required = ["parametros"]
                     
-                    # Criar declaração de função com schema detalhado
-                    tool_schema = types.Tool(
-                        function_declarations=[
-                            types.FunctionDeclaration(
-                                name=tool_name,
-                                description=tool_desc,
-                                parameters=types.Schema(
-                                    type_="OBJECT",
-                                    properties=properties,
-                                    required=required
+                    # ✓ CRIAR DECLARAÇÃO DE FUNÇÃO COM SCHEMA DETALHADO
+                    try:
+                        tool_schema = types.Tool(
+                            function_declarations=[
+                                types.FunctionDeclaration(
+                                    name=tool_name,
+                                    description=tool_desc,
+                                    parameters=types.Schema(
+                                        type_="OBJECT",
+                                        properties=properties,
+                                        required=required
+                                    )
                                 )
+                            ]
+                        )
+                        ferramentas_gemini.append(tool_schema)
+                        print(f"✓ [TOOLS] {tool_name} → schema detalhado injetado")
+                    except Exception as schema_err:
+                        print(f"⚠️  [TOOLS] Erro ao criar schema para {tool_name}: {schema_err}")
+                        # Tentar criar sem schema customizado
+                        try:
+                            tool_schema = types.Tool(
+                                function_declarations=[
+                                    types.FunctionDeclaration(
+                                        name=tool_name,
+                                        description=tool_desc
+                                    )
+                                ]
                             )
-                        ]
-                    )
-                    ferramentas_gemini.append(tool_schema)
-                    print(f"✓ [TOOLS] {tool_name} → schema detalhado injetado")
+                            ferramentas_gemini.append(tool_schema)
+                            print(f"✓ [TOOLS] {tool_name} → schema básico injetado (fallback)")
+                        except Exception as fallback_err:
+                            print(f"❌ [TOOLS] Falha ao injetar {tool_name} mesmo com fallback: {fallback_err}")
+                            continue
                     
                 except Exception as e:
                     print(f"⚠️  [TOOLS] Erro ao converter {getattr(tool, 'name', 'unknown')}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
             
             if ferramentas_gemini:
                 print(f"✓ [GENAI] {len(ferramentas_gemini)} ferramentas com schemas EXPLÍCITOS para Gemini")
                 print(f"✓ [GENAI] ToolConfig mode=AUTO garantido (tool calling OBRIGATÓRIO)")
+            else:
+                print(f"⚠️  [GENAI] Nenhuma ferramenta disponível para injetar no modelo")
             
             return ferramentas_gemini
         except Exception as e:
-            print(f"⚠️  [TOOLS] Erro ao converter ferramentas: {e}")
+            print(f"❌ [TOOLS] ERRO CRÍTICO ao converter ferramentas: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def _buscar_voz_disponivel(self) -> str:
