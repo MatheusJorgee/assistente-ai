@@ -548,7 +548,7 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
             
             # ===== LOOP TOOL CALLING (ReAct Pattern) =====
             # Gemini pode retornar function_calls que precisam ser executadas
-            historico_conversas = []
+            tool_responses_pendentes = []  # Lista de Parts com FunctionResponse
             texto_resposta = ""
             max_tool_iterations = 5
             iteration = 0
@@ -556,18 +556,20 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
             while iteration < max_tool_iterations:
                 iteration += 1
                 
-                # Enviar para Gemini (primeira vez: pacote_envio, depois: histórico)
+                # Preparar envio para Gemini
                 if iteration == 1:
+                    # Primeira iteração: enviar mensagem + imagem
                     envio_atual = pacote_envio
                 else:
-                    envio_atual = historico_conversas
+                    # Iterações seguintes: enviar function responses como Parts
+                    envio_atual = tool_responses_pendentes if tool_responses_pendentes else pacote_envio
                 
-                # ✓ USAR CONFIG COM TOOLS (não criar nova sem tools!)
+                # USAR CONFIG COM TOOLS (não criar nova sem tools!)
                 config_com_temp = types.GenerateContentConfig(
                     system_instruction=self.config_com_tools.system_instruction,
                     temperature=temperatura,
-                    tool_config=self.config_com_tools.tool_config,  # ← PRESERVAR tool_config
-                    tools=getattr(self.config_com_tools, 'tools', None)  # ← PRESERVAR tools
+                    tool_config=self.config_com_tools.tool_config,  # PRESERVAR tool_config
+                    tools=getattr(self.config_com_tools, 'tools', None)  # PRESERVAR tools
                 )
                 
                 response = await asyncio.to_thread(
@@ -581,7 +583,7 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                     'has_function_calls': bool(getattr(response, 'function_calls', False))
                 })
                 
-                # ✓ DEBUG: Log se há text na resposta (sem tool calling)
+                # DEBUG: Log se há text na resposta (sem tool calling)
                 response_text = response.text if hasattr(response, 'text') else "[SEM TEXTO]"
                 if response_text:
                     print(f"[GEMINI] Iteração {iteration} - Texto: {response_text[:100]}...")
@@ -589,7 +591,11 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                 # Verificar se há function calls na resposta
                 fn_calls = getattr(response, 'function_calls', None)
                 if fn_calls:
-                    print(f"[TOOL_CALLING] ✓ Detectadas {len(list(fn_calls))} function calls!")
+                    print(f"[TOOL_CALLING] Detectadas {len(list(fn_calls))} function calls!")
+                    
+                    # Limpar lista de respostas pendentes para esta iteração
+                    ferramenta_responses_desta_iteracao = []
+                    
                     for fn_call in fn_calls:
                         fn_name = getattr(fn_call, 'name', 'unknown')
                         fn_args = getattr(fn_call, 'args', {})
@@ -615,50 +621,34 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                                     'result': str(tool_result)[:100]
                                 })
                                 
-                                # Adicionar ao histórico para continuar conversa
-                                historico_conversas.append({
-                                    "role": "model",
-                                    "parts": [{"functionCall": {
-                                        "name": fn_name,
-                                        "args": fn_args if isinstance(fn_args, dict) else {}
-                                    }}]
-                                })
-                                
-                                historico_conversas.append({
-                                    "role": "user",
-                                    "parts": [{"functionResponse": {
-                                        "name": fn_name,
-                                        "response": {
+                                # Criar Part com FunctionResponse (formato correto para SDK nova)
+                                response_part = types.Part(
+                                    function_response=types.FunctionResponse(
+                                        name=fn_name,
+                                        response={
                                             "result": str(tool_result),
                                             "success": True
                                         }
-                                    }}]
-                                })
+                                    )
+                                )
+                                ferramenta_responses_desta_iteracao.append(response_part)
                             else:
                                 # Ferramenta não encontrada
                                 self.event_bus.emit('tool_error', {
                                     'tool_name': fn_name,
-                                    'error': f'Ferramenta "{fn_name}" não registrada'
+                                    'error': f'Ferramenta "{fn_name}" nao registrada'
                                 })
                                 
-                                historico_conversas.append({
-                                    "role": "model",
-                                    "parts": [{"functionCall": {
-                                        "name": fn_name,
-                                        "args": fn_args if isinstance(fn_args, dict) else {}
-                                    }}]
-                                })
-                                
-                                historico_conversas.append({
-                                    "role": "user",
-                                    "parts": [{"functionResponse": {
-                                        "name": fn_name,
-                                        "response": {
-                                            "error": f'Ferramenta não registrada',
+                                response_part = types.Part(
+                                    function_response=types.FunctionResponse(
+                                        name=fn_name,
+                                        response={
+                                            "error": f'Ferramenta nao registrada',
                                             "success": False
                                         }
-                                    }}]
-                                })
+                                    )
+                                )
+                                ferramenta_responses_desta_iteracao.append(response_part)
                         
                         except Exception as e:
                             self.event_bus.emit('tool_error', {
@@ -666,26 +656,19 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                                 'error': str(e)
                             })
                             
-                            historico_conversas.append({
-                                "role": "model",
-                                "parts": [{"functionCall": {
-                                    "name": fn_name,
-                                    "args": fn_args if isinstance(fn_args, dict) else {}
-                                }}]
-                            })
-                            
-                            historico_conversas.append({
-                                "role": "user",
-                                "parts": [{"functionResponse": {
-                                    "name": fn_name,
-                                    "response": {
+                            response_part = types.Part(
+                                function_response=types.FunctionResponse(
+                                    name=fn_name,
+                                    response={
                                         "error": str(e),
                                         "success": False
                                     }
-                                }}]
-                            })
+                                )
+                            )
+                            ferramenta_responses_desta_iteracao.append(response_part)
                     
-                    # Continuar loop para processar próxima resposta do Gemini
+                    # Atualizar lista de respostas pendentes para próxima iteração
+                    tool_responses_pendentes = ferramenta_responses_desta_iteracao
                 
                 else:
                     # Sem function calls, temos texto final
