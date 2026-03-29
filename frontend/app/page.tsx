@@ -32,7 +32,6 @@ interface Message {
 
 export default function QuintaFeiraInterface() {
   const [wsConnected, setWsConnected] = useState(false);
-  const [cloudMode, setCloudMode] = useState(false);  // ← Track cloud fallback
   const [statusLabel, setStatusLabel] = useState("Conectando...");
   const [mensagem, setMensagem] = useState("");
   const [historico, setHistorico] = useState<Message[]>([]);
@@ -140,15 +139,14 @@ export default function QuintaFeiraInterface() {
           console.log(`[WS] URL: ${wsUrl}`);
         }
 
-        // ⏱️ Set timeout para conexão - se demorar >5s, assumir que PC está offline
+        // ⏱️ Set timeout para conexão
         const timeout = setTimeout(() => {
           if (ws.current && ws.current.readyState === WebSocket.CONNECTING) {
-            console.log("[WS] Timeout na conexão - assumindo PC offline");
+            console.log("[WS] Timeout na conexão - reconectando");
             ws.current?.close();
             setWsConnected(false);
-            setCloudMode(true);
-            setStatusLabel("Modo Nuvem (PC offline)");
-            setToast("🌐 PC não respondeu. Ativando Modo Nuvem...");
+            setStatusLabel("Reconectando...");
+            setToast("⚠️ Timeout - aguardando backend...");
           }
         }, 5000);
 
@@ -158,7 +156,7 @@ export default function QuintaFeiraInterface() {
           clearTimeout(timeout);
           wsConnectAttempts.current = 0;  // Reset attempt counter
           setWsConnected(true);
-          setCloudMode(false);  // Desativar modo nuvem
+
           setStatusLabel("Online");
           setToast("Núcleo conectado. Pronto para comandos.");
         };
@@ -235,32 +233,21 @@ export default function QuintaFeiraInterface() {
           // Incrementar tentativas de reconexão
           wsConnectAttempts.current += 1;
           
-          if (wsConnectAttempts.current >= 2) {
-            // Depois de 2 falhas, ativar modo nuvem
-            setCloudMode(true);
-            setStatusLabel("🌐 Modo Nuvem (PC offline)");
-            console.log("[WS] PC não acessível - ativando modo nuvem permanente");
-            setToast("🌐 Modo Nuvem ativado. PC indisponível.");
-          } else {
-            // Primeira falha: tentar reconectar em 2.5s
-            setStatusLabel("Reconectando...");
-            console.log(`[WS] Tentativa de reconexão ${wsConnectAttempts.current}...`);
-            setTimeout(connectWebSocket, 2500);
-          }
+          // Tentar reconectar em 2.5s
+          setStatusLabel("Reconectando...");
+          console.log(`[WS] Tentativa de reconexão ${wsConnectAttempts.current}...`);
+          setTimeout(connectWebSocket, 2500);
         };
 
         ws.current.onerror = (error) => {
           console.error("[WS] Erro WebSocket:", error);
           setWsConnected(false);
-          if (!cloudMode) {
-            setStatusLabel("Erro na conexão...");
-          }
+          setStatusLabel("Erro na conexão...");
         };
       } catch (err) {
         console.error("[WS] Erro ao inicializar:", err);
-        setCloudMode(true);
-        setStatusLabel("🌐 Modo Nuvem (erro)");
-        setToast("Fallback para Modo Nuvem.");
+        setStatusLabel("Erro ao inicializar WebSocket");
+        setToast("Erro na conexão. Reconectando...")
       }
     };
 
@@ -277,57 +264,7 @@ export default function QuintaFeiraInterface() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // ✓ NOVO: MODO NUVEM - Fallback para API REST quando PC offline
-  const enviarModoNuvem = async (textoEntrada: string) => {
-    try {
-      console.log("[CLOUD] Enviando via API REST (PC offline)");
-      setToast("🌐 Enviando via Modo Nuvem...");
-      
-      // Get API URL from env or construct default
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      if (!apiUrl) {
-        // Default: same host as frontend (SSR-SAFE)
-        const isBrowser = typeof window !== 'undefined';
-        if (isBrowser) {
-          const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-          const host = window.location.host;  // includes port if non-standard
-          apiUrl = `${protocol}//${host}/api/chat`;
-        } else {
-          // Fallback para SSR
-          apiUrl = "http://127.0.0.1:3000/api/chat";
-        }
-      }
-      
-      if (process.env.NEXT_PUBLIC_DEBUG === 'true') {
-        console.log(`[CLOUD] API URL: ${apiUrl}`);
-      }
-      
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: textoEntrada,
-          user_id: "matheus_admin",
-          mode: "cloud"
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      const botResponse = data.response || data.text || "Erro ao processar";
-      
-      setHistorico(prev => [...prev, { role: "Quinta-Feira", content: botResponse }]);
-      setToast("✓ Resposta recebida (Modo Nuvem)");
-      setIsLoading(false);
-    } catch (error) {
-      console.error("[CLOUD] Erro na API:", error);
-      setToast("❌ Modo Nuvem indisponível. Verifique a configuração.");
-      setIsLoading(false);
-    }
-  };
+
 
   const enviarMensagemTexto = (textoEntrada: string = mensagem) => {
     if (textoEntrada.trim() === "") return;
@@ -336,27 +273,20 @@ export default function QuintaFeiraInterface() {
     setHistorico(prev => [...prev, { role: "Quinta-Feira", content: "" }]);
     setIsLoading(true);
 
-    // ✓ NOVO: Decidir entre PC (WebSocket) ou Nuvem (REST)
-    if (wsConnected && ws.current && !cloudMode) {
-      // VM conectada: usar WebSocket
-      const payload = JSON.stringify({
-        type: "chat",
-        payload: textoEntrada,
-        message: textoEntrada,
-        user_id: "matheus_admin"
-      });
-      
-      try {
-        ws.current.send(payload);
-      } catch (err) {
-        console.error("[MSG] Erro ao enviar via WebSocket:", err);
-        setCloudMode(true);
-        enviarModoNuvem(textoEntrada);
-      }
-    } else {
-      // PC offline: usar Modo Nuvem
-      console.log("[MSG] Enviando via Modo Nuvem");
-      enviarModoNuvem(textoEntrada);
+    // ✓ Sempre usar WebSocket (conectado a backend via Ngrok ou local)
+    const payload = JSON.stringify({
+      type: "chat",
+      payload: textoEntrada,
+      message: textoEntrada,
+      user_id: "matheus_admin"
+    });
+    
+    try {
+      ws.current?.send(payload);
+    } catch (err) {
+      console.error("[MSG] Erro ao enviar via WebSocket:", err);
+      setToast("Erro ao enviar mensagem. Verifique a conexão.");
+      setIsLoading(false);
     }
     
     if (textoEntrada === mensagem) setMensagem("");
@@ -401,11 +331,11 @@ export default function QuintaFeiraInterface() {
             </div>
 
             <div className={`rounded-full border px-4 py-1.5 text-xs font-medium tracking-wide flex items-center gap-2 ${
-              wsConnected && !cloudMode 
+              wsConnected
                 ? "border-cyan-300/50 bg-cyan-300/12 text-cyan-100" 
                 : "border-amber-200/50 bg-amber-200/15 text-amber-100"
             }`}>
-              {wsConnected && !cloudMode ? (
+              {wsConnected ? (
                 <>
                   <span className="h-2 w-2 rounded-full bg-cyan-300 animate-pulse" />
                   NÚCLEO ONLINE
@@ -413,7 +343,7 @@ export default function QuintaFeiraInterface() {
               ) : (
                 <>
                   <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse" />
-                  {cloudMode ? "🌐 MODO NUVEM" : statusLabel.toUpperCase()}
+                  {statusLabel.toUpperCase()}
                 </>
               )}
             </div>
@@ -475,23 +405,18 @@ export default function QuintaFeiraInterface() {
                 <input
                   value={mensagem}
                   onChange={(e) => setMensagem(e.target.value)}
-                  placeholder={cloudMode ? "Comando de nuvem (sem ferramentas PC)..." : "Digite seu comando"}
+                  placeholder="Digite seu comando"
                   className="w-full rounded-xl border border-cyan-100/20 bg-slate-900/40 px-4 py-3 text-sm text-cyan-50 placeholder:text-cyan-50/40 outline-none transition focus:border-cyan-200/70"
-                  disabled={isLoading || (!wsConnected && !cloudMode)}
+                  disabled={isLoading}
                 />
                 <button
                   type="submit"
-                  disabled={isLoading || (!wsConnected && !cloudMode) || !mensagem.trim()}
+                  disabled={isLoading || !mensagem.trim()}
                   className="rounded-xl border border-cyan-100/30 bg-cyan-200 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {isLoading ? "..." : "Enviar"}
                 </button>
               </form>
-              {cloudMode && (
-                <p className="mt-2 text-xs text-amber-200">
-                  ⚠️  Modo Nuvem: sem acesso a Spotify, YouTube, Terminal ou automação local
-                </p>
-              )}
             </div>
           </section>
 
@@ -499,15 +424,12 @@ export default function QuintaFeiraInterface() {
             <section className="rounded-2xl border border-cyan-100/15 bg-black/25 p-4">
               <h2 className="text-sm font-semibold text-cyan-50">Voz</h2>
               <p className="mt-1 text-xs text-cyan-50/60">
-                {cloudMode 
-                  ? "Voz disponível em Modo Nuvem"
-                  : "Diga \"Quinta-Feira\" e depois o comando."
-                }
+                Diga \"Quinta-Feira\" e depois o comando.
               </p>
               <div className="mt-4">
                 <VoiceControl 
                   onCommand={(command) => enviarMensagemTexto(command)} 
-                  isDisabled={isLoading}  // ← Allow in cloud mode
+                  isDisabled={isLoading}
                   onBargein={handleBargeinRequested}
                   onBrowserWarning={(msg) => setToast(msg)}
                 />
@@ -522,8 +444,7 @@ export default function QuintaFeiraInterface() {
                     key={chip}
                     type="button"
                     onClick={() => enviarMensagemTexto(chip)}
-                    disabled={isLoading || (!wsConnected && !cloudMode)}
-                    title={cloudMode ? "Disponível em Modo Nuvem" : ""}
+                    disabled={isLoading}
                     className="rounded-full border border-cyan-100/20 bg-cyan-100/5 px-3 py-1.5 text-xs text-cyan-50/90 transition hover:bg-cyan-100/15 disabled:opacity-40"
                   >
                     {chip}
