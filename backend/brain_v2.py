@@ -250,13 +250,13 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
         # Inicializar sessão de chat COM FERRAMENTAS INJETADAS
         ferramentas_gemini = self._converter_ferramentas_para_gemini()
         
-        # ✓ CONSTRUIR CONFIG WITH TOOLS (não adicionar depois)
+        # CONSTRUIR CONFIG WITH TOOLS (não adicionar depois)
         config_dict = {
             "system_instruction": self.instrucao_sistema,
             "temperature": 0.55,
             "tool_config": types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(
-                    mode=types.FunctionCallingConfig.Mode.AUTO
+                    mode="AUTO"  # Usar string em vez de enum para compatibilidade
                 )
             )
         }
