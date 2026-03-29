@@ -598,7 +598,30 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                     
                     for fn_call in fn_calls:
                         fn_name = getattr(fn_call, 'name', 'unknown')
-                        fn_args = getattr(fn_call, 'args', {})
+                        fn_args_raw = getattr(fn_call, 'args', {})
+                        
+                        # DEBUG: Verificar tipo de args (pode ser protobuf, dict, ou iterador)
+                        print(f"[DEBUG] FunctionCall '{fn_name}' - args type: {type(fn_args_raw)}, value: {fn_args_raw}")
+                        
+                        # Converter args para dict se necessário
+                        fn_args = {}
+                        if isinstance(fn_args_raw, dict):
+                            fn_args = fn_args_raw
+                        elif hasattr(fn_args_raw, '__iter__') and not isinstance(fn_args_raw, (str, bytes)):
+                            # Tentar converter iterador/protobuf para dict
+                            try:
+                                fn_args = dict(fn_args_raw)
+                            except:
+                                # Se falhar, tentar acessar como protobuf
+                                try:
+                                    fn_args = {}
+                                    for key, value in fn_args_raw.items():
+                                        fn_args[key] = value
+                                except:
+                                    print(f"[WARN] Nao foi possivel converter args de {fn_name}")
+                                    fn_args = {}
+                        
+                        print(f"[DEBUG] Argumentos extraidos para '{fn_name}': {fn_args}")
                         
                         self.event_bus.emit('cortex_thinking', {
                             'step': 'executing_tool',
@@ -610,6 +633,8 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                             # Obter ferramenta do registry
                             tool = self.tool_registry.get_tool(fn_name)
                             if tool:
+                                print(f"[TOOL_CALLING] Executando {fn_name} com args: {fn_args}")
+                                
                                 # Executar com await se for async
                                 if asyncio.iscoroutinefunction(tool.execute):
                                     tool_result = await tool.execute(**fn_args)
