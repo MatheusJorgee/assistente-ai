@@ -29,23 +29,31 @@ class TocarMusicaSpotifyTool(Tool):
         self.spotify_client = spotify_client
     
     def validate_input(self, **kwargs) -> bool:
-        return 'pesquisa' in kwargs
+        # Aceitar tanto 'pesquisa' quanto 'query', 'track_query', etc
+        return ('pesquisa' in kwargs) or ('query' in kwargs) or ('track_query' in kwargs)
     
     async def execute(self, **kwargs) -> str:
         """
         Toca musica no Spotify.
         
         Args:
-            pesquisa (str): "Artista - Música" ou termo de busca
+            pesquisa (str): "Artista - Música" ou termo de busca (alias 1)
+            query (str): Termo de busca (alias 2 - do Gemini)
+            track_query (str): Termo de busca (alias 3)
             raciocinio (str): Contexto/razão (opcional)
             
         Returns:
             str: Resultado
         """
         if not self.spotify_client:
-            return "[ERRO] Spotify não configurado. Verifique SPOTIFY_CLIENT_ID e SPOTIFY_CLIENT_SECRET"
+            return "[ERRO] Spotify nao configurado. Verifique SPOTIFY_CLIENT_ID e SPOTIFY_CLIENT_SECRET"
         
-        pesquisa = kwargs.get('pesquisa', '').strip()
+        # Extrair pesquisa com fallback para multiplos nomes de parametro
+        pesquisa = (
+            kwargs.get('pesquisa', '').strip() or
+            kwargs.get('query', '').strip() or
+            kwargs.get('track_query', '').strip()
+        )
         raciocinio = kwargs.get('raciocinio', '')
         
         if raciocinio and self._event_bus:
@@ -107,23 +115,31 @@ class TocarYoutubeTool(Tool):
         self.youtube_controller = youtube_controller
     
     def validate_input(self, **kwargs) -> bool:
-        return 'pesquisa' in kwargs
+        # Aceitar tanto 'pesquisa' quanto 'video_query' (ou 'query')
+        return ('pesquisa' in kwargs) or ('video_query' in kwargs) or ('query' in kwargs)
     
     async def execute(self, **kwargs) -> str:
         """
         Toca no YouTube.
         
         Args:
-            pesquisa (str): Termo de busca
+            pesquisa (str): Termo de busca (alias 1)
+            video_query (str): Termo de busca (alias 2 - do Gemini)
+            query (str): Termo de busca (alias 3)
             raciocinio (str): Contexto (opcional)
             
         Returns:
             str: Resultado
         """
         if not self.youtube_controller:
-            return "[ERRO] YouTube controller não configurado"
+            return "[ERRO] YouTube controller nao configurado"
         
-        pesquisa = kwargs.get('pesquisa', '').strip()
+        # Extrair pesquisa com fallback para multiplos nomes de parametro
+        pesquisa = (
+            kwargs.get('pesquisa', '').strip() or
+            kwargs.get('video_query', '').strip() or
+            kwargs.get('query', '').strip()
+        )
         raciocinio = kwargs.get('raciocinio', '')
         
         if raciocinio and self._event_bus:
@@ -234,25 +250,42 @@ class AbrirOuPesquisarTool(Tool):
         self.db = database
     
     def validate_input(self, **kwargs) -> bool:
-        return 'alvo' in kwargs and 'acao' in kwargs
+        # Aceitar variações de nomes: alvo, target, url, query para o alvo
+        # acao, action, command para a acao
+        tem_alvo = ('alvo' in kwargs) or ('target' in kwargs) or ('url' in kwargs) or ('query' in kwargs)
+        tem_acao = ('acao' in kwargs) or ('action' in kwargs) or ('command' in kwargs)
+        return tem_alvo and tem_acao
     
     async def execute(self, **kwargs) -> str:
         """
         Abre/pesquisa.
         
         Args:
-            alvo (str): App/URL/termo
-            acao (str): 'abrir', 'pesquisar', etc
+            alvo (str): App/URL/termo (aliases: target, url, query)
+            acao (str): 'abrir', 'pesquisar', etc (aliases: action, command)
             contexto (str): Contexto opcional (twitch, youtube, etc)
             
         Returns:
             str: Resultado
         """
         if not self.ui_controller:
-            return "[ERRO] UI Controller não configurado"
+            return "[ERRO] UI Controller nao configurado"
         
-        alvo = kwargs.get('alvo', '').strip()
-        acao = kwargs.get('acao', '').strip()
+        # Extrair alvo com fallback para multiplos nomes
+        alvo = (
+            kwargs.get('alvo', '').strip() or
+            kwargs.get('target', '').strip() or
+            kwargs.get('url', '').strip() or
+            kwargs.get('query', '').strip()
+        )
+        
+        # Extrair acao com fallback para multiplos nomes
+        acao = (
+            kwargs.get('acao', '').strip() or
+            kwargs.get('action', '').strip() or
+            kwargs.get('command', '').strip()
+        )
+        
         contexto = kwargs.get('contexto', 'web').strip().lower()
         
         # Usar Oráculo para desambiguação se necessário
