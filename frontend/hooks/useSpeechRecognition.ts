@@ -104,6 +104,9 @@ export function useSpeechRecognition({
   const [diagnostic, setDiagnostic] = useState("");
   const [lastTranscription, setLastTranscription] = useState<TranscriptionResult | null>(null);
   const [browserCompat, setBrowserCompat] = useState<BrowserCompatibility>({ isChrome: false, isBrave: false, isEdge: false });
+  
+  // ===== PREVENT INFINITE COMPAT UPDATES =====
+  const prevCompatRef = useRef<string>("");
 
   const getSpeechRecognitionConstructor = useCallback(() => {
     if (typeof window === "undefined") return undefined;
@@ -131,7 +134,13 @@ export function useSpeechRecognition({
     }
     
     const compat = { isChrome, isBrave, isEdge, warning };
-    setBrowserCompat(compat);
+    
+    // ===== ONLY UPDATE IF COMPAT ACTUALLY CHANGED =====
+    const compatJson = JSON.stringify(compat);
+    if (prevCompatRef.current !== compatJson) {
+      prevCompatRef.current = compatJson;
+      setBrowserCompat(compat);
+    }
     
     if (warning && onBrowserWarning) {
       onBrowserWarning(warning);
@@ -140,10 +149,11 @@ export function useSpeechRecognition({
     return compat;
   }, [onBrowserWarning]);
 
-  // Chamar ao mount
+  // Chamar ao mount (apenas uma vez)
   useEffect(() => {
     detectBrowserCompat();
-  }, [detectBrowserCompat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Validar que navegador suporta
   const isSupported = useCallback(() => {

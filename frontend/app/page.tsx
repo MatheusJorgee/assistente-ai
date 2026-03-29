@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -92,8 +92,13 @@ export default function QuintaFeiraInterface() {
     };
   }, [historico, isLoading]);
 
-  // ===== V1 BARGE-IN HANDLER =====
-  const handleBargeinRequested = () => {
+  // ===== MEMOIZED BROWSER WARNING HANDLER (prevent infinite loop) =====
+  const handleBrowserWarning = useCallback((msg: string) => {
+    setToast(msg);
+  }, []);
+
+  // ===== V1 BARGE-IN HANDLER (memoized to prevent infinite loops) =====
+  const handleBargeinRequested = useCallback(() => {
     console.log('[BARGE_IN] Interrompendo áudio da IA...');
     
     // 1. Parar áudio imediatamente
@@ -117,7 +122,7 @@ export default function QuintaFeiraInterface() {
     }
     
     setToast("🔄 Áudio interrompido. Aguardando seu comando...");
-  };
+  }, []);
 
   useEffect(() => {
     const connectWebSocket = () => {
@@ -431,7 +436,7 @@ export default function QuintaFeiraInterface() {
                   onCommand={(command) => enviarMensagemTexto(command)} 
                   isDisabled={isLoading}
                   onBargein={handleBargeinRequested}
-                  onBrowserWarning={(msg) => setToast(msg)}
+                  onBrowserWarning={handleBrowserWarning}
                 />
               </div>
             </section>
