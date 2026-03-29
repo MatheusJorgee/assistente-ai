@@ -95,5 +95,5 @@ def inicializar_ferramentas(
     resolve_target_tool = ResolverAlvoComAprendizadoTool(oraculo_engine, database)
     registry.register(resolve_target_tool, aliases=['resolve', 'disambiguate'])
     
-    print(f"✓ {len(registry.list_tools())} ferramentas registradas com sucesso")
+    print(f"[OK] {len(registry.list_tools())} ferramentas registradas com sucesso")
     return registry
