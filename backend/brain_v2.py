@@ -104,9 +104,9 @@ class QuintaFeiraBrainV2:
         self.tempo_ultimo_print = 0
         self.visual_cache_ttl = 5  # 5 segundos
         
-        print("\n✓ [SISTEMA] Quinta-Feira Brain v2 Inicializada com sucesso")
-        print(f"✓ [SISTEMA] Ferramentas disponíveis: {len(self.tool_registry.list_tools())}")
-        print(f"✓ [SISTEMA] EventBus pronto para logs táticos")
+        print("\n[OK] [SISTEMA] Quinta-Feira Brain v2 Inicializada com sucesso")
+        print(f"[OK] [SISTEMA] Ferramentas disponíveis: {len(self.tool_registry.list_tools())}")
+        print(f"[OK] [SISTEMA] EventBus pronto para logs táticos")
     
     def _load_env(self) -> None:
         """Carrega .env com fallback para path absoluto."""
@@ -279,7 +279,7 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
         self.elevenlabs_key = os.getenv("ELEVENLABS_API_KEY", "")
         self.voice_id = self._buscar_voz_disponivel() if self.elevenlabs_key else ""
         
-        print("✓ [GENAI] Gemini + Chat session inicializados")
+        print("[OK] [GENAI] Gemini + Chat session inicializados")
     
     def _converter_ferramentas_para_gemini(self) -> list:
         """
@@ -291,20 +291,20 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
         ferramentas_gemini = []
         
         try:
-            # ✓ USAR get_all_tools() que retorna objetos Tool (não dicionários)
+            # USAR get_all_tools() que retorna objetos Tool (nao dicionarios)
             tools_disponiveis = self.tool_registry.get_all_tools()
             
             for tool in tools_disponiveis:
                 try:
-                    # ✓ Validação robusta: verificar se tool tem metadata
+                    # Validacao robusta: verificar se tool tem metadata
                     if not hasattr(tool, 'metadata') or not tool.metadata:
-                        print(f"⚠️  [TOOLS] Ferramenta sem metadata válida: {tool}")
+                        print(f"[WARN] [TOOLS] Ferramenta sem metadata valida: {tool}")
                         continue
                     
                     tool_name = tool.metadata.name
                     tool_desc = tool.metadata.description or f"Executa {tool_name}"
                     
-                    # ✓ SCHEMA CUSTOMIZADO POR TIPO DE FERRAMENTA
+                    # SCHEMA CUSTOMIZADO POR TIPO DE FERRAMENTA
                     properties = {}
                     required = []
                     
@@ -380,7 +380,7 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                         }
                         required = ["parametros"]
                     
-                    # ✓ CRIAR DECLARAÇÃO DE FUNÇÃO COM SCHEMA DETALHADO
+                    # CRIAR DECLARACAO DE FUNCAO COM SCHEMA DETALHADO
                     try:
                         tool_schema = types.Tool(
                             function_declarations=[
@@ -396,9 +396,9 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                             ]
                         )
                         ferramentas_gemini.append(tool_schema)
-                        print(f"✓ [TOOLS] {tool_name} → schema detalhado injetado")
+                        print(f"[OK] [TOOLS] {tool_name} - schema detalhado injetado")
                     except Exception as schema_err:
-                        print(f"⚠️  [TOOLS] Erro ao criar schema para {tool_name}: {schema_err}")
+                        print(f"[WARN] [TOOLS] Erro ao criar schema para {tool_name}: {schema_err}")
                         # Tentar criar sem schema customizado
                         try:
                             tool_schema = types.Tool(
@@ -410,26 +410,26 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                                 ]
                             )
                             ferramentas_gemini.append(tool_schema)
-                            print(f"✓ [TOOLS] {tool_name} → schema básico injetado (fallback)")
+                            print(f"[OK] [TOOLS] {tool_name} - schema basico injetado (fallback)")
                         except Exception as fallback_err:
-                            print(f"❌ [TOOLS] Falha ao injetar {tool_name} mesmo com fallback: {fallback_err}")
+                            print(f"[ERROR] [TOOLS] Falha ao injetar {tool_name} mesmo com fallback: {fallback_err}")
                             continue
                     
                 except Exception as e:
-                    print(f"⚠️  [TOOLS] Erro ao converter {getattr(tool, 'name', 'unknown')}: {e}")
+                    print(f"[WARN] [TOOLS] Erro ao converter {getattr(tool, 'name', 'unknown')}: {e}")
                     import traceback
                     traceback.print_exc()
                     continue
             
             if ferramentas_gemini:
-                print(f"✓ [GENAI] {len(ferramentas_gemini)} ferramentas com schemas EXPLÍCITOS para Gemini")
-                print(f"✓ [GENAI] ToolConfig mode=AUTO garantido (tool calling OBRIGATÓRIO)")
+                print(f"[OK] [GENAI] {len(ferramentas_gemini)} ferramentas com schemas para Gemini")
+                print(f"[OK] [GENAI] ToolConfig mode=AUTO garantido (tool calling ativado)")
             else:
-                print(f"⚠️  [GENAI] Nenhuma ferramenta disponível para injetar no modelo")
+                print(f"[WARN] [GENAI] Nenhuma ferramenta disponivel para injetar no modelo")
             
             return ferramentas_gemini
         except Exception as e:
-            print(f"❌ [TOOLS] ERRO CRÍTICO ao converter ferramentas: {e}")
+            print(f"[ERROR] [TOOLS] ERRO ao converter ferramentas: {e}")
             import traceback
             traceback.print_exc()
             return []

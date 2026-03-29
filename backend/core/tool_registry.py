@@ -143,7 +143,7 @@ class ToolRegistry:
             for alias in aliases:
                 self._aliases[alias] = name
         
-        print(f"✓ Ferramenta registrada: {name}")
+        print(f"[OK] Ferramenta registrada: {name}")
     
     async def execute(self, tool_name: str, **kwargs) -> str:
         """
@@ -175,6 +175,10 @@ class ToolRegistry:
             }
             for name, tool in self._tools.items()
         }
+    
+    def get_all_tools(self) -> list['Tool']:
+        """Retorna lista de todos os objetos Tool (para conversão a Gemini)."""
+        return list(self._tools.values())
     
     def get_tool(self, tool_name: str) -> Optional[Tool]:
         """Retorna a instância da ferramenta (para casos avançados)."""
