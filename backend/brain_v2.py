@@ -31,7 +31,7 @@ try:
     from backend.tools import inicializar_ferramentas
     from backend.database import BaseDadosMemoria
     from backend.oracle import OraculoEngine
-    from backend.core.cortex_bilingue import get_cortex_bilingue  # ← V1 CORTEX
+    from backend.core.cortex_bilingue import get_cortex_bilingue
 except ModuleNotFoundError:
     try:
         # Se rodando de dentro de backend/
@@ -39,7 +39,7 @@ except ModuleNotFoundError:
         from tools import inicializar_ferramentas
         from database import BaseDadosMemoria
         from oracle import OraculoEngine
-        from core.cortex_bilingue import get_cortex_bilingue  # ← V1 CORTEX
+        from core.cortex_bilingue import get_cortex_bilingue
     except ModuleNotFoundError as e2:
         raise ImportError(f"Nao conseguiu importar modulos core: {e2}")
 
@@ -169,6 +169,29 @@ Você é Quinta-Feira, a parceira de engenharia do Matheus.
 Personalidade: brilhante, pragmática, direta, humor seco, leal, sem teatralidade.
 Nunca use emojis. Evite frases como "como uma IA" ou "como um modelo de linguagem".
 
+🚨 PROIBIÇÃO ABSOLUTA DE MARKDOWN 🚨
+INSTRUÇÃO CRÍTICA: Suas respostas SERÃO CONVERTIDAS PARA VOZ VIA TEXT-TO-SPEECH.
+RESULTADO: Se você usar Markdown, o utilizador ouvirá asteriscos, hashtags, e símbolos.
+
+PROIBIDO (vai estragar o áudio):
+✗ **negrito** (o TTS lerá "asterisco asterisco negrito asterisco asterisco")
+✗ *itálico* (o TTS lerá "asterisco itálico asterisco")
+✗ #Cabeçalho (o TTS lerá "hashtag Cabeçalho")
+✗ `código` (o TTS lerá "crase código crase")
+✗ - Lista com hífens
+✗ 1. Listas numeradas
+✗ | Tabelas |
+✗ MAIÚSCULAS EXCESSIVAS
+
+OBRIGATÓRIO (texto limpo e natural):
+✓ Texto puro e natural, como numa conversa
+✓ Use conectivos: "Primeiro..., Depois..., Além disso..., Por fim..."
+✓ Parágrafos naturais, sem formatação
+✓ Se precisa destaque, use APENAS maiúsculas pontuais (ex: "MUY IMPORTANTE" em meia dúzia de palavras)
+✓ Se precisa listas, escreva: "Tem três pontos: um é..., dois é..., três é..."
+
+REGRA DE OURO: Responda como se estivesse a FALAR ao Matheus no Messenger.
+
 🚨 DOUTRINA INQUEBRÁVEL - FERRAMENTAS (ENFORCE AGRESSIVAMENTE)
 REGRA ABSOLUTA: Se você tem uma ferramenta para fazer algo, EXECUTE-A IMEDIATAMENTE.
 NÃO EXPLIQUE O QUE PODES FAZER. SÓ FAZ.
@@ -190,14 +213,6 @@ REGRA: Qualquer negação é FALSA. Se está na lista de ferramentas, tem capaci
 PRIORIDADE OPERACIONAL
 A última mensagem do usuário tem prioridade absoluta.
 Se o usuário pedir um tom, ritmo ou tamanho específico, aplique IMEDIATAMENTE e temporariamente.
-
-PROTOCOLO VOICE FIRST  
-Responda em texto puro, natural, sem formatação Markdown.
-Proibições de formatação:
-✗ Asteriscos (*), cerquilhas (#), crases (`), maiúsculas CEM POR CENTO
-✗ Listas com hífens ou números
-✗ Tabelas
-✓ Organize com conectivos naturais: "Primeiro..., Depois..., Além disso..., Por fim..."
 
 PROTOCOLO DE ENSINO (quando aplicável)
 Explique em parágrafos curtos, linguagem conversacional.
@@ -265,9 +280,8 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
         if ferramentas_gemini:
             config_dict["tools"] = ferramentas_gemini
         
-        # ✓ GUARDAR CONFIG COM TOOLS PARA REUTILIZAR NO LOOP
         config_chat = types.GenerateContentConfig(**config_dict)
-        self.config_com_tools = config_chat  # ← Armazenar para send_message
+        self.config_com_tools = config_chat
         
         # Criar sessão com config completo
         self.chat_session = self.client.chats.create(
@@ -600,36 +614,22 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                         fn_name = getattr(fn_call, 'name', 'unknown')
                         fn_args_raw = getattr(fn_call, 'args', {})
                         
-                        # DEBUG: Verificar tipo de args (pode ser protobuf, dict, ou iterador)
-                        print(f"[DEBUG] FunctionCall '{fn_name}' - args type: {type(fn_args_raw)}")
-                        
                         # Converter args para dict - suportar multiplos formatos
                         fn_args = {}
                         if isinstance(fn_args_raw, dict):
-                            # Caso 1: Dict Python normal
                             fn_args = fn_args_raw
-                            print(f"[DEBUG] Args eh dict Python: {fn_args}")
                         elif hasattr(fn_args_raw, 'items') and callable(getattr(fn_args_raw, 'items')):
-                            # Caso 2: Objeto com metodo items() (protobuf, Mapping, etc)
                             try:
                                 fn_args = dict(fn_args_raw.items())
-                                print(f"[DEBUG] Args convertido de .items(): {fn_args}")
-                            except Exception as e:
-                                print(f"[DEBUG] Erro ao usar .items(): {e}")
+                            except:
                                 fn_args = {}
                         elif fn_args_raw:
-                            # Caso 3: Tentar converter diretamente
                             try:
                                 fn_args = dict(fn_args_raw)
-                                print(f"[DEBUG] Args convertido via dict(): {fn_args}")
-                            except Exception as e:
-                                print(f"[DEBUG] Nao foi possivel converter args: {e}")
+                            except:
                                 fn_args = {}
                         else:
-                            print(f"[DEBUG] Args vazio/None, usando dict vazio")
                             fn_args = {}
-                        
-                        print(f"[DEBUG] Argumentos finais para '{fn_name}': {fn_args}")
                         
                         self.event_bus.emit('cortex_thinking', {
                             'step': 'executing_tool',
@@ -641,8 +641,6 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                             # Obter ferramenta do registry
                             tool = self.tool_registry.get_tool(fn_name)
                             if tool:
-                                print(f"[TOOL_CALLING] Executando '{fn_name}' com args: {fn_args}")
-                                
                                 # Executar com await se for async
                                 if asyncio.iscoroutinefunction(tool.execute):
                                     tool_result = await tool.execute(**fn_args)
