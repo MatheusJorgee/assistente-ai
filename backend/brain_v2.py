@@ -284,9 +284,9 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
     def _converter_ferramentas_para_gemini(self) -> list:
         """
         Converte ferramentas do ToolRegistry para formato types.Tool do Gemini SDK.
-        Com schemas EXPLÍCITOS para garantir que Gemini chame as ferramentas.
+        Usa schema basico por compatibilidade com Pydantic.
         
-        Retorna lista de types.Tool com schema JSON detalhado para cada ferramenta.
+        Retorna lista de types.Tool.
         """
         ferramentas_gemini = []
         
@@ -304,126 +304,28 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                     tool_name = tool.metadata.name
                     tool_desc = tool.metadata.description or f"Executa {tool_name}"
                     
-                    # SCHEMA CUSTOMIZADO POR TIPO DE FERRAMENTA
-                    properties = {}
-                    required = []
-                    
-                    # Mapear ferramentas conhecidas com schemas específicos
-                    if "spotify" in tool_name.lower() or "play" in tool_name.lower():
-                        properties = {
-                            "pesquisa": types.Schema(
-                                type_="STRING",
-                                description="Nome da música, artista ou álbum para tocar. Ex: 'The Weeknd - Blinding Lights'"
-                            ),
-                            "raciocinio": types.Schema(
-                                type_="STRING",
-                                description="(Opcional) Motivo ou contexto da busca"
-                            )
-                        }
-                        required = ["pesquisa"]
-                    
-                    elif "youtube" in tool_name.lower():
-                        properties = {
-                            "query": types.Schema(
-                                type_="STRING",
-                                description="Termo de busca no YouTube. Ex: 'Ariana Grande - Into You'"
-                            ),
-                            "autoplay": types.Schema(
-                                type_="BOOLEAN",
-                                description="Se deve autoplay ou apenas abrir"
-                            )
-                        }
-                        required = ["query"]
-                    
-                    elif "capture" in tool_name.lower() or "vision" in tool_name.lower():
-                        properties = {
-                            "uso": types.Schema(
-                                type_="STRING",
-                                description="Propósito da captura. Ex: 'screenshot', 'analyze', 'show_screen'"
-                            )
-                        }
-                        required = ["uso"]
-                    
-                    elif "terminal" in tool_name.lower() or "command" in tool_name.lower():
-                        properties = {
-                            "comando": types.Schema(
-                                type_="STRING",
-                                description="Comando a executar no terminal. Ex: 'dir /s' no Windows"
-                            ),
-                            "timeout": types.Schema(
-                                type_="NUMBER",
-                                description="Timeout em segundos (padrão: 30)"
-                            )
-                        }
-                        required = ["comando"]
-                    
-                    elif "memoria" in tool_name.lower() or "memory" in tool_name.lower():
-                        properties = {
-                            "texto": types.Schema(
-                                type_="STRING",
-                                description="Informação a guardar na memória"
-                            ),
-                            "categoria": types.Schema(
-                                type_="STRING",
-                                description="Categoria: 'importante', 'tarefa', 'conversa', 'preferencia'"
-                            )
-                        }
-                        required = ["texto"]
-                    
-                    else:
-                        # Fallback genérico MAS com propriedades claras
-                        properties = {
-                            "parametros": types.Schema(
-                                type_="STRING",
-                                description=f"Parâmetros de entrada para {tool_name}"
-                            )
-                        }
-                        required = ["parametros"]
-                    
-                    # CRIAR DECLARACAO DE FUNCAO COM SCHEMA DETALHADO
+                    # CRIAR DECLARACAO DE FUNCAO COM SCHEMA BASICO (compativel com Pydantic)
                     try:
                         tool_schema = types.Tool(
                             function_declarations=[
                                 types.FunctionDeclaration(
                                     name=tool_name,
-                                    description=tool_desc,
-                                    parameters=types.Schema(
-                                        type_="OBJECT",
-                                        properties=properties,
-                                        required=required
-                                    )
+                                    description=tool_desc
                                 )
                             ]
                         )
                         ferramentas_gemini.append(tool_schema)
-                        print(f"[OK] [TOOLS] {tool_name} - schema detalhado injetado")
+                        print(f"[OK] [TOOLS] {tool_name} - injetado no Gemini")
                     except Exception as schema_err:
-                        print(f"[WARN] [TOOLS] Erro ao criar schema para {tool_name}: {schema_err}")
-                        # Tentar criar sem schema customizado
-                        try:
-                            tool_schema = types.Tool(
-                                function_declarations=[
-                                    types.FunctionDeclaration(
-                                        name=tool_name,
-                                        description=tool_desc
-                                    )
-                                ]
-                            )
-                            ferramentas_gemini.append(tool_schema)
-                            print(f"[OK] [TOOLS] {tool_name} - schema basico injetado (fallback)")
-                        except Exception as fallback_err:
-                            print(f"[ERROR] [TOOLS] Falha ao injetar {tool_name} mesmo com fallback: {fallback_err}")
-                            continue
+                        print(f"[WARN] [TOOLS] Erro ao injetar {tool_name}: {schema_err}")
+                        continue
                     
                 except Exception as e:
                     print(f"[WARN] [TOOLS] Erro ao converter {getattr(tool, 'name', 'unknown')}: {e}")
-                    import traceback
-                    traceback.print_exc()
                     continue
             
             if ferramentas_gemini:
-                print(f"[OK] [GENAI] {len(ferramentas_gemini)} ferramentas com schemas para Gemini")
-                print(f"[OK] [GENAI] ToolConfig mode=AUTO garantido (tool calling ativado)")
+                print(f"[OK] [GENAI] {len(ferramentas_gemini)} ferramentas injetadas no Gemini")
             else:
                 print(f"[WARN] [GENAI] Nenhuma ferramenta disponivel para injetar no modelo")
             
