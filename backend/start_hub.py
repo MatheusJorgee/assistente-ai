@@ -124,13 +124,14 @@ def start_ngrok_tunnel(port: int, auth_token: str = None, public: bool = False):
         print(f"[NGROK] ❌ Erro ao estabelecer túnel: {e}")
         return None
 
-def display_access_info(local_url: str, public_url: str = None):
+def display_access_info(local_url: str, public_url: str = None, port: int = 8001):
     """
     Exibir informações de acesso
     
     Args:
         local_url: URL local (localhost)
         public_url: URL pública (ngrok)
+        port: Porta do servidor (default: 8001)
     """
     print("\n" + "="*60)
     print("📡 INFORMAÇÕES DE ACESSO")
@@ -158,7 +159,7 @@ def display_access_info(local_url: str, public_url: str = None):
         print(f"NEXT_PUBLIC_WS_PATH=/ws")
     else:
         print(f"\nNEXT_PUBLIC_WS_HOST=127.0.0.1")
-        print(f"NEXT_PUBLIC_WS_PORT={args.port if hasattr(args, 'port') else 8000}")
+        print(f"NEXT_PUBLIC_WS_PORT={port}")
         print(f"NEXT_PUBLIC_WS_PATH=/ws")
     
     print("\n" + "="*60)
@@ -207,7 +208,7 @@ def main():
             print("[NGROK] ⚠️  Continuando sem túnel público...")
     
     # Exibir informações de acesso
-    display_access_info(local_url, public_url)
+    display_access_info(local_url, public_url, args.port)
     
     # Mensagem final
     print("\n[✓] Quinta-Feira Hub pronto! Iniciando Uvicorn...\n")
