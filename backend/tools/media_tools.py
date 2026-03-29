@@ -6,7 +6,10 @@ import asyncio
 import os
 from typing import Dict, Any
 
-from backend.core.tool_registry import Tool, ToolMetadata
+try:
+    from backend.core.tool_registry import Tool, ToolMetadata
+except ModuleNotFoundError:
+    from core.tool_registry import Tool, ToolMetadata
 
 
 class TocarMusicaSpotifyTool(Tool):
@@ -131,10 +134,16 @@ class TocarYoutubeTool(Tool):
             })
         
         try:
-            result = await asyncio.to_thread(
-                self.youtube_controller,
-                pesquisa
-            )
+            # ✓ CRÍTICO: Se o controller tem método async, usar async (NÃO bloqueia event loop)
+            if hasattr(self.youtube_controller, 'async_tocar_youtube_invisivel'):
+                # Chamar versão async diretamente
+                result = await self.youtube_controller.async_tocar_youtube_invisivel(pesquisa)
+            else:
+                # Fallback: executar em thread (bloqueia ligeiramente)
+                result = await asyncio.to_thread(
+                    self.youtube_controller,
+                    pesquisa
+                )
             
             if self._event_bus:
                 self._event_bus.emit('action_terminal', {

@@ -2,7 +2,7 @@
 Core arquitetural: Tool Registry, DI Container, EventBus + v2.1 Modules.
 """
 
-from .tool_registry import (
+from .core.tool_registry import (
     Tool,
     ToolMetadata,
     ToolRegistry,
@@ -12,13 +12,13 @@ from .tool_registry import (
 )
 
 # v2.1 Modules
-from .latency_aware import (
+from .core.latency_aware import (
     LatencyAwarenessDetector,
     TaskComplexity,
     IntermediateMessage
 )
 
-from .media_queue import (
+from .core.media_queue import (
     create_media_queue,
     MediaQueue,
     MediaState,
@@ -26,19 +26,19 @@ from .media_queue import (
     LoopMode
 )
 
-from .browser_detection import (
+from .core.browser_detection import (
     create_browser_detector,
     BrowserDetector,
     BrowserType
 )
 
-from .search_reasoning import (
+from .core.search_reasoning import (
     DescriptiveSearchReasoningEngine,
     SearchResult,
     SearchConfidenceLevel
 )
 
-from .preferences import (
+from .core.preferences import (
     create_preferences_engine,
     PreferenceRulesEngine,
     RuleCondition,
@@ -47,7 +47,7 @@ from .preferences import (
 )
 
 # New: YouTube Loop + WhatsApp
-from .youtube_loop import (
+from .core.youtube_loop import (
     create_youtube_loop_manager,
     YouTubeLoopManager,
     YouTubeLoopMode,
@@ -55,7 +55,7 @@ from .youtube_loop import (
     LoopSession as YouTubeLoopSession
 )
 
-from .whatsapp_sender import (
+from .core.whatsapp_sender import (
     create_whatsapp_sender,
     WhatsAppMessageSender,
     WhatsAppMessage,

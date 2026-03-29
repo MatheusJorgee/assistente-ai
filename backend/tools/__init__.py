@@ -5,16 +5,30 @@ Registra todas as ferramenta no ToolRegistry.
 
 from typing import Optional
 
-from backend.core.tool_registry import get_di_container
-from backend.tools.terminal_tools import ExecutarTerminalTool, AprenderemExecutarTool
-from backend.tools.media_tools import (
-    TocarMusicaSpotifyTool,
-    TocarYoutubeTool,
-    ControlarReproducaoTool,
-    AbrirOuPesquisarTool
-)
-from backend.tools.vision_tools import CapturarVisaoTool, AnalisarVisaoComGeminiTool
-from backend.tools.memory_tools import GuardarMemoriaTool, BuscarMemoriaTool, ResolverAlvoComAprendizadoTool
+# Imports resilientes para funcionar de qualquer cwd
+try:
+    from backend.core.tool_registry import get_di_container
+    from backend.tools.terminal_tools import ExecutarTerminalTool, AprenderemExecutarTool
+    from backend.tools.media_tools import (
+        TocarMusicaSpotifyTool,
+        TocarYoutubeTool,
+        ControlarReproducaoTool,
+        AbrirOuPesquisarTool
+    )
+    from backend.tools.vision_tools import CapturarVisaoTool, AnalisarVisaoComGeminiTool
+    from backend.tools.memory_tools import GuardarMemoriaTool, BuscarMemoriaTool, ResolverAlvoComAprendizadoTool
+except ModuleNotFoundError:
+    # Fallback para modo script (quando rodado de dentro de backend)
+    from core.tool_registry import get_di_container
+    from tools.terminal_tools import ExecutarTerminalTool, AprenderemExecutarTool
+    from tools.media_tools import (
+        TocarMusicaSpotifyTool,
+        TocarYoutubeTool,
+        ControlarReproducaoTool,
+        AbrirOuPesquisarTool
+    )
+    from tools.vision_tools import CapturarVisaoTool, AnalisarVisaoComGeminiTool
+    from tools.memory_tools import GuardarMemoriaTool, BuscarMemoriaTool, ResolverAlvoComAprendizadoTool
 
 
 def inicializar_ferramentas(

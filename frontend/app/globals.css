@@ -1,5 +1,62 @@
 @import "tailwindcss";
 
+:root {
+    --bg-ink: #040c12;
+    --bg-deep: #0b1824;
+}
+
+html,
+body {
+    font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+    background: radial-gradient(1200px 700px at 12% 8%, #21455c 0%, transparent 55%),
+        radial-gradient(900px 600px at 88% 20%, #1d6256 0%, transparent 50%),
+        linear-gradient(160deg, var(--bg-ink), var(--bg-deep));
+}
+
+.aurora-bg {
+    position: relative;
+    background: linear-gradient(145deg, rgba(4, 15, 24, 0.9), rgba(6, 23, 36, 0.86));
+}
+
+.deck-bg {
+    position: relative;
+    background: radial-gradient(1100px 700px at 4% -2%, rgba(70, 187, 218, 0.24), transparent 42%),
+        radial-gradient(900px 700px at 96% 10%, rgba(233, 180, 90, 0.16), transparent 38%),
+        linear-gradient(168deg, #030910 0%, #09131f 62%, #111827 100%);
+}
+
+.hud-grid {
+    background-image: linear-gradient(rgba(123, 228, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(123, 228, 255, 0.08) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(circle at center, black 38%, transparent 100%);
+}
+
+.deck-card {
+    background: linear-gradient(160deg, rgba(13, 22, 31, 0.78), rgba(6, 13, 20, 0.72));
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(198, 245, 255, 0.08);
+    backdrop-filter: blur(16px);
+}
+
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(173, 251, 230, 0.45) rgba(255, 255, 255, 0.05);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(186, 247, 228, 0.7), rgba(93, 192, 208, 0.72));
+    border-radius: 999px;
+}
+
 /* Ocultar a barra de rolagem (scrollbar-hide) para um visual mais limpo na interface */
 .scrollbar-hide::-webkit-scrollbar {
     display: none;

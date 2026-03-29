@@ -9,7 +9,10 @@ from typing import Dict, Any, Optional, Tuple
 from PIL import Image, ImageGrab
 import io
 
-from backend.core.tool_registry import Tool, ToolMetadata
+try:
+    from backend.core.tool_registry import Tool, ToolMetadata
+except ModuleNotFoundError:
+    from core.tool_registry import Tool, ToolMetadata
 
 
 class CapturarVisaoTool(Tool):

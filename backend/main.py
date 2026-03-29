@@ -1,61 +1,324 @@
+"""
+FastAPI Backend v2.1 - Quinta-Feira AI Assistant
+Orquestrador Principal: WebSocket + REST API + Brain v2
+
+Suporte a:
+- WebSocket streaming com QuintaFeira Brain
+- REST API tradicional
+- CORS para localhost:3000
+- Auto-reload com uvicorn
+"""
+
 import asyncio
 import json
 import os
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from brain_v2 import QuintaFeiraBrain
+import logging
+from typing import Optional, Dict, Any
+from datetime import datetime
 
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+# ============ SETUP LOGGING ============
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(name)s] %(levelname)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# ============ IMPORTS CORE (COM FALLBACK) ============
+try:
+    from backend.brain_v2 import QuintaFeiraBrainV2
+except (ImportError, ModuleNotFoundError):
+    try:
+        from brain_v2 import QuintaFeiraBrainV2
+    except ImportError as e:
+        logger.error(f"ERRO CRÍTICO: Não conseguiu importar QuintaFeiraBrainV2: {e}")
+        QuintaFeiraBrainV2 = None
+
+# ============ INSTÂNCIA GLOBAL DO BRAIN ============
+brain: Optional[QuintaFeiraBrainV2] = None
+startup_errors = []
+
+async def initialize_brain():
+    """Inicializa o Brain v2 na startup"""
+    global brain, startup_errors
+    try:
+        logger.info("[INICIALIZANDO] Quinta-Feira Brain v2...")
+        brain = QuintaFeiraBrainV2()
+        logger.info("✓ [SISTEMA] Quinta-Feira Brain v2 Inicializada com sucesso")
+        return True
+    except Exception as e:
+        error_msg = f"✗ [ERRO] Falha ao inicializar Brain: {str(e)}"
+        logger.error(error_msg)
+        startup_errors.append(str(e))
+        return False
+
+# ============ FAST API APP ============
 app = FastAPI(
-    title="Quinta-Feira Modular Core v2",
-    description="Backend FastAPI com Tool Registry e Injeção de Dependência"
+    title="Quinta-Feira AI",
+    description="Backend para assistente de IA com controle por voz",
+    version="2.1"
 )
 
-
-def _parse_allowed_origins() -> list[str]:
-    raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
-    return [origin.strip() for origin in raw.split(",") if origin.strip()]
-
-
-ALLOWED_ORIGINS = _parse_allowed_origins()
-ALLOW_CREDENTIALS = os.getenv("ALLOW_CREDENTIALS", "false").lower() == "true"
-
+# ============ MIDDLEWARE CORS ============
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=ALLOW_CREDENTIALS,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-brain = QuintaFeiraBrain()
+# ============ ROTAS REST API ============
+
+@app.on_event("startup")
+async def startup_event():
+    """Inicializar recursos na startup"""
+    await initialize_brain()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Limpar recursos na shutdown"""
+    global brain
+    if brain:
+        logger.info("[SHUTDOWN] Finalizando Brain...")
+        brain = None
+
+@app.get("/health")
+async def health_check():
+    """Health check do backend"""
+    return {
+        "status": "healthy" if brain else "degraded",
+        "brain_initialized": brain is not None,
+        "timestamp": datetime.now().isoformat(),
+        "startup_errors": startup_errors if startup_errors else None
+    }
+
+@app.get("/status")
+async def status():
+    """Status do sistema"""
+    if not brain:
+        return {
+            "status": "not_initialized",
+            "message": "Brain não foi inicializado",
+            "errors": startup_errors
+        }
+    
+    return {
+        "status": "ready",
+        "brain_version": "2.1",
+        "tools_loaded": len(brain.tool_registry.get_all_tools()) if hasattr(brain, 'tool_registry') else 0,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/api/chat")
+async def chat_rest(request: Dict[str, Any]):
+    """Endpoint REST tradicional para chat"""
+    if not brain:
+        raise HTTPException(status_code=503, detail="Brain não inicializado")
+    
+    message = request.get("message", "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    
+    try:
+        response = await brain.ask(message)
+        return {
+            "success": True,
+            "response": response,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Erro ao processar mensagem: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ WEBSOCKET ============
+
+class ConnectionManager:
+    """Gerenciador de conexões WebSocket"""
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+    
+    async def connect(self, websocket: WebSocket, client_id: str):
+        await websocket.accept()
+        self.active_connections[client_id] = websocket
+        logger.info(f"✓ Cliente conectado: {client_id}")
+    
+    async def disconnect(self, client_id: str):
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+            logger.info(f"✗ Cliente desconectado: {client_id}")
+    
+    async def send_personal(self, client_id: str, data: Dict[str, Any]):
+        if client_id in self.active_connections:
+            try:
+                await self.active_connections[client_id].send_json(data)
+            except Exception as e:
+                logger.error(f"Erro ao enviar para {client_id}: {e}")
+    
+    async def broadcast(self, data: Dict[str, Any]):
+        """Envia para todos os clientes conectados"""
+        for client_id, connection in list(self.active_connections.items()):
+            try:
+                await connection.send_json(data)
+            except Exception as e:
+                logger.error(f"Erro broadcast para {client_id}: {e}")
+
+manager = ConnectionManager()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    origin = websocket.headers.get("origin")
-    if origin and origin not in ALLOWED_ORIGINS:
-        await websocket.close(code=1008)
-        return
-
-    await websocket.accept()
-    print(">>> [CONEXÃO] Dispositivo host conectado.")
+    """WebSocket principal para comunicação com frontend"""
+    client_id = f"client_{id(websocket)}"
+    await manager.connect(websocket, client_id)
     
     try:
+        if not brain:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Backend não inicializado",
+                "errors": startup_errors
+            })
+            return
+        
         while True:
-            # Recebemos a mensagem do host
-            raw_data = await websocket.receive_text()
-            data = json.loads(raw_data)
+            # Recebe mensagem do cliente
+            data = await websocket.receive_text()
             
-            user_input = data.get("payload", "")
-            intent = data.get("type", "chat") 
-
-            if intent == "chat":
-                # O brain.ask devolve uma STRING no formato JSON perfeito: {"text": "...", "audio": "..."}
-                resposta_json_string = await asyncio.to_thread(brain.ask, user_input)
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                await manager.send_personal(client_id, {
+                    "type": "error",
+                    "message": "Formato inválido"
+                })
+                continue
+            
+            message_text = (
+                payload.get("message") or 
+                payload.get("payload") or 
+                payload.get("text") or
+                ""
+            ).strip()
+            
+            # ===== V1 BARGE-IN: Handle interrupt =====
+            if payload.get("type") == "interrupt":
+                logger.info(f"[INTERRUPT] Recebido de {client_id}: {payload.get('reason', 'user_speech_detected')}")
+                # TODO: Cancelar task de Brain ativa se houver
+                # Por enquanto, enviar ACK
+                await manager.send_personal(client_id, {
+                    "type": "interrupt_ack",
+                    "status": "interrupted",
+                    "timestamp": datetime.now().isoformat()
+                })
+                continue
+            
+            if not message_text:
+                continue
+            
+            logger.info(f"[MSG] {client_id}: {message_text}")
+            
+            try:
+                # Processa com Brain v2
+                response_json_str = await brain.ask(message_text)
                 
-                # CORREÇÃO ARQUITETURAL: Enviamos essa string diretamente! Sem criar "JSON dentro de JSON"
-                await websocket.send_text(resposta_json_string)
+                # Parse da resposta (brain retorna JSON com "text" e "audio")
+                try:
+                    response_data = json.loads(response_json_str)
+                    texto_resposta = response_data.get("text", "")
+                    audio_resposta = response_data.get("audio", "")
+                except json.JSONDecodeError:
+                    # Se não for JSON válido, tratar como texto puro
+                    texto_resposta = response_json_str
+                    audio_resposta = ""
                 
+                # ✓ ENVIAR SEPARADO: Texto primeiro
+                if texto_resposta:
+                    # ✓ VALIDAÇÃO: Certificar que não há Base64 no texto
+                    if texto_resposta.startswith("UklGR") or texto_resposta.startswith("SUQz"):
+                        logger.error("[P0] BASE64 DETECTADO NO TEXTO! Bloqueando envio")
+                        texto_resposta = "[ERRO] Base64 vazou no texto. Ativando apenas modo áudio."
+                    
+                    await manager.send_personal(client_id, {
+                        "type": "streaming",
+                        "content": texto_resposta,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                
+                # ✓ ENVIAR SEPARADO: Áudio depois (se existir)
+                if audio_resposta:
+                    # ✓ VALIDAÇÃO: Certificar que é Base64 válido e começa com header correto
+                    if audio_resposta and (audio_resposta.startswith("UklGR") or 
+                                          audio_resposta.startswith("SUQz") or
+                                          audio_resposta.startswith("ID3") or
+                                          audio_resposta.startswith("/+MYxA")):
+                        await manager.send_personal(client_id, {
+                            "type": "audio",
+                            "audio": audio_resposta,  # ✓ ISOLADO - BASE64 PURO
+                            "timestamp": datetime.now().isoformat()
+                        })
+                    else:
+                        logger.warning("[AUDIO] Formato inválido ou faltando header. Ignorando.")
+                
+                # ✓ ENVIAR SINAL DE CONCLUSÃO
+                await manager.send_personal(client_id, {
+                    "type": "complete",
+                    "status": "completed",
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+            except Exception as e:
+                logger.error(f"Erro ao processar mensagem: {e}", exc_info=True)
+                await manager.send_personal(client_id, {
+                    "type": "error",
+                    "message": str(e)
+                })
+    
     except WebSocketDisconnect:
-        print(">>> [LIMPEZA] Host desconectado. Encerrando sessão sem rastros.")
+        await manager.disconnect(client_id)
     except Exception as e:
-        print(f">>> [ERRO] Falha na orquestração: {e}")
+        logger.error(f"Erro WebSocket: {e}", exc_info=True)
+        await manager.disconnect(client_id)
+
+# ============ ROOT ============
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "name": "Quinta-Feira AI",
+        "version": "2.1",
+        "status": "online",
+        "endpoints": {
+            "ws": "/ws",
+            "api": "/api/chat",
+            "health": "/health",
+            "status": "/status"
+        }
+    }
+
+# ============ MAIN ============
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    port = int(os.getenv("PORT", 8000))
+    host = os.getenv("HOST", "127.0.0.1")
+    
+    logger.info(f"Iniciando servidor em {host}:{port}")
+    
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        reload=True,
+        log_level="info"
+    )

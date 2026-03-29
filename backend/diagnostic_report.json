@@ -1,0 +1,89 @@
+{
+  "timestamp": "2026-03-28T19:10:59.089447",
+  "checks": [
+    {
+      "name": "Python Version",
+      "passed": true,
+      "message": "Python 3.14.0",
+      "help": "Recomendado: Python 3.10+"
+    },
+    {
+      "name": "Diret\u00f3rio Correto",
+      "passed": true,
+      "message": "CWD: C:\\Users\\mathe\\Documents\\assistente-ai\\backend",
+      "help": "Execute de backend/ ou da raiz assistente-ai/"
+    },
+    {
+      "name": ".env File",
+      "passed": true,
+      "message": "Localiza\u00e7\u00e3o: C:\\Users\\mathe\\Documents\\assistente-ai\\backend\\.env",
+      "help": "Crie com: cp .env.example .env"
+    },
+    {
+      "name": "Gemini API Key",
+      "passed": true,
+      "message": "\u2713 Configurada",
+      "help": "Adicione GEMINI_API_KEY ao .env"
+    },
+    {
+      "name": "FastAPI",
+      "passed": true,
+      "message": "v0.135.1",
+      "help": ""
+    },
+    {
+      "name": "Google GenAI",
+      "passed": true,
+      "message": "Instalado \u2713",
+      "help": ""
+    },
+    {
+      "name": "Pydantic",
+      "passed": true,
+      "message": "v2.12.5",
+      "help": ""
+    },
+    {
+      "name": "Pillow",
+      "passed": true,
+      "message": "Instalado \u2713",
+      "help": ""
+    },
+    {
+      "name": "QuintaFeiraBrain v2",
+      "passed": true,
+      "message": "Importa\u00e7\u00e3o OK \u2713",
+      "help": ""
+    },
+    {
+      "name": "Database Module",
+      "passed": true,
+      "message": "BaseDadosMemoria import\u00e1vel \u2713",
+      "help": ""
+    },
+    {
+      "name": "Oracle Module",
+      "passed": true,
+      "message": "OraculoEngine import\u00e1vel \u2713",
+      "help": ""
+    },
+    {
+      "name": "Core Modules",
+      "passed": true,
+      "message": "tool_registry, EventBus, DIContainer \u2713",
+      "help": ""
+    },
+    {
+      "name": "main.py Existe",
+      "passed": true,
+      "message": "Localiza\u00e7\u00e3o: C:\\Users\\mathe\\Documents\\assistente-ai\\backend\\main.py",
+      "help": "Arquivo FastAPI principal"
+    }
+  ],
+  "errors": [],
+  "summary": {
+    "total": 13,
+    "passed": 13,
+    "failed": 0
+  }
+}

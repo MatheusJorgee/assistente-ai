@@ -2,351 +2,551 @@
 
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { VoiceControl } from '@/components/VoiceControl';
 
-// Componentes para markdown com tema dark
-const markdownComponents = {
-  h1: ({ node, ...props }: any) => <h1 className="text-3xl font-bold mt-4 mb-2 text-cyan-400" {...props} />,
-  h2: ({ node, ...props }: any) => <h2 className="text-2xl font-bold mt-3 mb-1 text-cyan-300" {...props} />,
-  h3: ({ node, ...props }: any) => <h3 className="text-xl font-bold mt-2 mb-1 text-cyan-300" {...props} />,
-  p: ({ node, ...props }: any) => <p className="text-gray-100 leading-relaxed my-2" {...props} />,
-  ul: ({ node, ...props }: any) => <ul className="list-disc list-inside my-2 space-y-1 text-gray-100" {...props} />,
-  ol: ({ node, ...props }: any) => <ol className="list-decimal list-inside my-2 space-y-1 text-gray-100" {...props} />,
-  li: ({ node, ...props }: any) => <li className="ml-2 text-gray-100" {...props} />,
-  code: ({ node, inline, ...props }: any) => 
-    inline ? 
-      <code className="bg-slate-800 text-cyan-400 px-2 py-1 rounded text-sm font-mono" {...props} /> :
-      <code className="bg-slate-950 text-cyan-300 p-3 rounded my-2 block overflow-x-auto font-mono text-sm border border-cyan-500 border-opacity-30" {...props} />,
-  pre: ({ node, ...props }: any) => <pre className="bg-slate-950 p-4 rounded my-2 overflow-x-auto border border-cyan-500 border-opacity-30" {...props} />,
-  blockquote: ({ node, ...props }: any) => <blockquote className="border-l-4 border-cyan-500 pl-4 italic my-2 text-gray-300" {...props} />,
-  strong: ({ node, ...props }: any) => <strong className="font-bold text-cyan-300" {...props} />,
-  em: ({ node, ...props }: any) => <em className="italic text-gray-200" {...props} />,
-  a: ({ node, ...props }: any) => <a className="text-cyan-400 hover:text-cyan-300 underline" target="_blank" rel="noopener noreferrer" {...props} />,
-  table: ({ node, ...props }: any) => <table className="border-collapse border border-cyan-500 border-opacity-30 my-2" {...props} />,
-  th: ({ node, ...props }: any) => <th className="border border-cyan-500 border-opacity-30 bg-slate-800 px-2 py-1 font-bold text-cyan-300" {...props} />,
-  td: ({ node, ...props }: any) => <td className="border border-cyan-500 border-opacity-30 px-2 py-1 text-gray-100" {...props} />,
+// --- markdown visual em estilo limpo e técnico ---
+const markdownComponents: Components = {
+  h1: ({ ...props }) => <h1 className="mt-3 mb-2 text-xl font-bold tracking-tight text-cyan-200" {...props} />,
+  h2: ({ ...props }) => <h2 className="mt-2 mb-1 text-lg font-semibold text-cyan-100" {...props} />,
+  h3: ({ ...props }) => <h3 className="mt-2 mb-1 text-base font-semibold text-white" {...props} />,
+  p: ({ ...props }) => <p className="my-1.5 leading-relaxed text-slate-100" {...props} />,
+  ul: ({ ...props }) => <ul className="my-1.5 list-disc space-y-1 pl-4" {...props} />,
+  ol: ({ ...props }) => <ol className="my-1.5 list-decimal space-y-1 pl-4" {...props} />,
+  li: ({ ...props }) => <li className="ml-1" {...props} />,
+  code: ({ ...props }) => <code className="rounded border border-white/20 bg-black/45 px-1.5 py-0.5 text-xs text-cyan-200" {...props} />,
+  pre: ({ ...props }) => <pre className="my-2" {...props} />,
+  blockquote: ({ ...props }) => <blockquote className="my-2 border-l-2 border-cyan-300/60 bg-white/5 py-1 pl-3 text-slate-300" {...props} />,
+  strong: ({ ...props }) => <strong className="font-semibold text-cyan-100" {...props} />,
+  a: ({ ...props }) => <a className="text-cyan-300 underline hover:text-cyan-200" target="_blank" rel="noopener noreferrer" {...props} />,
+  table: ({ ...props }) => <table className="my-2 w-full border-collapse border border-white/20 text-sm" {...props} />,
+  th: ({ ...props }) => <th className="border border-white/20 bg-white/10 px-2 py-1 text-left font-semibold text-cyan-200" {...props} />,
+  td: ({ ...props }) => <td className="border border-white/20 px-2 py-1 text-slate-100" {...props} />,
 };
 
 interface Message {
-  role: 'user' | 'assistant';
+  role: 'Matheus' | 'Quinta-Feira';
   content: string;
-  timestamp: Date;
 }
 
-export default function QuintaFeiraUI() {
-  const [status, setStatus] = useState("Desconectado");
+export default function QuintaFeiraInterface() {
+  const [wsConnected, setWsConnected] = useState(false);
+  const [cloudMode, setCloudMode] = useState(false);  // ← Track cloud fallback
+  const [statusLabel, setStatusLabel] = useState("Conectando...");
   const [mensagem, setMensagem] = useState("");
   const [historico, setHistorico] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  
+  const [toast, setToast] = useState("");
+
   const ws = useRef<WebSocket | null>(null);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const recognitionRef = useRef<any>(null);
+  const chatFimRef = useRef<HTMLDivElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);  // ← V1 BARGE-IN
+  const currentAudioPlayingRef = useRef(false);  // ← Track if audio is currently playing
+  const wsConnectAttempts = useRef(0);  // ← Track reconnection attempts
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);  // ← Debounce scroll
 
-  // Inicializar Speech Recognition
-  useEffect(() => {
-    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-    if (SpeechRecognition) {
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.lang = 'pt-BR';
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-
-      recognitionRef.current.onstart = () => setIsListening(true);
-      recognitionRef.current.onend = () => setIsListening(false);
+  // ===== TOCAR ÁUDIO BASE64 (Firewall contra vazamento) =====
+  const tocarAudioBase64 = async (audioBase64: string) => {
+    try {
+      console.log("[AUDIO] Tocando Base64 (tamanho: " + audioBase64.length + " chars)");
       
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
-          .join('');
-        
-        if (transcript.trim()) {
-          setMensagem(transcript.trim());
-          // Auto-enviar após reconhecimento
-          setTimeout(() => {
-            if (wsConnected && transcript.trim()) {
-              handleSendMessage({ preventDefault: () => {} } as any, transcript.trim());
-            }
-          }, 500);
-        }
-      };
+      // Converter Base64 → Blob
+      const binaryString = atob(audioBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'audio/wav' });
+      
+      // Criar URL do objeto
+      const audioUrl = URL.createObjectURL(blob);
+      
+      // Atribuir ao audio ref e tocar
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.play().catch(e => console.error("[AUDIO] Erro ao tocar:", e));
+        currentAudioPlayingRef.current = true;
+      }
+    } catch (error) {
+      console.error("[AUDIO] Erro ao processar Base64:", error);
     }
-  }, [wsConnected]);
+  };
 
-  // Auto-scroll ao fim do chat
+  // ===== AUTO-SCROLL COM DEBOUNCE (evita loop infinito de renders) =====
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [historico]);
+    // Limpar timeout anterior
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // Agendar scroll para 100ms depois (debounce previne múltiplos fires)
+    scrollTimeoutRef.current = setTimeout(() => {
+      chatFimRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+    
+    // Cleanup: limpar timeout se dependências mudarem novamente
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [historico, isLoading]);
 
-  // Conectar ao WebSocket
+  // ===== V1 BARGE-IN HANDLER =====
+  const handleBargeinRequested = () => {
+    console.log('[BARGE_IN] Interrompendo áudio da IA...');
+    
+    // 1. Parar áudio imediatamente
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    currentAudioPlayingRef.current = false;
+    
+    // 2. Cancelar loading (se houver resposta em streaming)
+    setIsLoading(false);
+    
+    // 3. Enviar sinal de interrupção via WebSocket
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: "interrupt",
+        reason: "user_speech_detected",
+        timestamp: Date.now()
+      }));
+      console.log('[INTERRUPT] Sinal enviado ao backend');
+    }
+    
+    setToast("🔄 Áudio interrompido. Aguardando seu comando...");
+  };
+
   useEffect(() => {
     const connectWebSocket = () => {
       try {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const backendUrl = `${protocol}//${window.location.hostname}:8000/api/chat/ws`;
+        // ✓ SSR-SAFE: Check if in browser before accessing window globals
+        const isBrowser = typeof window !== 'undefined';
         
-        ws.current = new WebSocket(backendUrl);
+        // Smart WebSocket URL construction
+        const wsProtocol = (isBrowser && window.location.protocol === "https:") ? "wss:" : "ws:";
+        const wsHost = process.env.NEXT_PUBLIC_WS_HOST || (isBrowser ? window.location.hostname : "127.0.0.1");
+        const wsPort = process.env.NEXT_PUBLIC_WS_PORT || "8080";  // ✓ FALLBACK PORTA 8080
+        const wsPath = process.env.NEXT_PUBLIC_WS_PATH || "/ws";
+        
+        const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}${wsPath}`;
+        
+        // Log se debug ativado
+        if (process.env.NEXT_PUBLIC_DEBUG === 'true') {
+          console.log(`[WS] Proto=${wsProtocol}, Host=${wsHost}, Port=${wsPort}, Path=${wsPath}`);
+          console.log(`[WS] URL: ${wsUrl}`);
+        }
+
+        // ⏱️ Set timeout para conexão - se demorar >5s, assumir que PC está offline
+        const timeout = setTimeout(() => {
+          if (ws.current && ws.current.readyState === WebSocket.CONNECTING) {
+            console.log("[WS] Timeout na conexão - assumindo PC offline");
+            ws.current?.close();
+            setWsConnected(false);
+            setCloudMode(true);
+            setStatusLabel("Modo Nuvem (PC offline)");
+            setToast("🌐 PC não respondeu. Ativando Modo Nuvem...");
+          }
+        }, 5000);
+
+        ws.current = new WebSocket(wsUrl);
 
         ws.current.onopen = () => {
-          setStatus("🟢 Conectado";
+          clearTimeout(timeout);
+          wsConnectAttempts.current = 0;  // Reset attempt counter
           setWsConnected(true);
-          setError(null);
+          setCloudMode(false);  // Desativar modo nuvem
+          setStatusLabel("Online");
+          setToast("Núcleo conectado. Pronto para comandos.");
         };
 
         ws.current.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            
-            switch (data.type) {
-              case 'streaming':
-                if (data.content) {
-                  setHistorico(prev => {
-                    const lastMsg = prev[prev.length - 1];
-                    if (lastMsg && lastMsg.role === 'assistant') {
-                      return [...prev.slice(0, -1), {
-                        ...lastMsg,
-                        content: lastMsg.content + data.content
-                      }];
-                    }
-                    return prev;
-                  });
-                }
-                break;
-              
-              case 'complete':
-                setIsLoading(false);
-                break;
 
-              case 'error':
-                setError(data.message || "Erro ao processar");
+            // ===== FIREWALL: Detectar Base64 vazado em "streaming" =====
+            if (data.type === 'streaming' && data.content) {
+              // Detectar headers de áudio
+              const isAudioBase64 = 
+                data.content.startsWith("UklGR") ||    // WAV/RIFF
+                data.content.startsWith("SUQz") ||     // MP3/ID3
+                data.content.startsWith("/+MYxA") ||   // MP3 frame sync
+                data.content.startsWith("ID3");        // ID3 tag
+              
+              // Detectar padrão suspeito: muito longo + sem espaços = Base64 puro
+              const isLongoSemEspacos = 
+                data.content.length > 1000 && 
+                !data.content.includes(" ") &&
+                /^[A-Za-z0-9+/=]+$/.test(data.content);
+              
+              // Se detectar Base64, NÃO processar como texto
+              if (isAudioBase64 || isLongoSemEspacos) {
+                console.warn("[FIREWALL] ⚠️ Base64 DETECTADO E BLOQUEADO! Redirecionando para áudio.");
+                console.warn(`[FIREWALL] Tamanho: ${data.content.length} chars, AudioBase64: ${isAudioBase64}, LongoSemEspacos: ${isLongoSemEspacos}`);
+                tocarAudioBase64(data.content);
                 setIsLoading(false);
-                break;
+                return; // ← SAIR ANTES DE setHistorico
+              }
+
+              // Processamento NORMAL de texto
+              setHistorico(prev => {
+                const lastMsg = prev[prev.length - 1];
+                if (lastMsg && lastMsg.role === 'Quinta-Feira') {
+                  return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + data.content }];
+                }
+                return prev;
+              });
+            } 
+            // Novo evento específico para áudio (enviado pelo backend refatorado)
+            else if (data.type === 'audio' && data.audio) {
+              console.log("[WS] Áudio recebido (via type=audio)");
+              tocarAudioBase64(data.audio);
             }
-          } catch (e) {
-            console.error("Erro ao processar:", e);
+            else if (data.type === 'complete') {
+              setIsLoading(false);
+              if (data.content) {
+                setHistorico(prev => {
+                  const lastMsg = prev[prev.length - 1];
+                  if (lastMsg?.role === 'Quinta-Feira' && !lastMsg.content) {
+                    return [...prev.slice(0, -1), { role: 'Quinta-Feira', content: data.content }];
+                  }
+                  return prev;
+                });
+              }
+            } else if (data.type === 'error') {
+              setToast(`Erro: ${data.message || 'falha no processamento.'}`);
+              setIsLoading(false);
+            } else if (data.text && !data.type) {
+              setHistorico(prev => [...prev, { role: "Quinta-Feira", content: data.text }]);
+              setIsLoading(false);
+            }
+          } catch {
+            setHistorico(prev => [...prev, { role: "Quinta-Feira", content: event.data }]);
+            setIsLoading(false);
           }
         };
 
-        ws.current.onerror = () => {
-          setError("Erro de conexão");
-          setStatus("🔴 Desconectado");
+        ws.current.onclose = () => {
           setWsConnected(false);
+          
+          // Incrementar tentativas de reconexão
+          wsConnectAttempts.current += 1;
+          
+          if (wsConnectAttempts.current >= 2) {
+            // Depois de 2 falhas, ativar modo nuvem
+            setCloudMode(true);
+            setStatusLabel("🌐 Modo Nuvem (PC offline)");
+            console.log("[WS] PC não acessível - ativando modo nuvem permanente");
+            setToast("🌐 Modo Nuvem ativado. PC indisponível.");
+          } else {
+            // Primeira falha: tentar reconectar em 2.5s
+            setStatusLabel("Reconectando...");
+            console.log(`[WS] Tentativa de reconexão ${wsConnectAttempts.current}...`);
+            setTimeout(connectWebSocket, 2500);
+          }
         };
 
-        ws.current.onclose = () => {
-          setStatus("🔴 Desconectado");
+        ws.current.onerror = (error) => {
+          console.error("[WS] Erro WebSocket:", error);
           setWsConnected(false);
-          setTimeout(connectWebSocket, 3000);
+          if (!cloudMode) {
+            setStatusLabel("Erro na conexão...");
+          }
         };
-      } catch (error) {
-        console.error("Erro WebSocket:", error);
-        setError("Falha ao conectar");
+      } catch (err) {
+        console.error("[WS] Erro ao inicializar:", err);
+        setCloudMode(true);
+        setStatusLabel("🌐 Modo Nuvem (erro)");
+        setToast("Fallback para Modo Nuvem.");
       }
     };
 
     connectWebSocket();
-
-    return () => {
-      if (ws.current) ws.current.close();
+    return () => { 
+      ws.current?.close();
+      // Don't reconnect if unmounting
     };
   }, []);
 
-  // Enviar mensagem
-  const handleSendMessage = async (e: any, forceMessage?: string) => {
-    e?.preventDefault?.();
-    
-    const textToSend = forceMessage || mensagem;
-    
-    if (!textToSend.trim()) return;
-    if (!wsConnected) {
-      setError("Servidor desconectado");
-      return;
-    }
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(""), 2600);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
-    setHistorico(prev => [...prev, {
-      role: 'user',
-      content: textToSend,
-      timestamp: new Date()
-    }]);
-
-    setHistorico(prev => [...prev, {
-      role: 'assistant',
-      content: '',
-      timestamp: new Date()
-    }]);
-
-    setMensagem("");
-    setIsLoading(true);
-    setError(null);
-
+  // ✓ NOVO: MODO NUVEM - Fallback para API REST quando PC offline
+  const enviarModoNuvem = async (textoEntrada: string) => {
     try {
-      ws.current?.send(JSON.stringify({
-        message: textToSend,
-        user_id: "user_" + Date.now(),
-        timestamp: new Date().toISOString()
-      }));
+      console.log("[CLOUD] Enviando via API REST (PC offline)");
+      setToast("🌐 Enviando via Modo Nuvem...");
+      
+      // Get API URL from env or construct default
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (!apiUrl) {
+        // Default: same host as frontend (SSR-SAFE)
+        const isBrowser = typeof window !== 'undefined';
+        if (isBrowser) {
+          const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+          const host = window.location.host;  // includes port if non-standard
+          apiUrl = `${protocol}//${host}/api/chat`;
+        } else {
+          // Fallback para SSR
+          apiUrl = "http://127.0.0.1:3000/api/chat";
+        }
+      }
+      
+      if (process.env.NEXT_PUBLIC_DEBUG === 'true') {
+        console.log(`[CLOUD] API URL: ${apiUrl}`);
+      }
+      
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: textoEntrada,
+          user_id: "matheus_admin",
+          mode: "cloud"
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const botResponse = data.response || data.text || "Erro ao processar";
+      
+      setHistorico(prev => [...prev, { role: "Quinta-Feira", content: botResponse }]);
+      setToast("✓ Resposta recebida (Modo Nuvem)");
+      setIsLoading(false);
     } catch (error) {
-      console.error("Erro ao enviar:", error);
-      setError("Erro ao enviar mensagem");
+      console.error("[CLOUD] Erro na API:", error);
+      setToast("❌ Modo Nuvem indisponível. Verifique a configuração.");
       setIsLoading(false);
     }
   };
 
-  const toggleMicrophone = () => {
-    if (recognitionRef.current) {
-      if (isListening) {
-        recognitionRef.current.stop();
-      } else {
-        recognitionRef.current.start();
+  const enviarMensagemTexto = (textoEntrada: string = mensagem) => {
+    if (textoEntrada.trim() === "") return;
+
+    setHistorico(prev => [...prev, { role: "Matheus", content: textoEntrada }]);
+    setHistorico(prev => [...prev, { role: "Quinta-Feira", content: "" }]);
+    setIsLoading(true);
+
+    // ✓ NOVO: Decidir entre PC (WebSocket) ou Nuvem (REST)
+    if (wsConnected && ws.current && !cloudMode) {
+      // VM conectada: usar WebSocket
+      const payload = JSON.stringify({
+        type: "chat",
+        payload: textoEntrada,
+        message: textoEntrada,
+        user_id: "matheus_admin"
+      });
+      
+      try {
+        ws.current.send(payload);
+      } catch (err) {
+        console.error("[MSG] Erro ao enviar via WebSocket:", err);
+        setCloudMode(true);
+        enviarModoNuvem(textoEntrada);
       }
+    } else {
+      // PC offline: usar Modo Nuvem
+      console.log("[MSG] Enviando via Modo Nuvem");
+      enviarModoNuvem(textoEntrada);
     }
+    
+    if (textoEntrada === mensagem) setMensagem("");
   };
 
+  const limparChat = () => {
+    setHistorico([]);
+    setToast("Histórico limpo.");
+  };
+
+  const onSubmitMensagem = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    enviarMensagemTexto();
+  };
+
+  const chips = [
+    "Abrir YouTube e tocar lo-fi",
+    "Aumentar volume para 60%",
+    "Resumo das tarefas de hoje",
+    "Pesquisar noticias de tecnologia"
+  ];
+
   return (
-    <div className="flex flex-col h-screen bg-slate-900 text-gray-100 font-sans">
-      {/* Header */}
-      <header className="bg-slate-800 border-b border-cyan-500 border-opacity-30 px-6 py-4 shadow-lg">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-cyan-400">🎯 Quinta-Feira</h1>
-            <p className="text-sm text-gray-400">Assistente de IA com Consciência de Contexto</p>
-          </div>
-          <div className="flex items-center space-x-3">
-            <div className={`w-3 h-3 rounded-full ${wsConnected ? 'bg-cyan-400' : 'bg-red-500'} animate-pulse`}></div>
-            <span className="text-sm font-medium">{status}</span>
-          </div>
-        </div>
-      </header>
+    <div className="deck-bg relative flex min-h-screen w-full items-stretch justify-center px-4 py-6 text-white md:px-6">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-60">
+        <div className="hud-grid absolute inset-0" />
+        <div className="absolute -left-28 -top-20 h-72 w-72 rounded-full bg-cyan-300/15 blur-3xl" />
+        <div className="absolute -right-20 top-1/3 h-72 w-72 rounded-full bg-amber-300/10 blur-3xl" />
+      </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-4xl mx-auto space-y-4">
-          {historico.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="text-6xl mb-4">🎤</div>
-              <h2 className="text-3xl font-bold text-cyan-400 mb-4">Bem-vindo ao Quinta-Feira</h2>
-              <p className="text-gray-400 max-w-md mx-auto text-lg">
-                Fale seus comandos: tocar música, enviar mensagens, controlar vídeos, controlar mídia em aplicativos específicos...
-              </p>
-              <p className="text-gray-500 mt-4 text-sm">Use o botão microfone ou digite abaixo</p>
+      <div className="deck-card relative z-10 flex w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-cyan-100/20">
+        <header className="border-b border-cyan-100/15 px-5 py-4 md:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg border border-cyan-100/25 bg-cyan-200/10 px-2.5 py-1.5">
+                <span className="text-xs font-bold tracking-[0.2em] text-cyan-100">QF//01</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold tracking-wide text-cyan-50 md:text-2xl">Quinta-Feira</h1>
+                <p className="text-xs text-cyan-50/65 md:text-sm">Interface de comando, voz e contexto em tempo real.</p>
+              </div>
             </div>
-          ) : (
-            historico.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-2xl px-5 py-4 rounded-lg ${
-                    msg.role === 'user'
-                      ? 'bg-cyan-600 rounded-br-none shadow-md'
-                      : 'bg-slate-800 rounded-bl-none border-l-4 border-cyan-500'
-                  }`}
+
+            <div className={`rounded-full border px-4 py-1.5 text-xs font-medium tracking-wide flex items-center gap-2 ${
+              wsConnected && !cloudMode 
+                ? "border-cyan-300/50 bg-cyan-300/12 text-cyan-100" 
+                : "border-amber-200/50 bg-amber-200/15 text-amber-100"
+            }`}>
+              {wsConnected && !cloudMode ? (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-cyan-300 animate-pulse" />
+                  NÚCLEO ONLINE
+                </>
+              ) : (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse" />
+                  {cloudMode ? "🌐 MODO NUVEM" : statusLabel.toUpperCase()}
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <main className="grid flex-1 grid-cols-1 gap-4 p-4 md:grid-cols-[1fr_300px] md:p-6">
+          <section className="flex min-h-[62vh] flex-col overflow-hidden rounded-2xl border border-cyan-100/15 bg-black/25">
+            <div className="flex items-center justify-between border-b border-cyan-100/15 px-4 py-3 text-[11px] uppercase tracking-[0.14em] text-cyan-50/60">
+              <span>Console</span>
+              <button
+                type="button"
+                onClick={limparChat}
+                className="rounded-full border border-cyan-100/20 px-3 py-1 transition hover:border-cyan-100/40 hover:bg-cyan-100/10"
+              >
+                Limpar
+              </button>
+            </div>
+
+            <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-4">
+              {historico.length === 0 && !isLoading ? (
+                <div className="mx-auto mt-10 max-w-md rounded-2xl border border-cyan-100/15 bg-cyan-100/5 p-6 text-center">
+                  <p className="text-lg font-semibold text-cyan-50">Canal aberto</p>
+                  <p className="mt-2 text-sm text-cyan-50/65">Envie texto ou use voz. Respostas chegam em fluxo contínuo.</p>
+                </div>
+              ) : (
+                historico.map((msg, idx) => (
+                  <div key={`${msg.role}-${idx}`} className={`flex ${msg.role === "Matheus" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-lg ${msg.role === "Matheus" ? "rounded-br-sm border border-cyan-100/30 bg-cyan-200/90 text-slate-900" : "rounded-bl-sm border border-cyan-100/20 bg-slate-900/45 text-cyan-50"}`}>
+                      {msg.role === "Quinta-Feira" ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                          {msg.content || "..."}
+                        </ReactMarkdown>
+                      ) : (
+                        <p>{msg.content}</p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {isLoading ? (
+                <div className="flex justify-start">
+                  <div className="rounded-xl border border-cyan-100/20 bg-slate-900/40 px-3 py-2">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-100/85" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-100/85 [animation-delay:120ms]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-100/85 [animation-delay:240ms]" />
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              <div ref={chatFimRef} />
+            </div>
+
+            <div className="border-t border-cyan-100/15 p-3 md:p-4">
+              <form onSubmit={onSubmitMensagem} className="flex gap-2">
+                <input
+                  value={mensagem}
+                  onChange={(e) => setMensagem(e.target.value)}
+                  placeholder={cloudMode ? "Comando de nuvem (sem ferramentas PC)..." : "Digite seu comando"}
+                  className="w-full rounded-xl border border-cyan-100/20 bg-slate-900/40 px-4 py-3 text-sm text-cyan-50 placeholder:text-cyan-50/40 outline-none transition focus:border-cyan-200/70"
+                  disabled={isLoading || (!wsConnected && !cloudMode)}
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading || (!wsConnected && !cloudMode) || !mensagem.trim()}
+                  className="rounded-xl border border-cyan-100/30 bg-cyan-200 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  {msg.role === 'assistant' ? (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={markdownComponents}
-                    >
-                      {msg.content || '...'}
-                    </ReactMarkdown>
-                  ) : (
-                    <p className="text-white">{msg.content}</p>
-                  )}
-                  <span className="text-xs text-gray-400 mt-2 block">
-                    {msg.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
-          
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-slate-800 px-5 py-4 rounded-lg rounded-bl-none border-l-4 border-cyan-500">
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                </div>
-              </div>
+                  {isLoading ? "..." : "Enviar"}
+                </button>
+              </form>
+              {cloudMode && (
+                <p className="mt-2 text-xs text-amber-200">
+                  ⚠️  Modo Nuvem: sem acesso a Spotify, YouTube, Terminal ou automação local
+                </p>
+              )}
             </div>
-          )}
+          </section>
 
-          <div ref={chatEndRef} />
-        </div>
-      </div>
+          <aside className="flex flex-col gap-4">
+            <section className="rounded-2xl border border-cyan-100/15 bg-black/25 p-4">
+              <h2 className="text-sm font-semibold text-cyan-50">Voz</h2>
+              <p className="mt-1 text-xs text-cyan-50/60">
+                {cloudMode 
+                  ? "Voz disponível em Modo Nuvem"
+                  : "Diga \"Quinta-Feira\" e depois o comando."
+                }
+              </p>
+              <div className="mt-4">
+                <VoiceControl 
+                  onCommand={(command) => enviarMensagemTexto(command)} 
+                  isDisabled={isLoading}  // ← Allow in cloud mode
+                  onBargein={handleBargeinRequested}
+                  onBrowserWarning={(msg) => setToast(msg)}
+                />
+              </div>
+            </section>
 
-      {/* Error */}
-      {error && (
-        <div className="mx-6 mb-4 max-w-4xl mx-auto">
-          <div className="bg-red-900 bg-opacity-50 border-l-4 border-red-500 px-4 py-3 text-red-200">
-            ⚠️ {error}
+            <section className="rounded-2xl border border-cyan-100/15 bg-black/25 p-4">
+              <h2 className="text-sm font-semibold text-cyan-50">Ações rápidas</h2>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {chips.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => enviarMensagemTexto(chip)}
+                    disabled={isLoading || (!wsConnected && !cloudMode)}
+                    title={cloudMode ? "Disponível em Modo Nuvem" : ""}
+                    className="rounded-full border border-cyan-100/20 bg-cyan-100/5 px-3 py-1.5 text-xs text-cyan-50/90 transition hover:bg-cyan-100/15 disabled:opacity-40"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-cyan-100/15 bg-black/25 p-4 text-xs text-cyan-50/75">
+              <p className="uppercase tracking-[0.14em] text-cyan-50/65">Atalhos</p>
+              <p className="mt-2">Enter: enviar mensagem</p>
+              <p>Diagnóstico: /diagnose</p>
+              <p>Status: {statusLabel}</p>
+            </section>
+          </aside>
+        </main>
+
+        {toast ? (
+          <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-cyan-100/25 bg-slate-900/70 px-4 py-2 text-xs text-cyan-50 backdrop-blur">
+            {toast}
           </div>
-        </div>
-      )}
-
-      {/* Input Area */}
-      <div className="bg-slate-800 border-t border-cyan-500 border-opacity-30 px-6 py-4">
-        <div className="max-w-4xl mx-auto">
-          <form onSubmit={handleSendMessage} className="flex gap-3 items-center">
-            <input
-              ref={inputRef}
-              type="text"
-              value={mensagem}
-              onChange={(e) => setMensagem(e.target.value)}
-              placeholder="Digite seu comando ou use o microfone..."
-              className="flex-1 px-4 py-3 bg-slate-700 text-white border border-cyan-500 border-opacity-50 rounded focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500 focus:ring-opacity-30 disabled:opacity-50"
-              disabled={!wsConnected || isLoading}
-            />
-            
-            {/* Botão de Microfone - VERMELHO PULSANTE */}
-            <button
-              type="button"
-              onClick={toggleMicrophone}
-              disabled={!wsConnected || isLoading}
-              className={`px-5 py-3 rounded font-bold transition-all ${
-                isListening
-                  ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-600'
-                  : 'bg-red-500 hover:bg-red-600 text-white disabled:bg-gray-600'
-              }`}
-              title="Ativar/desativar microfone"
-            >
-              🎤
-            </button>
-
-            {/* Botão de Envio */}
-            <button
-              type="submit"
-              disabled={!wsConnected || isLoading || !mensagem.trim()}
-              className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoading ? '⏳' : '➤'}
-            </button>
-          </form>
-          
-          <div className="mt-2 text-xs text-gray-500 text-center">
-            {!wsConnected ? '🔌 Conectando...' : '✅ Pronto'}
-          </div>
-        </div>
+        ) : null}
       </div>
-
-      <style jsx>{`
-        ::-webkit-scrollbar {
-          width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.5);
-        }
-        ::-webkit-scrollbar-thumb {
-          background: rgba(34, 211, 238, 0.5);
-          border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: rgba(34, 211, 238, 0.8);
-        }
-      `}</style>
     </div>
   );
 }

@@ -9,7 +9,10 @@ import os
 import asyncio
 from typing import Dict, Any
 
-from backend.core.tool_registry import Tool, ToolMetadata
+try:
+    from backend.core.tool_registry import Tool, ToolMetadata
+except ModuleNotFoundError:
+    from core.tool_registry import Tool, ToolMetadata
 
 
 class TerminalSecurityValidator:

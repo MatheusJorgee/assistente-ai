@@ -12,7 +12,7 @@ from pathlib import Path
 backend_path = Path(__file__).parent / "backend"
 sys.path.insert(0, str(backend_path))
 
-from backend.core import get_di_container
+from backend import get_di_container
 from backend.database import BaseDadosMemoria
 from backend.oracle import OraculoEngine
 from backend.tools import inicializar_ferramentas
