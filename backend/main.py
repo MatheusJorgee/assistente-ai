@@ -28,6 +28,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ===== OTIMIZAÇÃO DE LATÊNCIA: Desativar logs desnecessários ✓ NOVO =====
+# Reduz consumo de memória e aumenta performance
+logging.getLogger('httpx').setLevel(logging.WARNING)  # ← Silenciar logs de HTTP
+logging.getLogger('google.genai').setLevel(logging.WARNING)  # ← Silenciar logs de Gemini
+logging.getLogger('urllib3').setLevel(logging.WARNING)  # ← Silenciar logs de urllib3
+logging.getLogger('googleapis').setLevel(logging.WARNING)  # ← Silenciar logs de Google APIs
+
 # ============ IMPORTS CORE (COM FALLBACK) ============
 try:
     from backend.brain_v2 import QuintaFeiraBrainV2
@@ -240,40 +247,52 @@ async def websocket_endpoint(websocket: WebSocket):
                     texto_resposta = response_json_str
                     audio_resposta = ""
                 
-                # ✓ ENVIAR SEPARADO: Texto primeiro
+                # ✓ ENVIAR SEPARADO: Texto primeiro (com heartbeat robusto)
                 if texto_resposta:
                     # ✓ VALIDAÇÃO: Certificar que não há Base64 no texto
                     if texto_resposta.startswith("UklGR") or texto_resposta.startswith("SUQz"):
                         logger.error("[P0] BASE64 DETECTADO NO TEXTO! Bloqueando envio")
                         texto_resposta = "[ERRO] Base64 vazou no texto. Ativando apenas modo áudio."
                     
-                    await manager.send_personal(client_id, {
-                        "type": "streaming",
-                        "content": texto_resposta,
-                        "timestamp": datetime.now().isoformat()
-                    })
+                    try:
+                        await manager.send_personal(client_id, {
+                            "type": "streaming",
+                            "content": texto_resposta,
+                            "timestamp": datetime.now().isoformat()
+                        })
+                    except RuntimeError as e:
+                        logger.warning(f"[WEBSOCKET] Cliente {client_id} desconectou durante envio de texto: {e}")
+                        return
                 
-                # ✓ ENVIAR SEPARADO: Áudio depois (se existir)
+                # ✓ ENVIAR SEPARADO: Áudio depois (se existir, com heartbeat robusto)
                 if audio_resposta:
                     # ✓ VALIDAÇÃO: Certificar que é Base64 válido e começa com header correto
                     if audio_resposta and (audio_resposta.startswith("UklGR") or 
                                           audio_resposta.startswith("SUQz") or
                                           audio_resposta.startswith("ID3") or
                                           audio_resposta.startswith("/+MYxA")):
-                        await manager.send_personal(client_id, {
-                            "type": "audio",
-                            "audio": audio_resposta,  # ✓ ISOLADO - BASE64 PURO
-                            "timestamp": datetime.now().isoformat()
-                        })
+                        try:
+                            await manager.send_personal(client_id, {
+                                "type": "audio",
+                                "audio": audio_resposta,
+                                "timestamp": datetime.now().isoformat()
+                            })
+                        except RuntimeError as e:
+                            logger.warning(f"[WEBSOCKET] Cliente {client_id} desconectou durante tarefa longa: {e}")
+                            return
                     else:
                         logger.warning("[AUDIO] Formato inválido ou faltando header. Ignorando.")
                 
-                # ✓ ENVIAR SINAL DE CONCLUSÃO
-                await manager.send_personal(client_id, {
-                    "type": "complete",
-                    "status": "completed",
-                    "timestamp": datetime.now().isoformat()
-                })
+                # ✓ ENVIAR SINAL DE CONCLUSÃO (com heartbeat robusto)
+                try:
+                    await manager.send_personal(client_id, {
+                        "type": "complete",
+                        "status": "completed",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                except RuntimeError as e:
+                    logger.warning(f"[WEBSOCKET] Cliente {client_id} desconectou na conclusão: {e}")
+                    return
                 
             except Exception as e:
                 logger.error(f"Erro ao processar mensagem: {e}", exc_info=True)

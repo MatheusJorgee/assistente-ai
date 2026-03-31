@@ -258,26 +258,27 @@ class OSAutomation:
         # Handle válido da Twitch: letras, números e underscore.
         return re.sub(r"[^a-zA-Z0-9_ ]", "", q).strip()
 
-    def _abrir_twitch_inteligente(self, consulta: str) -> str:
+    def _abrir_twitch_inteligente(self, consulta: str, **kwargs) -> str:
+        """Parser inteligente de canal Twitch. Absorve parâmetros extra do Gemini."""
         canal = self._extrair_canal_twitch(consulta)
         if not canal:
-            webbrowser.open("https://www.twitch.tv/directory")
+            subprocess.run(["cmd", "/c", 'start browser "https://www.twitch.tv/directory"'], capture_output=True)
             return "Sucesso: Abri a Twitch na página de descoberta."
 
         # Se for um único token, tenta canal direto.
         if " " not in canal and 2 <= len(canal) <= 25:
-            webbrowser.open(f"https://www.twitch.tv/{canal}")
+            subprocess.run(["cmd", "/c", f'start browser "https://www.twitch.tv/{canal}"'], capture_output=True)
             return f"Sucesso: Tentei abrir o canal '{canal}' diretamente na Twitch."
 
         # Se vier nome com espaços, tenta slug sem espaços antes de cair para busca.
         slug_sem_espaco = canal.replace(" ", "")
         if 2 <= len(slug_sem_espaco) <= 25 and re.fullmatch(r"[a-zA-Z0-9_]+", slug_sem_espaco):
-            webbrowser.open(f"https://www.twitch.tv/{slug_sem_espaco}")
+            subprocess.run(["cmd", "/c", f'start browser "https://www.twitch.tv/{slug_sem_espaco}"'], capture_output=True)
             return f"Sucesso: Tentei abrir o canal '{slug_sem_espaco}' diretamente na Twitch."
 
         # Nome ambíguo: abre busca interna da Twitch para reduzir chance de canal errado.
         canal_q = urllib.parse.quote(canal)
-        webbrowser.open(f"https://www.twitch.tv/search?term={canal_q}")
+        subprocess.run(["cmd", "/c", f'start browser "https://www.twitch.tv/search?term={canal_q}"'], capture_output=True)
         return f"Sucesso: Procurei canais da Twitch por '{canal}' para evitar abrir o canal errado."
 
     def _normalizar_texto(self, texto: str) -> str:
@@ -310,7 +311,8 @@ class OSAutomation:
         resto = (t[:m.start()] + " " + t[m.end():]).strip()
         return dominio, resto
 
-    def _abrir_site_operador(self, dominio: str, consulta: str) -> str:
+    def _abrir_site_operador(self, dominio: str, consulta: str, **kwargs) -> str:
+        """Operador site: para buscas em domínios específicos. Absorve parâmetros extra do Gemini."""
         dominio = (dominio or "").strip().lower()
         consulta = (consulta or "").strip()
         if not dominio:
@@ -339,7 +341,8 @@ class OSAutomation:
                 return chave
         return ""
 
-    def _abrir_site_ou_pesquisa(self, site_chave: str, consulta: str) -> str:
+    def _abrir_site_ou_pesquisa(self, site_chave: str, consulta: str, **kwargs) -> str:
+        """Abre/pesquisa em sites conhecidos. Absorve parâmetros extra (browser, etc) do Gemini."""
         base = self.sites_conhecidos.get(site_chave, "")
         consulta = (consulta or "").strip()
 
@@ -403,13 +406,20 @@ class OSAutomation:
 
         return True
 
-    def executar_comando(self, comando: str, justificacao: str) -> str:
+    def executar_comando(self, comando: str, justificacao: str, **kwargs) -> str:
+        """Executa comando no terminal com validação de segurança. Absorve parâmetros extra do Gemini."""
         print(f"\n>>> [HITL PRE-CHECK] A IA quer executar: '{comando}'")
         if not self._comando_e_seguro(comando):
             return f"ERRO DE SEGURANÇA: Comando '{comando}' bloqueado."
         try:
-            execucao = shlex.split(comando, posix=False)
-            resultado = subprocess.run(execucao, shell=False, capture_output=True, text=True, timeout=15)
+            # ✓ CRÍTICO: Forçar PowerShell para garantir Start-Process funcione
+            # PowerShell é mais robusto para comandos complexos como "start browser URL"
+            resultado = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", comando],
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
             if resultado.returncode == 0:
                 resp = resultado.stdout.strip()
                 return f"RESULTADO DO TERMINAL:\n{resp[:2000]}" if resp else "Sucesso sem retorno."
@@ -420,7 +430,8 @@ class OSAutomation:
 
     # --- ROTEADOR GERAL (Google) ---
     # --- ROTEADOR UNIVERSAL DE APLICATIVOS ---
-    def abrir_uri_app(self, app_nome: str, pesquisa_ou_acao: str) -> str:
+    def abrir_uri_app(self, app_nome: str, pesquisa_ou_acao: str, **kwargs) -> str:
+        """Roteador universal: abre apps, sites, pesquisa ou jogos. Absorve parâmetros extra do Gemini."""
         app = app_nome.lower().strip()
         pedido = (pesquisa_ou_acao or "").strip()
         contexto_completo = f"{app_nome} {pesquisa_ou_acao}".strip()
@@ -433,17 +444,17 @@ class OSAutomation:
         # 0. URL direta em qualquer campo (pedido/app/contexto) abre imediatamente.
         url_direta = self._extrair_url(pedido)
         if url_direta:
-            webbrowser.open(url_direta)
+            subprocess.run(["cmd", "/c", f'start browser "{url_direta}"'], capture_output=True)
             return f"Sucesso: Abri a página {url_direta}."
 
         url_no_app = self._extrair_url(app_nome)
         if url_no_app:
-            webbrowser.open(url_no_app)
+            subprocess.run(["cmd", "/c", f'start browser "{url_no_app}"'], capture_output=True)
             return f"Sucesso: Abri a página {url_no_app}."
 
         url_no_contexto = self._extrair_url(contexto_completo)
         if url_no_contexto:
-            webbrowser.open(url_no_contexto)
+            subprocess.run(["cmd", "/c", f'start browser "{url_no_contexto}"'], capture_output=True)
             return f"Sucesso: Abri a página {url_no_contexto}."
 
         # 0.1. Se app ou pedido mencionar um site conhecido, abre/pesquisa direto no site.
@@ -566,8 +577,8 @@ class OSAutomation:
         except Exception as e:
             return f"Erro interno ao procurar o programa: {str(e)}"
     # --- FUNÇÃO 1: SPOTIFY API ---
-    def tocar_musica_spotify_api(self, pesquisa: str) -> str:
-        """Exclusivo para contas Premium."""
+    def tocar_musica_spotify_api(self, pesquisa: str, **kwargs) -> str:
+        """Exclusivo para contas Premium. Absorve parâmetros extra do Gemini de forma segura."""
         if not self.sp: return "Erro: Credenciais do Spotify ausentes no .env."
         try:
             print(f">>> [SPOTIFY] A procurar: '{pesquisa}'...")
@@ -589,8 +600,9 @@ class OSAutomation:
 
     # --- FUNÇÃO 2: YOUTUBE PLAYWRIGHT ---
    # --- FUNÇÃO 2: YOUTUBE PLAYWRIGHT (BLINDADO CONTRA ANTI-BOT) ---
-    def tocar_youtube_invisivel(self, pesquisa: str) -> str:
-        """Abre o YouTube com capa de invisibilidade contra bots e pula anúncios silenciosamente."""
+    def tocar_youtube_invisivel(self, pesquisa: str, **kwargs) -> str:
+        """Abre o YouTube com capa de invisibilidade contra bots e pula anúncios silenciosamente.
+        Absorve parâmetros extra (browser, platform, etc) do Gemini de forma segura."""
         print(f">>> [YOUTUBE] A preparar motor web para: '{pesquisa}'...")
         query_url = urllib.parse.quote(pesquisa)
         video_resolvido = self._resolver_video_youtube(pesquisa)
@@ -743,26 +755,72 @@ class OSAutomation:
     # ==========================================
     # OS BOTÕES DO COMANDO REMOTO (Corrigidos)
     # ==========================================
-    def controlar_reproducao(self, acao: str) -> str:
-        """Pausa ou retoma a música atual com segurança."""
+    def controlar_reproducao(self, acao: str, **kwargs) -> str:
+        """Pausa, retoma, salta, ou controla loop da música atual com segurança. Absorve parâmetros extra do Gemini."""
         if not self.page:
             return "Erro: O YouTube não está aberto no momento."
             
         try:
-            if "pausar" in acao.lower() or "parar" in acao.lower():
+            acao_lower = acao.lower()
+            
+            if "pausar" in acao_lower or "parar" in acao_lower:
                 self.page.evaluate("() => { const v = document.querySelector('video'); if(v) v.pause(); }")
                 return "A música foi pausada com sucesso."
-            elif "retomar" in acao.lower() or "voltar" in acao.lower() or "play" in acao.lower():
+            
+            elif "retomar" in acao_lower or "voltar" in acao_lower or "play" in acao_lower or "começar" in acao_lower:
                 self.page.evaluate("() => { const v = document.querySelector('video'); if(v) v.play(); }")
                 return "A música voltou a tocar."
-            return "Ação não reconhecida."
+            
+            elif "pular" in acao_lower or "skip" in acao_lower or "proxima" in acao_lower or "próxima" in acao_lower:
+                # No YouTube, clica no botão "Próximo" se existir
+                self.page.evaluate("() => { const nextBtn = document.querySelector('.ytp-next-button'); if(nextBtn) nextBtn.click(); }")
+                return "Pulei para a próxima música."
+            
+            elif "loop" in acao_lower or "repeat" in acao_lower or "repetir" in acao_lower or "lupi" in acao_lower:
+                # No YouTube, clica no botão de repetição se existir
+                self.page.evaluate("() => { const repeatBtn = document.querySelector('.ytp-repeat'); if(repeatBtn) repeatBtn.click(); }")
+                return "Modo de repetição (loop) ativado. Clica novamente para mudar entre uma música ou toda a playlist."
+            
+            else:
+                # Fallback seguro: retorna mensagem amigável em vez de crashar
+                return f"Ação '{acao}' não reconhecida. Tente: pausar, retomar (play), pular (skip), ou loop (repetir)."
+                
         except Exception as e:
             return f"Falha ao executar o comando no navegador: {str(e)}"
+    
+    def controlar_reproducao_spotify(self, acao: str, **kwargs) -> str:
+        """Controla reprodução no Spotify: pause, retomar, repetição (loop). Absorve parâmetros extra do Gemini."""
+        if not self.sp:
+            return "Erro: Spotify não está configurado. Verifique SPOTIFY_CLIENT_ID e SPOTIFY_CLIENT_SECRET no .env"
         
+        try:
+            acao_lower = acao.lower()
+            
+            if "pausar" in acao_lower or "parar" in acao_lower:
+                self.sp.pause_playback()
+                return "A música do Spotify foi pausada."
+            
+            elif "retomar" in acao_lower or "voltar" in acao_lower or "play" in acao_lower or "começar" in acao_lower:
+                self.sp.start_playback()
+                return "A música do Spotify foi retomada."
+            
+            elif "loop" in acao_lower or "repeat" in acao_lower or "repetir" in acao_lower or "lupi" in acao_lower:
+                # Spotify oferece: 'off' (sem repetição), 'context' (repetir playlist), 'track' (repetir faixa)
+                # Por defeito, ativar repetição de faixa
+                self.sp.repeat('track')
+                return "Repetição (loop) de uma faixa ativada no Spotify. Clica novamente para mudar para repetição da playlist ou desativar."
+            
+            else:
+                # Fallback seguro
+                return f"Ação '{acao}' não reconhecida para Spotify. Tente: pausar, retomar (play), ou loop (repetir)."
         
+        except Exception as e:
+            return f"Erro ao controlar Spotify: {str(e)}"
+        
+    
 
-    def ajustar_volume(self, nivel) -> str:
-        """Ajusta o volume do vídeo blindado contra textos sujos."""
+    def ajustar_volume(self, nivel, **kwargs) -> str:
+        """Ajusta o volume do vídeo blindado contra textos sujos. Absorve parâmetros extra do Gemini."""
         try:
             # Limpa qualquer lixo que a IA mande (como "%" ou espaços) e converte com segurança
             if isinstance(nivel, str):
@@ -784,8 +842,8 @@ class OSAutomation:
         except Exception as e:
             return f"Erro interno ao ajustar o volume. Diga ao Matheus para passar apenas números. Erro: {str(e)}"
         
-    def pular_musica(self) -> str:
-        """Pula para o próximo vídeo/música na playlist do YouTube."""
+    def pular_musica(self, **kwargs) -> str:
+        """Pula para o próximo vídeo/música na playlist do YouTube. Absorve parâmetros extra do Gemini."""
         if not self.page:
             return "Erro: O YouTube não está aberto no momento."
             
@@ -825,12 +883,63 @@ class OSAutomation:
             print(f">>> [ERRO VISÃO] Falha ao capturar ecrã: {str(e)}")
             return f"Erro na visão: {str(e)}"
     
+    def controlar_energia(self, acao: str, delay: int = 10, **kwargs) -> str:
+        """Controla energia do sistema: shutdown, restart, sleep. Absorve parâmetros extra do Gemini.
+        
+        Args:
+            acao (str): 'shutdown' (desligar), 'restart' (reiniciar), 'sleep' (suspender)
+            delay (int): Segundos para aguardar antes de executar (padrão: 10)
+            
+        Returns:
+            str: Mensagem de resultado
+        """
+        acao_lower = acao.lower().strip()
+        
+        # Normalizar comandos
+        if acao_lower in ['desligar', 'shutdown', 'shudown', 'deslizar']:
+            acao_normalizada = 'shutdown'
+            msg_user = f"Computador será desligado em {delay} segundos."
+        elif acao_lower in ['reiniciar', 'restart', 'reboot', 're-iniciar']:
+            acao_normalizada = 'restart'
+            msg_user = f"Computador será reiniciado em {delay} segundos."
+        elif acao_lower in ['dormir', 'sleep', 'suspender', 'hibernar', 'dormer']:
+            acao_normalizada = 'sleep'
+            msg_user = "Computador entrando em modo de suspensão."
+        else:
+            return f"Ação desconhecida: '{acao}'. Use: desligar (shutdown), reiniciar (restart), ou dormir (sleep)."
+        
+        try:
+            sistema = os.name
+            
+            if sistema == 'nt':  # Windows
+                if acao_normalizada == 'shutdown':
+                    os.system(f'shutdown /s /t {delay}')
+                elif acao_normalizada == 'restart':
+                    os.system(f'shutdown /r /t {delay}')
+                else:  # sleep
+                    os.system('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
+            
+            else:  # Linux/Mac
+                if acao_normalizada == 'shutdown':
+                    os.system(f'shutdown -h +{delay // 60}')
+                elif acao_normalizada == 'restart':
+                    os.system(f'shutdown -r +{delay // 60}')
+                else:  # sleep
+                    os.system('systemctl suspend')
+            
+            print(f">>> [ENERGIA] {msg_user}")
+            return msg_user
+            
+        except Exception as e:
+            return f"Erro ao executar controle de energia: {str(e)}"
+    
     # ===== MÉTODOS ASYNC (NÃO BLOQUEIAM O EVENT LOOP) =====
     
-    async def async_tocar_youtube_invisivel(self, pesquisa: str) -> str:
+    async def async_tocar_youtube_invisivel(self, pesquisa: str, **kwargs) -> str:
         """
         Versão ASYNC do YouTube que não bloqueia o FastAPI event loop.
         Usa async_playwright em vez de sync_playwright().
+        Absorve parâmetros extra (browser, platform, etc) do Gemini de forma segura.
         
         CRÍTICO: Esta função deve ser chamada APENAS com await em contexto async.
         """

@@ -15,6 +15,7 @@ try:
         ControlarReproducaoTool,
         AbrirOuPesquisarTool
     )
+    from backend.tools.system_tools import SystemPowerControlTool
     from backend.tools.vision_tools import CapturarVisaoTool, AnalisarVisaoComGeminiTool
     from backend.tools.memory_tools import GuardarMemoriaTool, BuscarMemoriaTool, ResolverAlvoComAprendizadoTool
 except ModuleNotFoundError:
@@ -27,6 +28,7 @@ except ModuleNotFoundError:
         ControlarReproducaoTool,
         AbrirOuPesquisarTool
     )
+    from tools.system_tools import SystemPowerControlTool
     from tools.vision_tools import CapturarVisaoTool, AnalisarVisaoComGeminiTool
     from tools.memory_tools import GuardarMemoriaTool, BuscarMemoriaTool, ResolverAlvoComAprendizadoTool
 
@@ -38,6 +40,7 @@ def inicializar_ferramentas(
     youtube_controller = None,
     media_controller = None,
     ui_controller = None,
+    power_controller = None,
     gemini_client = None
 ):
     """
@@ -75,6 +78,10 @@ def inicializar_ferramentas(
     
     open_search_tool = AbrirOuPesquisarTool(ui_controller, oraculo_engine, database)
     registry.register(open_search_tool, aliases=['open', 'search', 'browser'])
+    
+    # Ferramentas de Controle de Energia
+    power_control_tool = SystemPowerControlTool(power_controller)
+    registry.register(power_control_tool, aliases=['power', 'shutdown', 'sleep', 'restart'])
     
     # Ferramentas de Visão
     capture_vision_tool = CapturarVisaoTool()

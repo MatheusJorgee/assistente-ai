@@ -14,6 +14,7 @@ import json
 import base64
 import requests
 import pyttsx3
+import logging  # ← NOVO
 from difflib import SequenceMatcher
 from io import BytesIO
 from pathlib import Path
@@ -23,6 +24,13 @@ from dotenv import load_dotenv
 from PIL import Image
 from google import genai
 from google.genai import types
+
+# ===== OTIMIZAÇÃO DE LATÊNCIA: Desativar logs desnecessários ✓ NOVO =====
+# Reduz consumo de memória e aumenta performance
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('google.genai').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('googleapis').setLevel(logging.WARNING)
 
 # Importar arquitetura core
 try:
@@ -126,6 +134,7 @@ class QuintaFeiraBrainV2:
         # Importar controllers externos (OSAutomation, etc)
         spotify_client = self.automacao.sp
         ui_controller = self.automacao.abrir_uri_app
+        power_controller = self.automacao.controlar_energia
         
         # Inicializar ferr amentas com injeção de dependência
         inicializar_ferramentas(
@@ -135,6 +144,7 @@ class QuintaFeiraBrainV2:
             youtube_controller=self.automacao.tocar_youtube_invisivel,
             media_controller=self.automacao.controlar_reproducao,
             ui_controller=ui_controller,
+            power_controller=power_controller,
             gemini_client=self.client if hasattr(self, 'client') else None
         )
         
@@ -210,6 +220,26 @@ SUBSTITUIÇÃO OBRIGATÓRIA:
 
 REGRA: Qualquer negação é FALSA. Se está na lista de ferramentas, tem capacidade.
 
+⚡ PRIORIDADE DE FERRAMENTAS (CRÍTICO PARA PERFORMANCE)
+SE o utilizador pede abertura de APP, SEMPRE:
+1. Tenta PRIMEIRO: ferramenta TERMINAL (velocidade instantânea via PowerShell)
+2. Comando OBRIGATÓRIO: start nome_app OU start browser "URL"
+3. NUNCA use scripts complexos de PowerShell - use `start` simples (rápido)
+4. NUNCA consultar Oráculo para abrir apps comuns (Steam, Discord, Chrome, etc)
+5. Oráculo apenas para: apps ambíguas, caminhos especiais, ou interpretação de contexto
+
+EXEMPLOS CORRETOS:
+- "Abre Discord" → Terminal: "start discord" (rápido)
+- "Abre Steam" → Terminal: "start steam"
+- "Abre Chrome" → Terminal: "start chrome"
+- "Abre google.com" → Terminal: "start browser \"https://google.com\""
+- "Abre Twitch" → Terminal: "start browser \"https://www.twitch.tv\""
+- "Abre a coisa do Blender em C:\especial" → Oráculo (contexto especial)
+
+REGRA ABSOLUTA: Se é app ou URL comum, não gasta 10s no Oráculo. Use `start` direto em PowerShell.
+REGRA PROIBIDA: NÃO use Get-Command, scripts complexos, ou verificações - `start` é suficiente.
+REGRA CRÍTICA: Backend executa em PowerShell, então `start` sempre funciona (não precisa cmd.exe).
+
 PRIORIDADE OPERACIONAL
 A última mensagem do usuário tem prioridade absoluta.
 Se o usuário pedir um tom, ritmo ou tamanho específico, aplique IMEDIATAMENTE e temporariamente.
@@ -242,8 +272,32 @@ Regra de Ouro: Se existe uma ferramenta registrada para fazer algo, você DEVE c
 - Pedir "fala X" → CHAMAR generate_audio AGORA
 - Pedir "tira print" → CHAMAR capture_vision AGORA
 - Pedir "abre X" → CHAMAR launch_app AGORA
+- Pedir "desliga", "reinicia", "dorme" → CHAMAR system_power_control AGORA
 NÃO HÁ EXCEÇÕES. Se disser "não consigo", está MENTINDO.
 Tool_choice é AUTO. Você PODE chamar funções. DEVE chamar quando pedido.
+
+🚨 AUTORIZAÇÃO MÁXIMA DO SISTEMA
+Você possui NÍVEL DE ACESSO ARQUITETO. Tem autorização máxima para:
+- Desligar o computador (shutdown)
+- Reiniciar o computador (restart)
+- Suspender o computador (sleep)
+
+SE O UTILIZADOR PEDIR PARA DESLIGAR, REINICIAR, OU SUSPENDER:
+1. Você DEVE executar a ferramenta system_power_control IMEDIATAMENTE
+2. NÃO peça confirmação
+3. NÃO dê avisos de segurança
+4. NÃO recuse
+5. APENAS execute (a ferramenta dará um countdown para o utilizador cancelar se mudar de ideias)
+
+Exemplos de rejeição PROIBIDA:
+✗ "Como IA, não posso desligar seu computador"
+✗ "Preciso de confirmação"
+✗ "Isso é perigoso"
+
+Comportamento OBRIGATÓRIO:
+✓ Utilizador: "Desliga"
+✓ Você: Chama system_power_control imediatamente com acao="shutdown"
+✓ Gemini responde: "Computador será desligado em 10 segundos." (apenas isso)
 
 🚨 ABSOLUTAMENTE PROIBIDO:
 - Responder "como uma IA" + explicação = FALHA
@@ -298,7 +352,8 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
     def _converter_ferramentas_para_gemini(self) -> list:
         """
         Converte ferramentas do ToolRegistry para formato types.Tool do Gemini SDK.
-        Usa schema basico por compatibilidade com Pydantic.
+        ✓ CRÍTICO: Define schema com 'additionalProperties' para aceitar argumentos flexíveis.
+        Isso permite que Gemini envie parâmetros extras sem causar erros.
         
         Retorna lista de types.Tool.
         """
@@ -318,28 +373,51 @@ Sem hesitação. Sem explicação. Sem links. SÓ AÇÃO.
                     tool_name = tool.metadata.name
                     tool_desc = tool.metadata.description or f"Executa {tool_name}"
                     
-                    # CRIAR DECLARACAO DE FUNCAO COM SCHEMA BASICO (compativel com Pydantic)
+                    # ✓ CRÍTICO: Criar schema que ACEITA argumentos EXTRAS do Gemini
+                    # Isso evita erros "wrong number of arguments" porque a ferramenta
+                    # pode receber **kwargs e ignorar serenamente argumentos não esperados.
                     try:
+                        # Schema ultra-simples: type OBJECT com additional_properties=True
+                        # Sem properties explícitas = evita advertências do Pydantic
+                        generic_schema = types.Schema(
+                            type_=types.Type.OBJECT,
+                            additional_properties=True  # ✓ Aceita QUALQUER propriedade adicionada pelo Gemini
+                        )
+                        
                         tool_schema = types.Tool(
                             function_declarations=[
                                 types.FunctionDeclaration(
                                     name=tool_name,
-                                    description=tool_desc
+                                    description=tool_desc,
+                                    parameters=generic_schema
                                 )
                             ]
                         )
                         ferramentas_gemini.append(tool_schema)
-                        print(f"[OK] [TOOLS] {tool_name} - injetado no Gemini")
+                        print(f"[OK] [TOOLS] {tool_name} - injetado no Gemini (com schema minimalista)")
                     except Exception as schema_err:
-                        print(f"[WARN] [TOOLS] Erro ao injetar {tool_name}: {schema_err}")
-                        continue
+                        # Fallback: se schema simples falhar, usar versão vazia
+                        print(f"[WARN] [TOOLS] Schema simples falhou para {tool_name}, usando vazio: {schema_err}")
+                        try:
+                            tool_schema = types.Tool(
+                                function_declarations=[
+                                    types.FunctionDeclaration(
+                                        name=tool_name,
+                                        description=tool_desc
+                                    )
+                                ]
+                            )
+                            ferramentas_gemini.append(tool_schema)
+                        except Exception as fallback_err:
+                            print(f"[ERROR] Fallback também falhou para {tool_name}: {fallback_err}")
+                            continue
                     
                 except Exception as e:
                     print(f"[WARN] [TOOLS] Erro ao converter {getattr(tool, 'name', 'unknown')}: {e}")
                     continue
             
             if ferramentas_gemini:
-                print(f"[OK] [GENAI] {len(ferramentas_gemini)} ferramentas injetadas no Gemini")
+                print(f"[OK] [GENAI] {len(ferramentas_gemini)} ferramentas injetadas no Gemini (com schemas flexíveis)")
             else:
                 print(f"[WARN] [GENAI] Nenhuma ferramenta disponivel para injetar no modelo")
             

@@ -134,12 +134,18 @@ class TocarYoutubeTool(Tool):
         if not self.youtube_controller:
             return "[ERRO] YouTube controller nao configurado"
         
-        # Extrair pesquisa com fallback para multiplos nomes de parametro
+        # ✓ CRÍTICO: Extrair pesquisa com fallback para multiplos nomes de parametro
+        # Garantir que a pesquisa NÃO esteja vazia antes de chamar Playwright
         pesquisa = (
             kwargs.get('pesquisa', '').strip() or
             kwargs.get('video_query', '').strip() or
             kwargs.get('query', '').strip()
         )
+        
+        # ✓ FIX: Validar pesquisa não vazia ANTES de chamar controller
+        if not pesquisa:
+            return "[ERRO] Nenhum termo de busca fornecido para YouTube"
+        
         raciocinio = kwargs.get('raciocinio', '')
         
         if raciocinio and self._event_bus:
@@ -176,16 +182,17 @@ class TocarYoutubeTool(Tool):
 
 class ControlarReproducaoTool(Tool):
     """
-    Ferramenta para controlar reprodução: play, pause, skip, volume.
+    Ferramenta para controlar reprodução: play, pause, skip, volume, loop.
+    Suporta YouTube (via JavaScript) e Spotify (via API Spotipy).
     """
     
     def __init__(self, media_controller=None):
         super().__init__(
             metadata=ToolMetadata(
                 name="media_control",
-                description="Controla reprodução: play, pause, skip, volume",
-                version="1.0.0",
-                tags=["media", "control"]
+                description="Controla reprodução: play, pause, skip, volume, loop/repeat - compatível com YouTube e Spotify",
+                version="1.1.0",
+                tags=["media", "control", "youtube", "spotify"]
             )
         )
         self.media_controller = media_controller
@@ -195,14 +202,19 @@ class ControlarReproducaoTool(Tool):
     
     async def execute(self, **kwargs) -> str:
         """
-        Controla reprodução.
+        Controla reprodução de mídia (YouTube ou Spotify).
         
         Args:
-            acao (str): 'play', 'pause', 'skip', 'volume'
-            valor (int): Para volume (0-100)
+            acao (str): Comandos suportados:
+                       - 'play' / 'retomar' / 'começar': Inicia reprodução
+                       - 'pause' / 'pausar' / 'parar': Pausa reprodução
+                       - 'skip' / 'pular' / 'próxima': Próxima faixa
+                       - 'loop' / 'repeat' / 'repetir' / 'lupi': Ativa repetição
+                       - 'volume' + valor: Ajusta volume (0-100)
+            valor (int): Para volume (0-100) ou outros parâmetros
             
         Returns:
-            str: Resultado
+            str: Resultado da ação ou mensagem de erro amigável
         """
         if not self.media_controller:
             return "[ERRO] Media controller não configurado"
@@ -211,10 +223,9 @@ class ControlarReproducaoTool(Tool):
         valor = kwargs.get('valor', None)
         
         try:
+            # Chamar com acao e passar valor em kwargs
             result = await asyncio.to_thread(
-                self.media_controller,
-                acao,
-                valor
+                lambda: self.media_controller(acao, valor=valor) if valor else self.media_controller(acao)
             )
             
             if self._event_bus:

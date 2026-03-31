@@ -37,6 +37,7 @@ export default function QuintaFeiraInterface() {
   const [historico, setHistorico] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const [isWakeWordEnabled, setIsWakeWordEnabled] = useState(false);  // ← Novo: Controlar Escuta Contínua
 
   const ws = useRef<WebSocket | null>(null);
   const chatFimRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +97,11 @@ export default function QuintaFeiraInterface() {
   const handleBrowserWarning = useCallback((msg: string) => {
     setToast(msg);
   }, []);
+
+  // ===== DEBUG: Monitor isWakeWordEnabled changes =====
+  useEffect(() => {
+    console.log(`[PAGE] isWakeWordEnabled mudou para: ${isWakeWordEnabled ? '🟢 CONTINUO' : '🔵 MANUAL'}`);
+  }, [isWakeWordEnabled]);
 
   // ===== V1 BARGE-IN HANDLER (memoized to prevent infinite loops) =====
   const handleBargeinRequested = useCallback(() => {
@@ -246,8 +252,15 @@ export default function QuintaFeiraInterface() {
 
         ws.current.onerror = (error) => {
           console.error("[WS] Erro WebSocket:", error);
+          console.error("[WS] Estado da conexão:", {
+            readyState: ws.current?.readyState,
+            url: ws.current?.url,
+            wsUrl: wsUrl,
+            estado: ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.current?.readyState || 0]
+          });
           setWsConnected(false);
-          setStatusLabel("Erro na conexão...");
+          setStatusLabel("Erro na conexão (backend offline?)...");
+          setToast("⚠️ Backend não respondeu. Certifique-se de que está rodando em " + wsUrl);
         };
       } catch (err) {
         console.error("[WS] Erro ao inicializar:", err);
@@ -335,22 +348,46 @@ export default function QuintaFeiraInterface() {
               </div>
             </div>
 
-            <div className={`rounded-full border px-4 py-1.5 text-xs font-medium tracking-wide flex items-center gap-2 ${
-              wsConnected
-                ? "border-cyan-300/50 bg-cyan-300/12 text-cyan-100" 
-                : "border-amber-200/50 bg-amber-200/15 text-amber-100"
-            }`}>
-              {wsConnected ? (
-                <>
-                  <span className="h-2 w-2 rounded-full bg-cyan-300 animate-pulse" />
-                  NÚCLEO ONLINE
-                </>
-              ) : (
-                <>
-                  <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse" />
-                  {statusLabel.toUpperCase()}
-                </>
-              )}
+            <div className="flex items-center gap-2">
+              {/* ===== NOVO: Botão de Wake Word (Radar Mode) ===== */}
+              <button
+                onClick={() => {
+                  const newValue = !isWakeWordEnabled;
+                  setIsWakeWordEnabled(newValue);
+                  console.log(`[PAGE_BUTTON_CLICK] Botão RADAR clicado! Novo estado: ${newValue ? '🟢 LIGADO' : '🔴 DESLIGADO'}`);
+                }}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium tracking-wide flex items-center gap-2 transition-all duration-300 select-none cursor-pointer ${
+                  isWakeWordEnabled
+                    ? "border-lime-300/80 bg-lime-300/25 text-lime-100 shadow-lg shadow-lime-500/40 hover:shadow-lime-500/60"
+                    : "border-cyan-100/30 bg-cyan-100/5 text-cyan-100/70 hover:border-cyan-100/50 hover:bg-cyan-100/10"
+                }`}
+                title={isWakeWordEnabled ? "🟢 Escuta Contínua ATIVA - Clique para desativar" : "🔴 Escuta Contínua INATIVA - Clique para ativar"}
+              >
+                <span className="text-base">{isWakeWordEnabled ? "📡" : "🔌"}</span>
+                <span className={`hidden md:inline font-bold ${isWakeWordEnabled ? 'text-lime-200' : 'text-cyan-200'}`}>
+                  {isWakeWordEnabled ? "RADAR ATIVO" : "RADAR"}
+                </span>
+                {isWakeWordEnabled && <span className="h-2 w-2 rounded-full bg-lime-300 animate-pulse" />}
+              </button>
+
+              {/* ===== STATUS NÚCLEO ===== */}
+              <div className={`rounded-full border px-4 py-1.5 text-xs font-medium tracking-wide flex items-center gap-2 ${
+                wsConnected
+                  ? "border-cyan-300/50 bg-cyan-300/12 text-cyan-100" 
+                  : "border-amber-200/50 bg-amber-200/15 text-amber-100"
+              }`}>
+                {wsConnected ? (
+                  <>
+                    <span className="h-2 w-2 rounded-full bg-cyan-300 animate-pulse" />
+                    NÚCLEO ONLINE
+                  </>
+                ) : (
+                  <>
+                    <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse" />
+                    {statusLabel.toUpperCase()}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -435,8 +472,14 @@ export default function QuintaFeiraInterface() {
                 <VoiceControl 
                   onCommand={(command) => enviarMensagemTexto(command)} 
                   isDisabled={isLoading}
+                  isWakeWordEnabled={isWakeWordEnabled}
+                  onWakeWordEnabledChange={setIsWakeWordEnabled}
                   onBargein={handleBargeinRequested}
                   onBrowserWarning={handleBrowserWarning}
+                  onAISpeakingStateChange={(isSpeaking) => {
+                    // Callback para quando IA começa/termina de falar
+                    console.log(`[PAGE] IA status: ${isSpeaking ? 'falando' : 'silenciosa'}`);
+                  }}
                 />
               </div>
             </section>
@@ -463,6 +506,10 @@ export default function QuintaFeiraInterface() {
               <p className="mt-2">Enter: enviar mensagem</p>
               <p>Diagnóstico: /diagnose</p>
               <p>Status: {statusLabel}</p>
+              <p className="mt-3 flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${isWakeWordEnabled ? 'bg-lime-300 animate-pulse' : 'bg-cyan-400'}`} />
+                <span>Modo: {isWakeWordEnabled ? '🟢 CONTINUO' : '🔵 MANUAL'}</span>
+              </p>
             </section>
           </aside>
         </main>

@@ -9,9 +9,12 @@ import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 interface VoiceControlProps {
   onCommand: (command: string) => void;
   isDisabled?: boolean;
+  isWakeWordEnabled?: boolean;  // ← Novo: Controlar escuta contínua
+  onWakeWordEnabledChange?: (enabled: boolean) => void;  // ← Novo: Callback para mudar estado
   size?: 'sm' | 'md' | 'lg';
   onBargein?: () => void;  // ← Callback para interrupção
   onBrowserWarning?: (msg: string) => void;
+  onAISpeakingStateChange?: (isSpeaking: boolean) => void;  // ← Novo: Controlar quando IA está a falar
 }
 
 const normalizarTexto = (texto: string) => {
@@ -66,16 +69,68 @@ const deveResponderSemFala = (texto: string): boolean => {
   return regex.test(t);
 };
 
+// ===== NOVO: Som de Ativação Wake Word (Radar) =====
+const playWakeWordActivationSound = () => {
+  try {
+    const w = window as typeof window & {
+      webkitAudioContext?: typeof AudioContext;
+    };
+
+    const AudioContextCtor = w.AudioContext || w.webkitAudioContext;
+    if (!AudioContextCtor) return;
+
+    const audioCtx = new AudioContextCtor();
+    
+    // Tom duplo para ativação: 440Hz (A4) + 880Hz (A5) - notas musicais
+    const now = audioCtx.currentTime;
+    const duration = 0.3;
+    
+    // Primeiro tom (440Hz - Lá)
+    const osc1 = audioCtx.createOscillator();
+    const gain1 = audioCtx.createGain();
+    osc1.connect(gain1);
+    gain1.connect(audioCtx.destination);
+    osc1.frequency.value = 440;
+    osc1.type = 'sine';
+    gain1.gain.setValueAtTime(0.15, now);
+    gain1.gain.exponentialRampToValueAtTime(0.01, now + duration);
+    osc1.start(now);
+    osc1.stop(now + duration);
+    
+    // Segundo tom (880Hz - Lá agudo, 1 oitava acima)
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(audioCtx.destination);
+    osc2.frequency.value = 880;
+    osc2.type = 'sine';
+    gain2.gain.setValueAtTime(0.15, now + duration * 0.3);
+    gain2.gain.exponentialRampToValueAtTime(0.01, now + duration * 0.8);
+    osc2.start(now + duration * 0.3);
+    osc2.stop(now + duration * 0.8);
+    
+    console.log('[WAKE_WORD_SOUND] 📡 Radar ativado: 440Hz + 880Hz');
+  } catch (e) {
+    console.log('Wake word activation sound not available', e);
+  }
+};
+
 export function VoiceControl({ 
   onCommand, 
   isDisabled = false, 
+  isWakeWordEnabled = false,  // ← Novo
+  onWakeWordEnabledChange,  // ← Novo
   size = 'md',
   onBargein,
   onBrowserWarning,
+  onAISpeakingStateChange,
 }: VoiceControlProps) {
   const [adjustedCommand, setAdjustedCommand] = useState("");
   const [browserWarning, setBrowserWarning] = useState<string | null>(null);
   const pendingSilentAckRef = useRef(false);  // ← V1 RESTORED
+  
+  // ===== CONTINUOUS LISTENING: Expor setAISpeaking para o componente pai =====
+  const aISpeakingRef = useRef(false);
 
   const isClient = useSyncExternalStore(
     () => () => {},
@@ -85,6 +140,7 @@ export function VoiceControl({
 
   const speechRecognition = useSpeechRecognition({
     language: 'pt-BR',
+    isWakeWordEnabled: isWakeWordEnabled,  // ← Novo: Passar o estado
     onTranscription: (text: string) => {
       const command = adjustBilingualCommand(text);
       setAdjustedCommand(command);
@@ -104,6 +160,9 @@ export function VoiceControl({
       playToneSilentAck(800, 120, 'error');  // Erro: 800Hz
     },
     onWakewordDetected: () => {
+      // ===== NOVO: Tocar som de ativação (Radar) =====
+      playWakeWordActivationSound();
+      
       // ===== V1 BARGE-IN: Chamar callback ====
       console.log('[BARGE_IN] Wake word detectado - interrompendo IA');
       if (onBargein) onBargein();
@@ -130,6 +189,46 @@ export function VoiceControl({
       speechRecognition.start();
     }
   };
+
+  // ===== CONTINUOUS LISTENING: Notificar quando IA começa/termina resposta =====
+  useEffect(() => {
+    // isDisabled torna-se true quando isLoading=true (IA a processar)
+    if (isDisabled && !aISpeakingRef.current) {
+      aISpeakingRef.current = true;
+      console.log('[VOICE_CONTROL] IA começou a falar - pausando microfone contínuo');
+      speechRecognition.setAISpeaking(true);
+      onAISpeakingStateChange?.(true);
+    } else if (!isDisabled && aISpeakingRef.current) {
+      aISpeakingRef.current = false;
+      console.log('[VOICE_CONTROL] IA terminou de falar - retomando microfone contínuo');
+      speechRecognition.setAISpeaking(false);
+      onAISpeakingStateChange?.(false);
+    }
+  }, [isDisabled, speechRecognition, onAISpeakingStateChange]);
+
+  // ===== FORCE RESTART: Quando isWakeWordEnabled muda, reiniciar microfone para aplicar nova config =====
+  useEffect(() => {
+    if (speechRecognition.isListening) {
+      console.log(`[WAKE_WORD_SYNC] Modo alterado para: ${isWakeWordEnabled ? '🟢 CONTINUO' : '🔵 MANUAL'}`);
+      console.log('[WAKE_WORD_SYNC] Reiniciando microfone para aplicar nova configuração...');
+      
+      // Force restart: stop() + start() imediato
+      try {
+        speechRecognition.stop();
+        // Aguardar 100ms para garantir que stop() foi processado
+        setTimeout(() => {
+          try {
+            speechRecognition.start();
+            console.log(`[WAKE_WORD_SYNC] Microfone reiniciado com continuous=${isWakeWordEnabled}`);
+          } catch (e) {
+            console.error('[WAKE_WORD_SYNC] Erro ao reiniciar:', e);
+          }
+        }, 100);
+      } catch (e) {
+        console.error('[WAKE_WORD_SYNC] Erro ao parar:', e);
+      }
+    }
+  }, [isWakeWordEnabled, speechRecognition]);
 
   // Função para ajustar comandos bilingues
   const adjustBilingualCommand = (text: string) => {
