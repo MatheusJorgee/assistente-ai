@@ -14,13 +14,13 @@ from typing import Any, Awaitable, Callable, Dict
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 try:
-    from core import get_logger
+    from .. import get_logger
 except ImportError:
-    from core import get_logger
+    from .. import get_logger
 try:
-    from core.loop import AsyncEventBus, LoopEvent
+    from ..loop import AsyncEventBus, LoopEvent
 except ImportError:
-    from core.loop import AsyncEventBus, LoopEvent
+    from ..loop import AsyncEventBus, LoopEvent
 
 
 EventHandler = Callable[[LoopEvent], Awaitable[None] | None]

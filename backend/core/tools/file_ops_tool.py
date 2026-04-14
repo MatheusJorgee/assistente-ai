@@ -9,14 +9,14 @@ import time
 from typing import Optional
 
 try:
-    from core import (
+    from .. import (
         FileSystemAdapter,
         PolicyContext,
         ToolCallTelemetry,
     )
-    from core.tools.base import MotorTool, SecurityLevel, ToolMetadata, ToolParameter
+    from ..tools.base import MotorTool, SecurityLevel, ToolMetadata, ToolParameter
 except ImportError:
-    from core import FileSystemAdapter, PolicyContext, ToolCallTelemetry
+    from .. import FileSystemAdapter, PolicyContext, ToolCallTelemetry
     from .base import MotorTool, SecurityLevel, ToolMetadata, ToolParameter
 
 

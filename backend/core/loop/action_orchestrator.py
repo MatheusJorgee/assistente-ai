@@ -9,11 +9,11 @@ import json
 from typing import Any, Optional
 
 try:
-    from core import get_logger
-    from core.loop.event_bus import AsyncEventBus, LoopEvent
+    from .. import get_logger
+    from .event_bus import AsyncEventBus, LoopEvent
 except ImportError:
-    from core import get_logger
-    from core.loop.event_bus import AsyncEventBus, LoopEvent
+    from .. import get_logger
+    from .event_bus import AsyncEventBus, LoopEvent
 
 logger = get_logger(__name__)
 

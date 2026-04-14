@@ -11,11 +11,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 try:
-    from core.logger import get_logger
-    from core.database import get_database
+    from ..logger import get_logger
+    from ..database import get_database
 except ImportError:
-    from core.logger import get_logger
-    from core.database import get_database
+    from ..logger import get_logger
+    from ..database import get_database
 
 logger = get_logger(__name__)
 

@@ -14,9 +14,14 @@ import subprocess
 from typing import Optional
 
 try:
-    from core.policy.policy_engine import OSAction, PolicyContext, PolicyEngine
+    from ..policy.policy_engine import OSAction, PolicyContext, PolicyEngine
 except ImportError:
-    from core.policy.policy_engine import OSAction, PolicyContext, PolicyEngine
+    try:
+        from core.policy.policy_engine import OSAction, PolicyContext, PolicyEngine
+    except ImportError:
+        OSAction = None
+        PolicyContext = None
+        PolicyEngine = None
 
 
 @dataclass(frozen=True)

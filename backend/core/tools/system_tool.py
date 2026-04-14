@@ -8,11 +8,11 @@ import sys
 from typing import Optional, Dict, List, Any
 
 try:
-    from core.tools.base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
-    from core import get_logger
+    from ..tools.base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
+    from .. import get_logger
 except ImportError:
     from .base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
-    from core import get_logger
+    from .. import get_logger
 
 logger = get_logger(__name__)
 

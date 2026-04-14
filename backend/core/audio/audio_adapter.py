@@ -25,9 +25,9 @@ except Exception:
     sr = None
 
 try:
-    from core import get_logger
+    from .. import get_logger
 except ImportError:
-    from core import get_logger
+    from .. import get_logger
 
 logger = get_logger(__name__)
 

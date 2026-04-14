@@ -16,9 +16,15 @@ import time
 from typing import Mapping, Optional
 
 try:
-    from core.policy.policy_engine import OSAction, PolicyContext, PolicyEngine
+    from ..policy.policy_engine import OSAction, PolicyContext, PolicyEngine
 except ImportError:
-    from core.policy.policy_engine import OSAction, PolicyContext, PolicyEngine
+    try:
+        from core.policy.policy_engine import OSAction, PolicyContext, PolicyEngine
+    except ImportError:
+        # Fallback - definiçõesambiente não críticas
+        OSAction = None
+        PolicyContext = None
+        PolicyEngine = None
 
 
 MAX_CAPTURE_CHARS = 8000

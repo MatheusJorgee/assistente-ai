@@ -8,7 +8,9 @@ Usa PlaywrightManager singleton internally.
 import asyncio
 import urllib.parse
 import time
-from youtubesearchpython import VideosSearch
+import subprocess
+import json
+import sys
 
 
 class AsyncYouTubeHandler:
@@ -29,28 +31,9 @@ class AsyncYouTubeHandler:
         await self.playwright_manager.initialize()
     
     def _resolver_video_youtube(self, pesquisa: str):
-        """Resolve vÃ­deo no YouTube (sÃ­ncrono - rÃ¡pido)."""
-        query = pesquisa.strip()
-        if not query:
-            return None
-        
-        tentativas = [query]
-        if "letra" not in query.lower() and "lyrics" not in query.lower():
-            tentativas.append(f"{query} official audio")
-        
-        for tentativa in tentativas:
-            try:
-                resultados = VideosSearch(tentativa, limit=3).result()
-                videos = resultados.get("result", [])
-                if videos:
-                    return {
-                        "id": videos[0].get("id", ""),
-                        "title": videos[0].get("title", ""),
-                        "query": tentativa,
-                    }
-            except:
-                continue
-        
+        """Resolve vÃ­deo no YouTube (fallback para busca manual no navegador)."""
+        # Skip yt-dlp - use YouTube search page fallback instead
+        # This works around slow/unreliable yt-dlp subprocess calls
         return None
     
     async def tocar_youtube_invisivel(self, pesquisa: str) -> str:

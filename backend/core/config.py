@@ -10,7 +10,7 @@ Responsabilidade:
 - Validar secrets obrigatÃ³rios na inicializaÃ§Ã£o
 
 Uso:
-    from core.config import Config
+    from .config import Config
     cfg = Config()
     print(cfg.GEMINI_API_KEY)  # Carregado automaticamente
 """

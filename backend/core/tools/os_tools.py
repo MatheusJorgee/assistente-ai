@@ -14,7 +14,7 @@ import time
 from typing import Optional
 
 try:
-    from core import (
+    from .. import (
         OSAction,
         PolicyContext,
         PolicyEngine,
@@ -25,9 +25,9 @@ try:
         ToolCallTelemetry,
         get_logger,
     )
-    from core.tools.base import MotorTool, SecurityLevel, ToolMetadata, ToolParameter
+    from ..tools.base import MotorTool, SecurityLevel, ToolMetadata, ToolParameter
 except ImportError:
-    from core import (
+    from .. import (
         OSAction,
         PolicyContext,
         PolicyEngine,

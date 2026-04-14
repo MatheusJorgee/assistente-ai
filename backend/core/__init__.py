@@ -5,9 +5,9 @@ Backend Core: FundaÃ§Ã£o do Sistema
 Exporte as abstraÃ§Ãµes e utilitÃ¡rios fundamentais que todo mÃ³dulo usa.
 
 Uso (exemplos):
-    from core import get_config, get_logger
-    from core import QuintaFeirError, ToolExecutionError
-    from core import LLMProvider, Message, Response
+    from . import get_config, get_logger
+    from . import QuintaFeirError, ToolExecutionError
+    from . import LLMProvider, Message, Response
     
     cfg = get_config()
     logger = get_logger(__name__)

@@ -5,16 +5,16 @@ Centraliza criaÃ§Ã£o e registro das tools em um Ãºnico ponto de entrada.
 """
 
 try:
-    from ..tools.terminal_tool import TerminalTool
-    from ..tools.media_tool import MediaTool
-    from ..tools.system_tool import SystemTool
-    from ..tools.vision_tool import VisionTool
-    from ..tools.os_tools import OSCommandTool, ProcessControlTool
-    from ..tools.file_ops_tool import FileOpsTool
-    from ..tools.memory_tools import MemoryTool
-    from ..tools.base import ToolRegistry
-    from ..memory import MemoryManager
-    from .. import (
+    from core.tools.terminal_tool import TerminalTool
+    from core.tools.media_tool import MediaTool
+    from core.tools.system_tool import SystemTool
+    from core.tools.vision_tool import VisionTool
+    from core.tools.os_tools import OSCommandTool, ProcessControlTool
+    from core.tools.file_ops_tool import FileOpsTool
+    from core.tools.memory_tools import MemoryTool
+    from core.tools.base import ToolRegistry
+    from core.memory import MemoryManager
+    from core import (
         AuditLogger,
         FileSystemAdapter,
         PowerShellExecutor,
@@ -32,7 +32,7 @@ except ImportError:
     from .memory_tools import MemoryTool
     from .base import ToolRegistry
     from ..memory import MemoryManager
-    from .. import (
+    from core import (
         AuditLogger,
         FileSystemAdapter,
         PowerShellExecutor,

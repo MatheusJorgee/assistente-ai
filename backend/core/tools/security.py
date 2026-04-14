@@ -13,9 +13,9 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 try:
-    from core import get_logger
+    from .. import get_logger
 except ImportError:
-    from core import get_logger
+    from .. import get_logger
 
 logger = get_logger(__name__)
 

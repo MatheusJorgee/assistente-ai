@@ -11,7 +11,7 @@ Responsabilidade:
 - Formato consistente com timestamps e nÃ­veis
 
 Uso:
-    from core.logger import get_logger
+    from .logger import get_logger
     logger = get_logger(__name__)
     logger.info("Mensagem")
 """
@@ -107,7 +107,7 @@ def configure_logging(
         log_format: Formato das mensagens
     
     Exemplo:
-        from core.logger import configure_logging
+        from .logger import configure_logging
         configure_logging(log_level="INFO")
     """
     LoggerFactory.configure_root_logger(log_level, log_format)
@@ -124,7 +124,7 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
         logging.Logger configurado
     
     Exemplo:
-        from core.logger import get_logger
+        from .logger import get_logger
         logger = get_logger(__name__)
         logger.info("Iniciando...")
     """

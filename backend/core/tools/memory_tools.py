@@ -8,10 +8,10 @@ import json
 from typing import Any, Optional
 
 try:
-    from core.memory import MemoryManager
-    from core.tools.base import MotorTool, SecurityLevel, ToolMetadata, ToolParameter
+    from ..memory import MemoryManager
+    from ..tools.base import MotorTool, SecurityLevel, ToolMetadata, ToolParameter
 except ImportError:
-    from core.memory import MemoryManager
+    from ..memory import MemoryManager
     from .base import MotorTool, SecurityLevel, ToolMetadata, ToolParameter
 
 

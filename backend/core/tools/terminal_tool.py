@@ -7,13 +7,13 @@ import sys
 from typing import Optional
 
 try:
-    from core.tools.base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
-    from core.tools.security import get_security_validator
-    from core import get_logger
+    from ..tools.base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
+    from ..tools.security import get_security_validator
+    from .. import get_logger
 except ImportError:
     from .base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
     from .security import get_security_validator
-    from core import get_logger
+    from .. import get_logger
 
 logger = get_logger(__name__)
 

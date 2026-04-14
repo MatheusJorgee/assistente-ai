@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
-    from core.logger import get_logger
+    from .logger import get_logger
 except ImportError:
-    from core.logger import get_logger
+    from .logger import get_logger
 
 logger = get_logger(__name__)
 

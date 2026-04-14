@@ -10,7 +10,7 @@ Responsabilidade:
 - Facilitar debug com mensagens clara e contexto
 
 Uso:
-    from core.errors import ToolExecutionError, TerminalSecurityError
+    from .errors import ToolExecutionError, TerminalSecurityError
     
     try:
         result = registry.execute("meu_tool")

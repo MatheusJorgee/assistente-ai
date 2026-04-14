@@ -14,16 +14,16 @@ import threading
 from typing import Any, Optional
 
 try:
-    from core import get_logger
-    from core.loop import AsyncEventBus, LoopEvent
+    from .. import get_logger
+    from ..loop import AsyncEventBus, LoopEvent
 except ImportError:
-    from core import get_logger
-    from core.loop import AsyncEventBus, LoopEvent
+    from .. import get_logger
+    from ..loop import AsyncEventBus, LoopEvent
 
 try:
-    from core.audio.audio_adapter import AudioAdapter
+    from ..audio.audio_adapter import AudioAdapter
 except ImportError:
-    from core.audio.audio_adapter import AudioAdapter
+    from ..audio.audio_adapter import AudioAdapter
 
 logger = get_logger(__name__)
 
