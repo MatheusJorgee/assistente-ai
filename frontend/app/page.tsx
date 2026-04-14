@@ -1,525 +1,449 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
-import type { Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { VoiceControl } from '@/components/VoiceControl';
+/**
+ * CONFIGURAÇÃO CORS (Python/FastAPI)
+ * Adicione isso no seu main.py do backend para aceitar requisições do frontend:
+ * 
+ * from fastapi.middleware.cors import CORSMiddleware
+ * 
+ * app.add_middleware(
+ *   CORSMiddleware,
+ *   allow_origins=["http://localhost:3000"],
+ *   allow_credentials=True,
+ *   allow_methods=["*"],
+ *   allow_headers=["*"],
+ * )
+ */
 
-// --- markdown visual em estilo limpo e técnico ---
-const markdownComponents: Components = {
-  h1: ({ ...props }) => <h1 className="mt-3 mb-2 text-xl font-bold tracking-tight text-cyan-200" {...props} />,
-  h2: ({ ...props }) => <h2 className="mt-2 mb-1 text-lg font-semibold text-cyan-100" {...props} />,
-  h3: ({ ...props }) => <h3 className="mt-2 mb-1 text-base font-semibold text-white" {...props} />,
-  p: ({ ...props }) => <p className="my-1.5 leading-relaxed text-slate-100" {...props} />,
-  ul: ({ ...props }) => <ul className="my-1.5 list-disc space-y-1 pl-4" {...props} />,
-  ol: ({ ...props }) => <ol className="my-1.5 list-decimal space-y-1 pl-4" {...props} />,
-  li: ({ ...props }) => <li className="ml-1" {...props} />,
-  code: ({ ...props }) => <code className="rounded border border-white/20 bg-black/45 px-1.5 py-0.5 text-xs text-cyan-200" {...props} />,
-  pre: ({ ...props }) => <pre className="my-2" {...props} />,
-  blockquote: ({ ...props }) => <blockquote className="my-2 border-l-2 border-cyan-300/60 bg-white/5 py-1 pl-3 text-slate-300" {...props} />,
-  strong: ({ ...props }) => <strong className="font-semibold text-cyan-100" {...props} />,
-  a: ({ ...props }) => <a className="text-cyan-300 underline hover:text-cyan-200" target="_blank" rel="noopener noreferrer" {...props} />,
-  table: ({ ...props }) => <table className="my-2 w-full border-collapse border border-white/20 text-sm" {...props} />,
-  th: ({ ...props }) => <th className="border border-white/20 bg-white/10 px-2 py-1 text-left font-semibold text-cyan-200" {...props} />,
-  td: ({ ...props }) => <td className="border border-white/20 px-2 py-1 text-slate-100" {...props} />,
-};
+import { useState, useRef, useEffect } from 'react';
 
-interface Message {
-  role: 'Matheus' | 'Quinta-Feira';
-  content: string;
+// Type augmentation para Web Speech API
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
 }
 
-export default function QuintaFeiraInterface() {
-  const [wsConnected, setWsConnected] = useState(false);
-  const [statusLabel, setStatusLabel] = useState("Conectando...");
-  const [mensagem, setMensagem] = useState("");
-  const [historico, setHistorico] = useState<Message[]>([]);
+const API_BASE = 'http://localhost:8000'; // Ajuste conforme necessário
+
+export default function Dashboard() {
+  const [terminalLogs, setTerminalLogs] = useState<string[]>([
+    '[SISTEMA] Motor API carregado com sucesso',
+    '[SISTEMA] Quinta-Feira v2.1 inicializado',
+    '[SISTEMA] Brain orquestrador ativo',
+    '[SISTEMA] Tool Registry carregado (8 ferramentas)',
+    '[AGUARDANDO] Pronto para receber comandos...',
+  ]);
+
+  const [inputCommand, setInputCommand] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [toast, setToast] = useState("");
-  const [isWakeWordEnabled, setIsWakeWordEnabled] = useState(false);  // ← Novo: Controlar Escuta Contínua
+  const [systemStatus, setSystemStatus] = useState<'online' | 'busy'>('online');
+  const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
-  const ws = useRef<WebSocket | null>(null);
-  const chatFimRef = useRef<HTMLDivElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);  // ← V1 BARGE-IN
-  const currentAudioPlayingRef = useRef(false);  // ← Track if audio is currently playing
-  const wsConnectAttempts = useRef(0);  // ← Track reconnection attempts
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);  // ← Debounce scroll
+  const inputRef = useRef<HTMLInputElement>(null);
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef(isListening);
 
-  // ===== TOCAR ÁUDIO BASE64 (Firewall contra vazamento) =====
-  const tocarAudioBase64 = async (audioBase64: string) => {
-    try {
-      console.log("[AUDIO] Tocando Base64 (tamanho: " + audioBase64.length + " chars)");
-      
-      // Converter Base64 → Blob
-      const binaryString = atob(audioBase64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+  // Sincroniza ref com estado para usar em callbacks
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  // Focusa no input quando isTyping ativa
+  useEffect(() => {
+    if (isTyping) {
+      inputRef.current?.focus();
+    }
+  }, [isTyping]);
+
+  // Auto-scroll no terminal quando novos logs aparecem
+  useEffect(() => {
+    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [terminalLogs]);
+
+  // Polling de logs a cada 2 segundos (lê o que o backend está fazendo)
+  useEffect(() => {
+    const pollLogs = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/logs`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.logs && Array.isArray(data.logs)) {
+            // Atualiza terminal com novos logs do backend
+            setTerminalLogs((prev) => {
+              const newLogs = data.logs.filter(
+                (log: string) => !prev.includes(log)
+              );
+              return [...prev, ...newLogs];
+            });
+          }
+        }
+      } catch (error) {
+        // Silenciosamente falha - não queremos poluir o terminal com erros de polling
+        console.debug('Polling de logs falhou (esperado se endpoint não existir):', error);
       }
-      const blob = new Blob([bytes], { type: 'audio/wav' });
-      
-      // Criar URL do objeto
-      const audioUrl = URL.createObjectURL(blob);
-      
-      // Atribuir ao audio ref e tocar
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.play().catch(e => console.error("[AUDIO] Erro ao tocar:", e));
-        currentAudioPlayingRef.current = true;
+    };
+
+    const interval = setInterval(pollLogs, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Envio de comando para o backend
+  const handleSendCommand = async (commandText?: string) => {
+    const command = (commandText || inputCommand).trim();
+    if (!command) return;
+
+    // Se veio de commandText (speech), não limpa inputCommand
+    if (!commandText) {
+      setInputCommand('');
+    }
+    
+    setIsLoading(true);
+    setSystemStatus('busy');
+
+    // Adiciona comando do usuário ao terminal
+    setTerminalLogs((prev) => [...prev, `[USUÁRIO] ${command}`]);
+
+    try {
+      // Fetch POST para o endpoint do backend
+      const response = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const resultado = data.response || 'Comando processado.';
+        setTerminalLogs((prev) => [
+          ...prev,
+          `[QUINTA-FEIRA] ${resultado}`,
+        ]);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setTerminalLogs((prev) => [
+          ...prev,
+          `[ERRO] API respondeu com status ${response.status}: ${
+            errorData.message || 'Erro desconhecido'
+          }`,
+        ]);
       }
     } catch (error) {
-      console.error("[AUDIO] Erro ao processar Base64:", error);
+      // Erro de rede ou conexão
+      setTerminalLogs((prev) => [
+        ...prev,
+        '[ERRO] Falha de conexão com o Núcleo',
+      ]);
+      console.error('Erro ao enviar comando:', error);
+    } finally {
+      setIsLoading(false);
+      setSystemStatus('online');
     }
   };
 
-  // ===== AUTO-SCROLL COM DEBOUNCE (evita loop infinito de renders) =====
-  useEffect(() => {
-    // Limpar timeout anterior
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
+  // Extrai comando após a wake word "quinta feira" ou "quinta-feira"
+  const extractCommandAfterWakeWord = (transcript: string): string | null => {
+    const lowerTranscript = transcript.toLowerCase().trim();
     
-    // Agendar scroll para 100ms depois (debounce previne múltiplos fires)
-    scrollTimeoutRef.current = setTimeout(() => {
-      chatFimRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
-    
-    // Cleanup: limpar timeout se dependências mudarem novamente
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
+    // Padrões da wake word
+    const wakeWordPatterns = [
+      /quinta\s+feira/i,
+      /quinta\s*-\s*feira/i,
+    ];
+
+    for (const pattern of wakeWordPatterns) {
+      const match = lowerTranscript.match(pattern);
+      if (match) {
+        // Extrai tudo após a wake word
+        const index = lowerTranscript.indexOf(match[0]);
+        const endIndex = index + match[0].length;
+        const commandPart = transcript.slice(endIndex).trim();
+        
+        // Se há comando após, retorna; senão retorna null
+        return commandPart ? commandPart : null;
       }
-    };
-  }, [historico, isLoading]);
-
-  // ===== MEMOIZED BROWSER WARNING HANDLER (prevent infinite loop) =====
-  const handleBrowserWarning = useCallback((msg: string) => {
-    setToast(msg);
-  }, []);
-
-  // ===== DEBUG: Monitor isWakeWordEnabled changes =====
-  useEffect(() => {
-    console.log(`[PAGE] isWakeWordEnabled mudou para: ${isWakeWordEnabled ? '🟢 CONTINUO' : '🔵 MANUAL'}`);
-  }, [isWakeWordEnabled]);
-
-  // ===== V1 BARGE-IN HANDLER (memoized to prevent infinite loops) =====
-  const handleBargeinRequested = useCallback(() => {
-    console.log('[BARGE_IN] Interrompendo áudio da IA...');
-    
-    // 1. Parar áudio imediatamente
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    currentAudioPlayingRef.current = false;
-    
-    // 2. Cancelar loading (se houver resposta em streaming)
-    setIsLoading(false);
-    
-    // 3. Enviar sinal de interrupção via WebSocket
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({
-        type: "interrupt",
-        reason: "user_speech_detected",
-        timestamp: Date.now()
-      }));
-      console.log('[INTERRUPT] Sinal enviado ao backend');
     }
     
-    setToast("🔄 Áudio interrompido. Aguardando seu comando...");
-  }, []);
+    return null;
+  };
 
+  // Web Speech API - Wake Word Detection
   useEffect(() => {
-    const connectWebSocket = () => {
-      try {
-        // ✓ SSR-SAFE: Check if in browser before accessing window globals
-        const isBrowser = typeof window !== 'undefined';
-        
-        // Smart WebSocket URL construction
-        const wsProtocol = (isBrowser && window.location.protocol === "https:") ? "wss:" : "ws:";
-        const wsHost = process.env.NEXT_PUBLIC_WS_HOST || (isBrowser ? window.location.hostname : "127.0.0.1");
-        const wsPort = process.env.NEXT_PUBLIC_WS_PORT || "8080";  // ✓ FALLBACK PORTA 8080
-        const wsPath = process.env.NEXT_PUBLIC_WS_PATH || "/ws";
-        
-        const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}${wsPath}`;
-        
-        // Log se debug ativado
-        if (process.env.NEXT_PUBLIC_DEBUG === 'true') {
-          console.log(`[WS] Proto=${wsProtocol}, Host=${wsHost}, Port=${wsPort}, Path=${wsPath}`);
-          console.log(`[WS] URL: ${wsUrl}`);
+    if (!isListening) {
+      // Para o reconhecimento se isListening for false
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      return;
+    }
+
+    // Browser support check
+    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      setTerminalLogs((prev) => [
+        ...prev,
+        '[ERRO] Web Speech API não suportada neste navegador',
+      ]);
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      recognitionRef.current = new SpeechRecognition();
+      const recognition = recognitionRef.current;
+
+      // Configuração
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'pt-BR';
+
+      // Evento: resultado de transcrição
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+
+          if (event.results[i].isFinal) {
+            finalTranscript = transcript;
+          } else {
+            interimTranscript += transcript;
+          }
         }
 
-        // ⏱️ Set timeout para conexão
-        const timeout = setTimeout(() => {
-          if (ws.current && ws.current.readyState === WebSocket.CONNECTING) {
-            console.log("[WS] Timeout na conexão - reconectando");
-            ws.current?.close();
-            setWsConnected(false);
-            setStatusLabel("Reconectando...");
-            setToast("⚠️ Timeout - aguardando backend...");
+        // Se há transcrição final, processa
+        if (finalTranscript) {
+          console.log('[SPEECH] Transcrição:', finalTranscript);
+
+          // Procura pela wake word
+          const command = extractCommandAfterWakeWord(finalTranscript);
+
+          if (command) {
+            // Wake word detectada! Envia comando
+            console.log('[SPEECH] Wake word detectada! Comando:', command);
+            setTerminalLogs((prev) => [
+              ...prev,
+              '[WAKE-WORD] "quinta-feira" detectada - processando comando',
+            ]);
+            
+            // Envia comando extraído
+            handleSendCommand(command);
+          } else if (finalTranscript.toLowerCase().includes('quinta')) {
+            // Capturou "quinta" mas precisa de "feira" após? Avisa
+            setTerminalLogs((prev) => [
+              ...prev,
+              '[SPEECH] Ouvi "quinta" mas não a wake word completa',
+            ]);
           }
-        }, 5000);
+        }
 
-        ws.current = new WebSocket(wsUrl);
+        // Log interim (visual feedback do usuário)
+        if (interimTranscript) {
+          console.log('[SPEECH-INTERIM]:', interimTranscript);
+        }
+      };
 
-        ws.current.onopen = () => {
-          clearTimeout(timeout);
-          wsConnectAttempts.current = 0;  // Reset attempt counter
-          setWsConnected(true);
+      // Evento: fim do reconhecimento (silêncio)
+      recognition.onend = () => {
+        console.log('[SPEECH] Reconhecimento terminado');
 
-          setStatusLabel("Online");
-          setToast("Núcleo conectado. Pronto para comandos.");
-        };
-
-        ws.current.onmessage = (event) => {
+        // Se isListening ainda for true, reinicia
+        if (isListeningRef.current) {
+          console.log('[SPEECH] Reiniciando reconhecimento...');
           try {
-            const data = JSON.parse(event.data);
-
-            // ===== FIREWALL: Detectar Base64 vazado em "streaming" =====
-            if (data.type === 'streaming' && data.content) {
-              // Detectar headers de áudio
-              const isAudioBase64 = 
-                data.content.startsWith("UklGR") ||    // WAV/RIFF
-                data.content.startsWith("SUQz") ||     // MP3/ID3
-                data.content.startsWith("/+MYxA") ||   // MP3 frame sync
-                data.content.startsWith("ID3");        // ID3 tag
-              
-              // Detectar padrão suspeito: muito longo + sem espaços = Base64 puro
-              const isLongoSemEspacos = 
-                data.content.length > 1000 && 
-                !data.content.includes(" ") &&
-                /^[A-Za-z0-9+/=]+$/.test(data.content);
-              
-              // Se detectar Base64, NÃO processar como texto
-              if (isAudioBase64 || isLongoSemEspacos) {
-                console.warn("[FIREWALL] ⚠️ Base64 DETECTADO E BLOQUEADO! Redirecionando para áudio.");
-                console.warn(`[FIREWALL] Tamanho: ${data.content.length} chars, AudioBase64: ${isAudioBase64}, LongoSemEspacos: ${isLongoSemEspacos}`);
-                tocarAudioBase64(data.content);
-                setIsLoading(false);
-                return; // ← SAIR ANTES DE setHistorico
-              }
-
-              // Processamento NORMAL de texto
-              setHistorico(prev => {
-                const lastMsg = prev[prev.length - 1];
-                if (lastMsg && lastMsg.role === 'Quinta-Feira') {
-                  return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + data.content }];
-                }
-                return prev;
-              });
-            } 
-            // Novo evento específico para áudio (enviado pelo backend refatorado)
-            else if (data.type === 'audio' && data.audio) {
-              console.log("[WS] Áudio recebido (via type=audio)");
-              tocarAudioBase64(data.audio);
-            }
-            else if (data.type === 'complete') {
-              setIsLoading(false);
-              if (data.content) {
-                setHistorico(prev => {
-                  const lastMsg = prev[prev.length - 1];
-                  if (lastMsg?.role === 'Quinta-Feira' && !lastMsg.content) {
-                    return [...prev.slice(0, -1), { role: 'Quinta-Feira', content: data.content }];
-                  }
-                  return prev;
-                });
-              }
-            } else if (data.type === 'error') {
-              setToast(`Erro: ${data.message || 'falha no processamento.'}`);
-              setIsLoading(false);
-            } else if (data.text && !data.type) {
-              setHistorico(prev => [...prev, { role: "Quinta-Feira", content: data.text }]);
-              setIsLoading(false);
-            }
-          } catch {
-            setHistorico(prev => [...prev, { role: "Quinta-Feira", content: event.data }]);
-            setIsLoading(false);
+            recognition.start();
+          } catch (e) {
+            console.warn('[SPEECH] Erro ao reiniciar:', e);
           }
-        };
+        }
+      };
 
-        ws.current.onclose = () => {
-          setWsConnected(false);
-          
-          // Incrementar tentativas de reconexão
-          wsConnectAttempts.current += 1;
-          
-          // Tentar reconectar em 2.5s
-          setStatusLabel("Reconectando...");
-          console.log(`[WS] Tentativa de reconexão ${wsConnectAttempts.current}...`);
-          setTimeout(connectWebSocket, 2500);
-        };
+      // Evento: erro
+      recognition.onerror = (event: any) => {
+        console.error('[SPEECH-ERROR]:', event.error);
+        setTerminalLogs((prev) => [
+          ...prev,
+          `[SPEECH-ERROR] ${event.error}`,
+        ]);
+      };
 
-        ws.current.onerror = (error) => {
-          console.error("[WS] Erro WebSocket:", error);
-          console.error("[WS] Estado da conexão:", {
-            readyState: ws.current?.readyState,
-            url: ws.current?.url,
-            wsUrl: wsUrl,
-            estado: ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.current?.readyState || 0]
-          });
-          setWsConnected(false);
-          setStatusLabel("Erro na conexão (backend offline?)...");
-          setToast("⚠️ Backend não respondeu. Certifique-se de que está rodando em " + wsUrl);
-        };
-      } catch (err) {
-        console.error("[WS] Erro ao inicializar:", err);
-        setStatusLabel("Erro ao inicializar WebSocket");
-        setToast("Erro na conexão. Reconectando...")
+      // Inicia o reconhecimento
+      recognition.start();
+      setTerminalLogs((prev) => [
+        ...prev,
+        '[SPEECH] Escuta ativada - esperando "quinta-feira"...',
+      ]);
+
+    } catch (error) {
+      console.error('[SPEECH] Erro ao inicializar:', error);
+      setTerminalLogs((prev) => [
+        ...prev,
+        '[ERRO] Falha ao inicializar Web Speech API',
+      ]);
+      setIsListening(false);
+    }
+
+    // Cleanup
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // Ignorar erros ao desligar
+        }
       }
     };
+  }, [isListening]);
 
-    connectWebSocket();
-    return () => { 
-      ws.current?.close();
-      // Don't reconnect if unmounting
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(""), 2600);
-    return () => clearTimeout(timer);
-  }, [toast]);
-
-
-
-  const enviarMensagemTexto = (textoEntrada: string = mensagem) => {
-    if (textoEntrada.trim() === "") return;
-
-    setHistorico(prev => [...prev, { role: "Matheus", content: textoEntrada }]);
-    setHistorico(prev => [...prev, { role: "Quinta-Feira", content: "" }]);
-    setIsLoading(true);
-
-    // ✓ Sempre usar WebSocket (conectado a backend via Ngrok ou local)
-    const payload = JSON.stringify({
-      type: "chat",
-      payload: textoEntrada,
-      message: textoEntrada,
-      user_id: "matheus_admin"
-    });
-    
-    try {
-      ws.current?.send(payload);
-    } catch (err) {
-      console.error("[MSG] Erro ao enviar via WebSocket:", err);
-      setToast("Erro ao enviar mensagem. Verifique a conexão.");
-      setIsLoading(false);
+  const handleContainerClick = () => {
+    if (!isLoading && !isTyping) {
+      setIsTyping(true);
     }
-    
-    if (textoEntrada === mensagem) setMensagem("");
   };
 
-  const limparChat = () => {
-    setHistorico([]);
-    setToast("Histórico limpo.");
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSendCommand(); // Sem argumentos = usa inputCommand do estado
+      setIsTyping(false);
+    } else if (e.key === 'Escape') {
+      setIsTyping(false);
+    }
   };
 
-  const onSubmitMensagem = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    enviarMensagemTexto();
+  const toggleListening = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Previne que o clique propague para handleContainerClick
+    setIsListening(!isListening);
   };
-
-  const chips = [
-    "Abrir YouTube e tocar lo-fi",
-    "Aumentar volume para 60%",
-    "Resumo das tarefas de hoje",
-    "Pesquisar noticias de tecnologia"
-  ];
 
   return (
-    <div className="deck-bg relative flex min-h-screen w-full items-stretch justify-center px-4 py-6 text-white md:px-6">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-60">
-        <div className="hud-grid absolute inset-0" />
-        <div className="absolute -left-28 -top-20 h-72 w-72 rounded-full bg-cyan-300/15 blur-3xl" />
-        <div className="absolute -right-20 top-1/3 h-72 w-72 rounded-full bg-amber-300/10 blur-3xl" />
+    <div
+      className="fixed inset-0 bg-black cursor-default overflow-hidden"
+      onClick={handleContainerClick}
+    >
+      {/* Entidade Central - Blob Orgânico Pulsante */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="relative w-80 h-80">
+          {/* Blob 1 - Verde Esmeralda */}
+          <div
+            className={`absolute inset-0 rounded-full blur-3xl transition-all duration-500 ${
+              isListening
+                ? 'bg-emerald-600/50 animate-pulse'
+                : 'bg-emerald-600/30'
+            }`}
+            style={{
+              animation: 'spin 15s linear infinite',
+            }}
+          />
+
+          {/* Blob 2 - Cyan Escuro */}
+          <div
+            className={`absolute inset-0 rounded-full blur-3xl transition-all duration-500 ${
+              isListening ? 'bg-cyan-900/60' : 'bg-cyan-900/40'
+            }`}
+            style={{
+              animation: 'spin 20s linear infinite reverse',
+            }}
+          />
+
+          {/* Blob 3 - Verde Mais Profundo */}
+          <div
+            className={`absolute inset-0 rounded-full blur-3xl transition-all duration-500 ${
+              isListening ? 'bg-emerald-700/40' : 'bg-emerald-700/20'
+            }`}
+            style={{
+              animation: 'spin 25s linear infinite',
+            }}
+          />
+
+          {/* Input Overlay - Aparece quando isTyping */}
+          {isTyping && (
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputCommand}
+              onChange={(e) => setInputCommand(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              placeholder=">_"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+                w-96 text-center text-2xl font-mono text-white placeholder-zinc-600
+                bg-transparent focus:outline-none focus:ring-0"
+            />
+          )}
+        </div>
       </div>
 
-      <div className="deck-card relative z-10 flex w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-cyan-100/20">
-        <header className="border-b border-cyan-100/15 px-5 py-4 md:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg border border-cyan-100/25 bg-cyan-200/10 px-2.5 py-1.5">
-                <span className="text-xs font-bold tracking-[0.2em] text-cyan-100">QF//01</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold tracking-wide text-cyan-50 md:text-2xl">Quinta-Feira</h1>
-                <p className="text-xs text-cyan-50/65 md:text-sm">Interface de comando, voz e contexto em tempo real.</p>
-              </div>
+      {/* Logs Sombrios - Canto Inferior Esquerdo */}
+      <div className="fixed bottom-4 left-4 max-w-sm">
+        <div
+          className="space-y-0 font-mono text-[10px] text-emerald-900/50 overflow-y-auto"
+          style={{ maxHeight: '150px' }}
+        >
+          {terminalLogs.map((log, index) => (
+            <div key={index} className="truncate text-emerald-900/50">
+              {log}
             </div>
-
-            <div className="flex items-center gap-2">
-              {/* ===== NOVO: Botão de Wake Word (Radar Mode) ===== */}
-              <button
-                onClick={() => {
-                  const newValue = !isWakeWordEnabled;
-                  setIsWakeWordEnabled(newValue);
-                  console.log(`[PAGE_BUTTON_CLICK] Botão RADAR clicado! Novo estado: ${newValue ? '🟢 LIGADO' : '🔴 DESLIGADO'}`);
-                }}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium tracking-wide flex items-center gap-2 transition-all duration-300 select-none cursor-pointer ${
-                  isWakeWordEnabled
-                    ? "border-lime-300/80 bg-lime-300/25 text-lime-100 shadow-lg shadow-lime-500/40 hover:shadow-lime-500/60"
-                    : "border-cyan-100/30 bg-cyan-100/5 text-cyan-100/70 hover:border-cyan-100/50 hover:bg-cyan-100/10"
-                }`}
-                title={isWakeWordEnabled ? "🟢 Escuta Contínua ATIVA - Clique para desativar" : "🔴 Escuta Contínua INATIVA - Clique para ativar"}
-              >
-                <span className="text-base">{isWakeWordEnabled ? "📡" : "🔌"}</span>
-                <span className={`hidden md:inline font-bold ${isWakeWordEnabled ? 'text-lime-200' : 'text-cyan-200'}`}>
-                  {isWakeWordEnabled ? "RADAR ATIVO" : "RADAR"}
-                </span>
-                {isWakeWordEnabled && <span className="h-2 w-2 rounded-full bg-lime-300 animate-pulse" />}
-              </button>
-
-              {/* ===== STATUS NÚCLEO ===== */}
-              <div className={`rounded-full border px-4 py-1.5 text-xs font-medium tracking-wide flex items-center gap-2 ${
-                wsConnected
-                  ? "border-cyan-300/50 bg-cyan-300/12 text-cyan-100" 
-                  : "border-amber-200/50 bg-amber-200/15 text-amber-100"
-              }`}>
-                {wsConnected ? (
-                  <>
-                    <span className="h-2 w-2 rounded-full bg-cyan-300 animate-pulse" />
-                    NÚCLEO ONLINE
-                  </>
-                ) : (
-                  <>
-                    <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse" />
-                    {statusLabel.toUpperCase()}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main className="grid flex-1 grid-cols-1 gap-4 p-4 md:grid-cols-[1fr_300px] md:p-6">
-          <section className="flex min-h-[62vh] flex-col overflow-hidden rounded-2xl border border-cyan-100/15 bg-black/25">
-            <div className="flex items-center justify-between border-b border-cyan-100/15 px-4 py-3 text-[11px] uppercase tracking-[0.14em] text-cyan-50/60">
-              <span>Console</span>
-              <button
-                type="button"
-                onClick={limparChat}
-                className="rounded-full border border-cyan-100/20 px-3 py-1 transition hover:border-cyan-100/40 hover:bg-cyan-100/10"
-              >
-                Limpar
-              </button>
-            </div>
-
-            <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-4">
-              {historico.length === 0 && !isLoading ? (
-                <div className="mx-auto mt-10 max-w-md rounded-2xl border border-cyan-100/15 bg-cyan-100/5 p-6 text-center">
-                  <p className="text-lg font-semibold text-cyan-50">Canal aberto</p>
-                  <p className="mt-2 text-sm text-cyan-50/65">Envie texto ou use voz. Respostas chegam em fluxo contínuo.</p>
-                </div>
-              ) : (
-                historico.map((msg, idx) => (
-                  <div key={`${msg.role}-${idx}`} className={`flex ${msg.role === "Matheus" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-lg ${msg.role === "Matheus" ? "rounded-br-sm border border-cyan-100/30 bg-cyan-200/90 text-slate-900" : "rounded-bl-sm border border-cyan-100/20 bg-slate-900/45 text-cyan-50"}`}>
-                      {msg.role === "Quinta-Feira" ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                          {msg.content || "..."}
-                        </ReactMarkdown>
-                      ) : (
-                        <p>{msg.content}</p>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-
-              {isLoading ? (
-                <div className="flex justify-start">
-                  <div className="rounded-xl border border-cyan-100/20 bg-slate-900/40 px-3 py-2">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-100/85" />
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-100/85 [animation-delay:120ms]" />
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-100/85 [animation-delay:240ms]" />
-                    </span>
-                  </div>
-                </div>
-              ) : null}
-
-              <div ref={chatFimRef} />
-            </div>
-
-            <div className="border-t border-cyan-100/15 p-3 md:p-4">
-              <form onSubmit={onSubmitMensagem} className="flex gap-2">
-                <input
-                  value={mensagem}
-                  onChange={(e) => setMensagem(e.target.value)}
-                  placeholder="Digite seu comando"
-                  className="w-full rounded-xl border border-cyan-100/20 bg-slate-900/40 px-4 py-3 text-sm text-cyan-50 placeholder:text-cyan-50/40 outline-none transition focus:border-cyan-200/70"
-                  disabled={isLoading}
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !mensagem.trim()}
-                  className="rounded-xl border border-cyan-100/30 bg-cyan-200 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  {isLoading ? "..." : "Enviar"}
-                </button>
-              </form>
-            </div>
-          </section>
-
-          <aside className="flex flex-col gap-4">
-            <section className="rounded-2xl border border-cyan-100/15 bg-black/25 p-4">
-              <h2 className="text-sm font-semibold text-cyan-50">Voz</h2>
-              <p className="mt-1 text-xs text-cyan-50/60">
-                Diga \"Quinta-Feira\" e depois o comando.
-              </p>
-              <div className="mt-4">
-                <VoiceControl 
-                  onCommand={(command) => enviarMensagemTexto(command)} 
-                  isDisabled={isLoading}
-                  isWakeWordEnabled={isWakeWordEnabled}
-                  onWakeWordEnabledChange={setIsWakeWordEnabled}
-                  onBargein={handleBargeinRequested}
-                  onBrowserWarning={handleBrowserWarning}
-                  onAISpeakingStateChange={(isSpeaking) => {
-                    // Callback para quando IA começa/termina de falar
-                    console.log(`[PAGE] IA status: ${isSpeaking ? 'falando' : 'silenciosa'}`);
-                  }}
-                />
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-cyan-100/15 bg-black/25 p-4">
-              <h2 className="text-sm font-semibold text-cyan-50">Ações rápidas</h2>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {chips.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => enviarMensagemTexto(chip)}
-                    disabled={isLoading}
-                    className="rounded-full border border-cyan-100/20 bg-cyan-100/5 px-3 py-1.5 text-xs text-cyan-50/90 transition hover:bg-cyan-100/15 disabled:opacity-40"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-cyan-100/15 bg-black/25 p-4 text-xs text-cyan-50/75">
-              <p className="uppercase tracking-[0.14em] text-cyan-50/65">Atalhos</p>
-              <p className="mt-2">Enter: enviar mensagem</p>
-              <p>Diagnóstico: /diagnose</p>
-              <p>Status: {statusLabel}</p>
-              <p className="mt-3 flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${isWakeWordEnabled ? 'bg-lime-300 animate-pulse' : 'bg-cyan-400'}`} />
-                <span>Modo: {isWakeWordEnabled ? '🟢 CONTINUO' : '🔵 MANUAL'}</span>
-              </p>
-            </section>
-          </aside>
-        </main>
-
-        {toast ? (
-          <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-cyan-100/25 bg-slate-900/70 px-4 py-2 text-xs text-cyan-50 backdrop-blur">
-            {toast}
-          </div>
-        ) : null}
+          ))}
+          <div ref={terminalEndRef} />
+        </div>
       </div>
+
+      {/* Status Indicator - Canto Superior Direito */}
+      <div className="fixed top-4 right-4 flex items-center gap-2">
+        <div
+          className={`w-2 h-2 rounded-full ${
+            systemStatus === 'online'
+              ? 'bg-emerald-400 animate-pulse'
+              : 'bg-yellow-400 animate-pulse'
+          }`}
+        />
+        <span className="text-xs font-mono text-zinc-700">
+          {systemStatus === 'online' ? 'ONLINE' : 'BUSY'}
+        </span>
+      </div>
+
+      {/* Hint de Clique (Desaparece quando isTyping) */}
+      {!isTyping && (
+        <div className="fixed top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 text-center mt-96">
+          <p className="text-xs font-mono text-zinc-800 animate-pulse">
+            [ clique para invocar ]
+          </p>
+        </div>
+      )}
+
+      {/* Botão Furtivo de Microfone - Inferior Central */}
+      <button
+        onClick={toggleListening}
+        className={`fixed bottom-8 left-1/2 -translate-x-1/2 font-mono text-xs cursor-pointer
+          transition-colors duration-300 focus:outline-none
+          ${
+            isListening
+              ? 'text-emerald-500 hover:text-emerald-400'
+              : 'text-zinc-600 hover:text-red-900/80'
+          }`}
+      >
+        {isListening ? '[ 🎤 ESCUTANDO: QUINTA-FEIRA ]' : '[ 🔇 MIC: MUTADO ]'}
+      </button>
+
+      {/* Global Keyframes para Animações */}
+      <style>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 }

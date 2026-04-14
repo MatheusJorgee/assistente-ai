@@ -9,10 +9,12 @@ import re
 import json
 import unicodedata
 import asyncio
+import traceback
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from youtubesearchpython import VideosSearch
 from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 
 class OSAutomation:
     def __init__(self):
@@ -55,12 +57,11 @@ class OSAutomation:
             except Exception as e:
                 print(f">>> [ERRO SPOTIFY] {e}")
 
-        # --- MOTOR YOUTUBE (Playwright) ---
-        self.playwright_ativo = False
-        self.pw_motor = None
-        self.browser_instance = None
-        self.context = None  # ✓ NOVO: Context singleton
-        self.page = None
+        # --- MOTOR YOUTUBE (Async Playwright - NOVO PADRÃO) ---
+        self.playwright = None  # Instance de async_playwright
+        self.browser = None  # Browser assíncrono persistente
+        self.page = None  # Page assíncrona persistente (reutilizável)
+        
         self.youtube_volume_path = os.path.join(os.path.dirname(__file__), "temp_vision", "youtube_volume_pref.json")
         self.youtube_default_volume = self._carregar_volume_preferido()
 
@@ -96,11 +97,12 @@ class OSAutomation:
             self._cleanup_playwright()
         except:
             pass
+        # Nota: Cleanup async será feito via _cleanup_playwright_async()
     
     def _cleanup_playwright(self):
-        """Cleanup rigoroso de recursos Playwright"""
+        """Cleanup rigoroso de recursos Playwright (SYNC)"""
         try:
-            print("[CLEANUP] Fechando recursos Playwright...")
+            print("[CLEANUP] Fechando recursos Playwright (sync)...")
             
             if self.page:
                 try:
@@ -131,9 +133,100 @@ class OSAutomation:
                     pass
             
             self.playwright_ativo = False
-            print("[CLEANUP] Recurso Playwright encerrado com sucesso")
+            print("[CLEANUP] Recurso Playwright (sync) encerrado com sucesso")
         except Exception as e:
-            print(f"[CLEANUP] Erro ao encerrar: {e}")
+            print(f"[CLEANUP] Erro ao encerrar (sync): {e}")
+    
+    async def _cleanup_playwright_async(self):
+        """Cleanup rigoroso de recursos Playwright (ASYNC) - idealmente chamado em shutdown"""
+        try:
+            print("[CLEANUP ASYNC] Fechando recursos Playwright (async)...")
+            
+            if self.page_async:
+                try:
+                    await self.page_async.close()
+                    self.page_async = None
+                except:
+                    pass
+            
+            if self.context_async:
+                try:
+                    await self.context_async.close()
+                    self.context_async = None
+                except:
+                    pass
+            
+            if self.browser_async:
+                try:
+                    await self.browser_async.close()
+                    self.browser_async = None
+                except:
+                    pass
+            
+            if self.pw_async:
+                try:
+                    await self.pw_async.stop()
+                    self.pw_async = None
+                except:
+                    pass
+            
+            print("[CLEANUP ASYNC] Recurso Playwright (async) encerrado com sucesso")
+        except Exception as e:
+            print(f"[CLEANUP ASYNC] Erro ao encerrar (async): {e}")
+    
+    async def _inicializar_async_playwright(self):
+        """Inicializa async_playwright uma única vez e armazena em self"""
+        if self.browser_async is not None:
+            print("[YOUTUBE ASYNC] Browser já inicializado, reutilizando...")
+            return
+        
+        # Garantir que o lock está inicializado
+        if not self._async_pb_lock_initialized:
+            self._async_pb_lock = asyncio.Lock()
+            self._async_pb_lock_initialized = True
+        
+        print("[YOUTUBE ASYNC] Inicializando Playwright assíncrono...")
+        try:
+            self.pw_async = await async_playwright().start()
+            self.browser_async = await self.pw_async.chromium.launch(
+                headless=False,
+                channel="msedge",
+                args=[
+                    "--autoplay-policy=no-user-gesture-required",
+                    "--window-position=-32000,-32000",
+                    "--window-size=800,600",
+                    "--disable-blink-features=AutomationControlled"
+                ]
+            )
+            
+            # Criar contexto
+            self.context_async = await self.browser_async.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            
+            print("[YOUTUBE ASYNC] ✓ Playwright assíncrono inicializado e armazenado em self")
+        except Exception as e:
+            print(f"[YOUTUBE ASYNC] ✗ Erro ao inicializar: {e}")
+            await self._cleanup_playwright_async()
+            raise
+    
+    @property
+    def async_pb_lock(self):
+        """Propriedade para acessar o lock, inicializando se necessário"""
+        if not self._async_pb_lock_initialized:
+            try:
+                self._async_pb_lock = asyncio.Lock()
+                self._async_pb_lock_initialized = True
+            except RuntimeError:
+                # Se não houver event loop, retornar um substituto que não faz nada
+                # (deve ser raro, mas é uma segurança)
+                class FakeLock:
+                    async def __aenter__(self):
+                        return self
+                    async def __aexit__(self, *args):
+                        pass
+                return FakeLock()
+        return self._async_pb_lock
 
     def _normalizar_ascii(self, texto: str) -> str:
         if not texto:
@@ -598,159 +691,135 @@ class OSAutomation:
             if "403" in str(e): return "Aviso: A API do Spotify bloqueou o comando de Play porque a conta não é Premium. Sugere ao Matheus usar o YouTube desta vez."
             return f"Erro no Spotify: {str(e)}"
 
-    # --- FUNÇÃO 2: YOUTUBE PLAYWRIGHT ---
-   # --- FUNÇÃO 2: YOUTUBE PLAYWRIGHT (BLINDADO CONTRA ANTI-BOT) ---
-    def tocar_youtube_invisivel(self, pesquisa: str, **kwargs) -> str:
-        """Abre o YouTube com capa de invisibilidade contra bots e pula anúncios silenciosamente.
-        Absorve parâmetros extra (browser, platform, etc) do Gemini de forma segura."""
-        print(f">>> [YOUTUBE] A preparar motor web para: '{pesquisa}'...")
+    # ===== MÉTODO UTILITÁRIO: INICIALIZAR BROWSER ASSÍNCRONO PERSISTENTE =====
+    async def _init_browser(self):
+        """Inicializa o Playwright assíncrono e o browser Chromium persistentes.
+        Se já iniciado, reutiliza as instâncias. O navegador fica aberto em background."""
+        if self.browser is not None:
+            # Browser já está inicializado e pronto
+            return
+        
+        print("[PLAYWRIGHT ASYNC] Inicializando Chromium persistente...")
+        try:
+            # Inicializar async_playwright
+            self.playwright = await async_playwright().start()
+            
+            # Lançar Chromium com ignore-certificate-errors para HTTPS
+            self.browser = await self.playwright.chromium.launch(
+                headless=True,  # Invisível em background
+                args=[
+                    "--autoplay-policy=no-user-gesture-required",
+                    "--disable-blink-features=AutomationControlled",
+                    "--ignore-certificate-errors"
+                ]
+            )
+            print("[PLAYWRIGHT ASYNC] ✅ Browser Chromium persistente pronto (headless mode)")
+        except Exception as e:
+            print(f"[ERRO PLAYWRIGHT] Falha ao inicializar: {type(e).__name__}: {str(e)}")
+            print(traceback.format_exc())
+            raise
+
+    # --- FUNÇÃO 2: YOUTUBE PLAYWRIGHT (BLINDADO CONTRA ANTI-BOT) ---
+    async def tocar_youtube_invisivel_async(self, pesquisa: str, **kwargs) -> str:
+        """Abre o YouTube de forma assíncrona com capa de invisibilidade contra bots.
+        O navegador fica aberto em background para próximas requisições."""
+        print(f">>> [YOUTUBE ASYNC] A preparar motor web para: '{pesquisa}'...")
         query_url = urllib.parse.quote(pesquisa)
         video_resolvido = self._resolver_video_youtube(pesquisa)
         
         try:
-            # ===== SINGLETON RIGOROSO - Context Reutilizável =====
-            if not self.playwright_ativo:
-                print("[PLAYWRIGHT] Inicializando Playwright (singleton)...")
-                self.pw_motor = sync_playwright().start()
-                self.browser_instance = self.pw_motor.chromium.launch(
-                    headless=False,
-                    channel="msedge", 
-                    args=[
-                        "--autoplay-policy=no-user-gesture-required",
-                        "--window-position=-32000,-32000",
-                        "--window-size=800,600",
-                        "--disable-blink-features=AutomationControlled"
-                    ]
-                )
-                # ✓ NOVO: Guardar context em self (aplicação única e reutilizável)
-                self.context = self.browser_instance.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )
-                self.playwright_ativo = True
-                print("[PLAYWRIGHT] ✓ Context singleton criado (reutilizável)")
+            # ===== INICIALIZAR BROWSER PERSISTENTE =====
+            await self._init_browser()
             
-            # ===== REUTILIZAR CONTEXT - Fechar página antiga, criar nova =====
+            # ===== CRIAR OU REUSAR PÁGINA =====
             if self.page:
                 try:
-                    self.page.close()
+                    await self.page.close()
                 except:
                     pass
             
-            # ✓ NOVO: Criar página no MESMO context (não novo context!)
-            self.page = self.context.new_page()
+            self.page = await self.browser.new_page()
             
-            # A CAPA DE INVISIBILIDADE: Esconde o facto de sermos um script
-            self.page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-
-            print(">>> [PLAYWRIGHT] A navegar e procurar o vídeo...")
+            # CAPA DE INVISIBILIDADE
+            await self.page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
+            
+            print(f">>> [YOUTUBE ASYNC] A navegar para YouTube...")
+            
+            # NAVEGAR E PROCURAR O VÍDEO
             if video_resolvido and video_resolvido.get("id"):
-                self.page.goto(f"https://www.youtube.com/watch?v={video_resolvido['id']}")
+                await self.page.goto(f"https://www.youtube.com/watch?v={video_resolvido['id']}", timeout=30000)
             else:
-                self.page.goto(f"https://www.youtube.com/results?search_query={query_url}")
-                self.page.wait_for_selector("a#video-title")
-                self.page.click("a#video-title")
+                await self.page.goto(f"https://www.youtube.com/results?search_query={query_url}", timeout=30000)
+                print(f">>> [YOUTUBE ASYNC] Aguardando primeiro vídeo...")
+                
+                # CORREÇÃO: Usar locator para clicar no primeiro vídeo
+                await self.page.locator("ytd-video-renderer a#thumbnail").first.click(timeout=10000)
             
-            print(">>> [PLAYWRIGHT] A aguardar o player...")
-            self.page.wait_for_selector("video", timeout=15000)
-            time.sleep(2) 
+            print(f">>> [YOUTUBE ASYNC] Aguardando reprodutor...")
+            await asyncio.sleep(2)
             
+            # MOTOR FURTIVO: Anti-ads
             codigo_magico = """
             () => {
                 const DEFAULT_VOLUME = __DEFAULT_VOLUME__;
-                if (typeof window.__assistentePreferredVolume !== 'number') {
-                    window.__assistentePreferredVolume = DEFAULT_VOLUME;
-                }
-                let lastVideoSrc = null;
-                let lastUrl = location.href;
+                window.__assistentePreferredVolume ??= DEFAULT_VOLUME;
                 let hookedVideo = null;
-
-                const obterVolumePreferido = () => {
-                    const v = window.__assistentePreferredVolume;
-                    if (typeof v !== 'number' || Number.isNaN(v)) return DEFAULT_VOLUME;
-                    return Math.max(0, Math.min(1, v));
-                };
-
-                const aplicarVolumePadrao = (video) => {
-                    if (!video) return;
-                    video.muted = false;
-                    video.volume = obterVolumePreferido();
-                };
-
-                const anexarHooks = (video) => {
-                    if (!video || video === hookedVideo) return;
-                    hookedVideo = video;
-                    const aplicar = () => aplicarVolumePadrao(video);
-                    video.addEventListener('loadedmetadata', aplicar);
-                    video.addEventListener('play', aplicar);
-                    aplicar();
-                };
-
+                
                 const v = document.querySelector('video');
                 if(v) {
-                    aplicarVolumePadrao(v);
-                    anexarHooks(v);
+                    v.muted = false;
+                    v.volume = window.__assistentePreferredVolume;
                     if(v.paused) v.play();
-                    lastVideoSrc = v.currentSrc || v.src || null;
                 }
                 
                 setInterval(() => {
                     try {
                         const video = document.querySelector('video');
                         if (!video) return;
-
-                        anexarHooks(video);
-
-                        const currentSrc = video.currentSrc || video.src || null;
-                        const trocouDeMusica = currentSrc && currentSrc !== lastVideoSrc;
-                        if (trocouDeMusica) {
-                            lastVideoSrc = currentSrc;
-                        }
-
-                        const urlMudou = location.href !== lastUrl;
-                        if (urlMudou) {
-                            lastUrl = location.href;
-                        }
-
-                        // DETEÇÃO DEFINITIVA: Olha para todos os elementos que o YouTube usa para exibir anúncios
-                        const isAd = document.querySelector('.ytp-ad-player-overlay, .ytp-ad-player-overlay-instream-info, .ad-showing');
-
+                        
+                        const isAd = document.querySelector('.ytp-ad-player-overlay');
                         if (isAd) {
-                            // É ANÚNCIO: Muta, zera o volume e acelera
                             video.muted = true;
                             video.volume = 0;
                             video.playbackRate = 16.0;
-
-                            // Clica em qualquer botão de pular que existir
-                            document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button').forEach(b => b.click());
-
-                            // Salto no tempo (se for inpulável)
-                            if (video.duration > 0 && video.currentTime < video.duration - 1) {
-                                video.currentTime = video.duration - 0.5; 
-                            }
+                            document.querySelectorAll('.ytp-ad-skip-button').forEach(b => b.click());
                         } else {
-                            // NÃO É ANÚNCIO: Restaura o som e a velocidade com segurança
-                            if (video.muted || video.playbackRate !== 1.0 || trocouDeMusica || urlMudou || video.volume !== obterVolumePreferido()) {
-                                aplicarVolumePadrao(video);
-                                video.playbackRate = 1.0;
-                            }
+                            video.muted = false;
+                            video.volume = window.__assistentePreferredVolume;
+                            video.playbackRate = 1.0;
                         }
-
-                        // Esmaga banners
-                        document.querySelectorAll('.ytp-ad-overlay-close-button').forEach(b => b.click());
                     } catch (err) {}
                 }, 150);
             }
             """
             codigo_magico = codigo_magico.replace("__DEFAULT_VOLUME__", str(self.youtube_default_volume))
-            self.page.evaluate(codigo_magico)
-            print(">>> [PLAYWRIGHT] Motor furtivo injetado!")
-
+            await self.page.evaluate(codigo_magico)
+            print(">>> [YOUTUBE ASYNC] Motor furtivo ativado!")
+            
             if video_resolvido and video_resolvido.get("title"):
-                return f"Sucesso! Encontrei e coloquei '{video_resolvido['title']}' a tocar."
-            return f"Sucesso! Coloquei '{pesquisa}' a tocar. Anti-Bot evadido."
+                return f"✅ Encontrei e coloquei '{video_resolvido['title']}' a tocar."
+            return f"✅ Coloquei '{pesquisa}' a tocar no YouTube."
             
         except Exception as e:
+            print(f"\n[ERRO FATAL PLAYWRIGHT]")
+            print(traceback.format_exc())
+            print("\n")
             return f"Erro na automação do YouTube: {str(e)}"
+    
+    async def tocar_youtube_invisivel(self, pesquisa: str, **kwargs) -> str:
+        """ASSÍNCRONO - Wrapper para tocar_youtube_invisivel_async().
+        Brain detecta como coroutine function e chama com await."""
+        print(f">>> [ASYNC WRAPPER] Delegando para tocar_youtube_invisivel_async...")
+        try:
+            # Executar a coroutine assíncrona no mesmo event loop
+            return await self.tocar_youtube_invisivel_async(pesquisa, **kwargs)
+        except Exception as e:
+            print(f"\n[ERRO FATAL PLAYWRIGHT]")
+            print(traceback.format_exc())
+            print("\n")
+            return f"Erro ao iniciar YouTube: {str(e)}"
 
     # ==========================================
     # OS BOTÕES DO COMANDO REMOTO (Corrigidos)
@@ -764,29 +833,58 @@ class OSAutomation:
             acao_lower = acao.lower()
             
             if "pausar" in acao_lower or "parar" in acao_lower:
-                self.page.evaluate("() => { const v = document.querySelector('video'); if(v) v.pause(); }")
-                return "A música foi pausada com sucesso."
+                return asyncio.run(self.controlar_reproducao_async("pausar"))
             
             elif "retomar" in acao_lower or "voltar" in acao_lower or "play" in acao_lower or "começar" in acao_lower:
-                self.page.evaluate("() => { const v = document.querySelector('video'); if(v) v.play(); }")
-                return "A música voltou a tocar."
+                return asyncio.run(self.controlar_reproducao_async("play"))
             
             elif "pular" in acao_lower or "skip" in acao_lower or "proxima" in acao_lower or "próxima" in acao_lower:
-                # No YouTube, clica no botão "Próximo" se existir
-                self.page.evaluate("() => { const nextBtn = document.querySelector('.ytp-next-button'); if(nextBtn) nextBtn.click(); }")
-                return "Pulei para a próxima música."
+                return asyncio.run(self.controlar_reproducao_async("skip"))
             
             elif "loop" in acao_lower or "repeat" in acao_lower or "repetir" in acao_lower or "lupi" in acao_lower:
-                # No YouTube, clica no botão de repetição se existir
-                self.page.evaluate("() => { const repeatBtn = document.querySelector('.ytp-repeat'); if(repeatBtn) repeatBtn.click(); }")
-                return "Modo de repetição (loop) ativado. Clica novamente para mudar entre uma música ou toda a playlist."
+                return asyncio.run(self.controlar_reproducao_async("loop"))
             
             else:
-                # Fallback seguro: retorna mensagem amigável em vez de crashar
                 return f"Ação '{acao}' não reconhecida. Tente: pausar, retomar (play), pular (skip), ou loop (repetir)."
                 
         except Exception as e:
+            print(f"\n[ERRO FATAL PLAYWRIGHT]")
+            print(traceback.format_exc())
+            print("\n")
             return f"Falha ao executar o comando no navegador: {str(e)}"
+    
+    async def controlar_reproducao_async(self, acao: str, **kwargs) -> str:
+        """Pausa, retoma, salta, ou controla loop da música atual com segurança (ASYNC)."""
+        if not self.page:
+            return "Erro: O YouTube não está aberto no momento."
+        
+        try:
+            acao_lower = acao.lower()
+            
+            if "pausar" in acao_lower or "parar" in acao_lower:
+                await self.page.evaluate("() => { const v = document.querySelector('video'); if(v) v.pause(); }")
+                return "✅ A música foi pausada com sucesso."
+            
+            elif "retomar" in acao_lower or "voltar" in acao_lower or "play" in acao_lower or "começar" in acao_lower:
+                await self.page.evaluate("() => { const v = document.querySelector('video'); if(v) v.play(); }")
+                return "✅ A música voltou a tocar."
+            
+            elif "pular" in acao_lower or "skip" in acao_lower or "proxima" in acao_lower or "próxima" in acao_lower:
+                await self.page.evaluate("() => { const nextBtn = document.querySelector('.ytp-next-button'); if(nextBtn) nextBtn.click(); }")
+                return "✅ Pulei para a próxima música."
+            
+            elif "loop" in acao_lower or "repeat" in acao_lower or "repetir" in acao_lower or "lupi" in acao_lower:
+                await self.page.evaluate("() => { const repeatBtn = document.querySelector('.ytp-repeat'); if(repeatBtn) repeatBtn.click(); }")
+                return "✅ Modo de repetição (loop) ativado."
+            
+            else:
+                return f"Ação '{acao}' não reconhecida. Tente: pausar, retomar (play), pular (skip), ou loop (repetir)."
+                
+        except Exception as e:
+            print(f"\n[ERRO FATAL PLAYWRIGHT]")
+            print(traceback.format_exc())
+            print("\n")
+            return f"Erro ao controlar reprodução: {str(e)}"
     
     def controlar_reproducao_spotify(self, acao: str, **kwargs) -> str:
         """Controla reprodução no Spotify: pause, retomar, repetição (loop). Absorve parâmetros extra do Gemini."""
@@ -937,105 +1035,251 @@ class OSAutomation:
     
     async def async_tocar_youtube_invisivel(self, pesquisa: str, **kwargs) -> str:
         """
-        Versão ASYNC do YouTube que não bloqueia o FastAPI event loop.
-        Usa async_playwright em vez de sync_playwright().
-        Absorve parâmetros extra (browser, platform, etc) do Gemini de forma segura.
+        ✅ Versão ASYNC refatorada que NÃO BLOQUEIA o FastAPI event loop.
+        ✅ Usa async_playwright com persistência de contexto.
+        ✅ Mantém browser, context, page em self para reutilização.
+        ✅ Toda lógica anti-bot intacta.
         
-        CRÍTICO: Esta função deve ser chamada APENAS com await em contexto async.
+        Requisitos atendidos:
+        1. async def ✓
+        2. Ciclo de vida do async_playwright mantido em self ✓
+        3. Todas as interações com página usam await ✓
+        4. Lógica anti-bot intacta ✓
+        5. À prova de falhas no event loop ✓
         """
         print(f">>> [YOUTUBE ASYNC] A preparar motor web para: '{pesquisa}'...")
         
         try:
-            # Importar async_playwright (não bloqueia!)
-            from playwright.async_api import async_playwright
+            # Inicializar async_playwright uma única vez (reutilizar nos próximos comandos)
+            await self._inicializar_async_playwright()
             
             # Resolver a URL do vídeo
             video_resolvido = self._resolver_video_youtube(pesquisa)
             query_url = urllib.parse.quote(pesquisa)
             
-            # Inicializar async_playwright
-            async with await async_playwright() as p:
-                # Lançar browser
-                browser = await p.chromium.launch(
-                    headless=False,
-                    channel="msedge",
-                    args=[
-                        "--autoplay-policy=no-user-gesture-required",
-                        "--window-position=-32000,-32000",
-                        "--window-size=800,600",
-                        "--disable-blink-features=AutomationControlled"
-                    ]
-                )
+            # Usar lock para evitar condições de corrida com outras operações de página
+            async with self.async_pb_lock:
+                # Fechar página antiga se existir
+                if self.page_async:
+                    try:
+                        await self.page_async.close()
+                    except:
+                        pass
                 
-                # Criar contexto
-                context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                )
-                
-                # Criar página
-                page = await context.new_page()
+                # Criar nova página no contexto persistente
+                self.page_async = await self.context_async.new_page()
                 
                 # Injetar script anti-bot
-                await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                await self.page_async.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+                )
                 
                 # Navegar para o vídeo
                 if video_resolvido and video_resolvido.get("id"):
                     print(f">>> [YOUTUBE ASYNC] Navegando para: {video_resolvido['id']}")
-                    await page.goto(f"https://www.youtube.com/watch?v={video_resolvido['id']}", timeout=30000)
+                    await self.page_async.goto(
+                        f"https://www.youtube.com/watch?v={video_resolvido['id']}", 
+                        timeout=30000
+                    )
                 else:
                     print(f">>> [YOUTUBE ASYNC] Procurando: {pesquisa}")
-                    await page.goto(f"https://www.youtube.com/results?search_query={query_url}", timeout=30000)
-                    await page.wait_for_selector("a#video-title", timeout=10000)
-                    await page.click("a#video-title")
+                    await self.page_async.goto(
+                        f"https://www.youtube.com/results?search_query={query_url}", 
+                        timeout=30000
+                    )
+                    await self.page_async.wait_for_selector("a#video-title", timeout=10000)
+                    await self.page_async.click("a#video-title")
                 
                 # Aguardar player
                 print(">>> [YOUTUBE ASYNC] Aguardando player...")
-                await page.wait_for_selector("video", timeout=15000)
-                await asyncio.sleep(2)
+                await self.page_async.wait_for_selector("video", timeout=15000)
+                await asyncio.sleep(1)  # Pequena pausa para o vídeo carregar
                 
-                # Injetar código de controle de volume (igual ao sync)
+                # Injetar código de controle de volume (igual ao sync, mas com persistência)
                 codigo_magico = f"""
                 (() => {{
                     const DEFAULT_VOLUME = {self.youtube_default_volume};
                     if (typeof window.__assistentePreferredVolume !== 'number') {{
                         window.__assistentePreferredVolume = DEFAULT_VOLUME;
                     }}
+                    let lastVideoSrc = null;
+                    let lastUrl = location.href;
+                    let hookedVideo = null;
+
+                    const obterVolumePreferido = () => {{
+                        const v = window.__assistentePreferredVolume;
+                        if (typeof v !== 'number' || Number.isNaN(v)) return DEFAULT_VOLUME;
+                        return Math.max(0, Math.min(1, v));
+                    }};
+
+                    const aplicarVolumePadrao = (video) => {{
+                        if (!video) return;
+                        video.muted = false;
+                        video.volume = obterVolumePreferido();
+                    }};
+
+                    const anexarHooks = (video) => {{
+                        if (!video || video === hookedVideo) return;
+                        hookedVideo = video;
+                        const aplicar = () => aplicarVolumePadrao(video);
+                        video.addEventListener('loadedmetadata', aplicar);
+                        video.addEventListener('play', aplicar);
+                        aplicar();
+                    }};
+
                     const v = document.querySelector('video');
                     if(v) {{
-                        v.muted = false;
-                        v.volume = DEFAULT_VOLUME;
+                        aplicarVolumePadrao(v);
+                        anexarHooks(v);
                         if(v.paused) v.play();
+                        lastVideoSrc = v.currentSrc || v.src || null;
                     }}
+                    
+                    setInterval(() => {{
+                        try {{
+                            const video = document.querySelector('video');
+                            if (!video) return;
+
+                            anexarHooks(video);
+
+                            const currentSrc = video.currentSrc || video.src || null;
+                            const trocouDeMusica = currentSrc && currentSrc !== lastVideoSrc;
+                            if (trocouDeMusica) {{
+                                lastVideoSrc = currentSrc;
+                            }}
+
+                            const urlMudou = location.href !== lastUrl;
+                            if (urlMudou) {{
+                                lastUrl = location.href;
+                            }}
+
+                            // DETEÇÃO DEFINITIVA: Olha para todos os elementos que o YouTube usa para exibir anúncios
+                            const isAd = document.querySelector('.ytp-ad-player-overlay, .ytp-ad-player-overlay-instream-info, .ad-showing');
+
+                            if (isAd) {{
+                                // É ANÚNCIO: Muta, zera o volume e acelera
+                                video.muted = true;
+                                video.volume = 0;
+                                video.playbackRate = 16.0;
+
+                                // Clica em qualquer botão de pular que existir
+                                document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button').forEach(b => b.click());
+
+                                // Salto no tempo (se for inpulável)
+                                if (video.duration > 0 && video.currentTime < video.duration - 1) {{
+                                    video.currentTime = video.duration - 0.5; 
+                                }}
+                            }} else {{
+                                // NÃO É ANÚNCIO: Restaura o som e a velocidade com segurança
+                                if (video.muted || video.playbackRate !== 1.0 || trocouDeMusica || urlMudou || video.volume !== obterVolumePreferido()) {{
+                                    aplicarVolumePadrao(video);
+                                    video.playbackRate = 1.0;
+                                }}
+                            }}
+
+                            // Esmaga banners
+                            document.querySelectorAll('.ytp-ad-overlay-close-button').forEach(b => b.click());
+                        }} catch (err) {{}}
+                    }}, 150);
                 }})();
                 """
                 
-                await page.evaluate(codigo_magico)
+                await self.page_async.evaluate(codigo_magico)
                 print(">>> [YOUTUBE ASYNC] Motor furtivo injetado!")
                 
-                # Cleanup
-                await page.close()
-                await context.close()
-                await browser.close()
+                # ✅ NÃO FECHAR A PÁGINA - manter para próximos comandos (controlar_reproducao, pular_musica, etc)
                 
                 if video_resolvido and video_resolvido.get("title"):
                     return f"Sucesso! Encontrei e coloquei '{video_resolvido['title']}' a tocar."
-                return f"Sucesso! Coloquei '{pesquisa}' a tocar."
+                return f"Sucesso! Coloquei '{pesquisa}' a tocar. Anti-Bot evadido."
         
         except Exception as e:
+            print(f"[YOUTUBE ASYNC] Erro: {e}")
             return f"Erro na automação do YouTube (async): {str(e)}"
     
-    async def async_controlar_reproducao(self, acao: str) -> str:
+    async def async_controlar_reproducao(self, acao: str, **kwargs) -> str:
         """
-        Versão ASYNC do controle de reprodução.
+        ✅ Versão ASYNC do controle de reprodução (Pausa, Retoma, Pula, Loop).
+        ✅ Não bloqueia o event loop.
+        ✅ Reutiliza a página assíncrona persistente mantida em self.
         """
-        # Para agora, retorna um placeholder
-        # TODO: Implementar com async page control
-        return f"Ação de reprodução: {acao} (async)"
+        if not self.page_async:
+            return "Erro: O YouTube não está aberto no momento (página async não existe)."
+        
+        try:
+            acao_lower = acao.lower()
+            
+            async with self.async_pb_lock:
+                if "pausar" in acao_lower or "parar" in acao_lower:
+                    await self.page_async.evaluate("() => { const v = document.querySelector('video'); if(v) v.pause(); }")
+                    return "A música foi pausada com sucesso."
+                
+                elif "retomar" in acao_lower or "voltar" in acao_lower or "play" in acao_lower or "começar" in acao_lower:
+                    await self.page_async.evaluate("() => { const v = document.querySelector('video'); if(v) v.play(); }")
+                    return "A música voltou a tocar."
+                
+                elif "pular" in acao_lower or "skip" in acao_lower or "proxima" in acao_lower or "próxima" in acao_lower:
+                    await self.page_async.evaluate("() => { const nextBtn = document.querySelector('.ytp-next-button'); if(nextBtn) nextBtn.click(); }")
+                    return "Pulei para a próxima música."
+                
+                elif "loop" in acao_lower or "repeat" in acao_lower or "repetir" in acao_lower or "lupi" in acao_lower:
+                    await self.page_async.evaluate("() => { const repeatBtn = document.querySelector('.ytp-repeat'); if(repeatBtn) repeatBtn.click(); }")
+                    return "Modo de repetição (loop) ativado. Clica novamente para mudar entre uma música ou toda a playlist."
+                
+                else:
+                    return f"Ação '{acao}' não reconhecida. Tente: pausar, retomar (play), pular (skip), ou loop (repetir)."
+        
+        except Exception as e:
+            print(f"[YOUTUBE ASYNC] Erro ao controlar reprodução: {e}")
+            return f"Falha ao executar o comando no navegador: {str(e)}"
     
-    async def async_pular_musica(self) -> str:
+    async def async_ajustar_volume(self, nivel, **kwargs) -> str:
         """
-        Versão ASYNC para pular a música.
+        ✅ Versão ASYNC de ajuste de volume.
+        ✅ Não bloqueia o event loop.
+        ✅ Mantém volume persistido para futuras sessões.
         """
-        # TODO: Implementar com async page control
-        return "Música pulada (async)"
+        if not self.page_async:
+            return "Erro: O YouTube não está aberto no momento (página async não existe)."
+        
+        try:
+            # Limpar input
+            if isinstance(nivel, str):
+                nivel = nivel.replace('%', '').strip()
+            
+            numero_limpo = int(float(nivel))
+            vol_decimal = max(0, min(100, numero_limpo)) / 100.0
+            self.youtube_default_volume = vol_decimal
+            self._guardar_volume_preferido(vol_decimal)
+            
+            async with self.async_pb_lock:
+                await self.page_async.evaluate(
+                    f"() => {{ window.__assistentePreferredVolume = {vol_decimal}; const v = document.querySelector('video'); if(v) {{ v.muted = false; v.volume = {vol_decimal}; }} }}"
+                )
+            
+            return f"O volume da música foi ajustado para {numero_limpo}% e ficará assim nas próximas músicas."
+        
+        except Exception as e:
+            print(f"[YOUTUBE ASYNC] Erro ao ajustar volume: {e}")
+            return f"Erro interno ao ajustar o volume. Erro: {str(e)}"
+    
+    async def async_pular_musica(self, **kwargs) -> str:
+        """
+        ✅ Versão ASYNC para pular a música.
+        ✅ Não bloqueia o event loop.
+        ✅ Reutiliza a página assíncrona persistente.
+        """
+        if not self.page_async:
+            return "Erro: O YouTube não está aberto no momento (página async não existe)."
+        
+        try:
+            async with self.async_pb_lock:
+                # O seletor '.ytp-next-button' é o botão nativo do YouTube de "Próximo"
+                await self.page_async.evaluate("() => { const nextBtn = document.querySelector('.ytp-next-button'); if(nextBtn) nextBtn.click(); }")
+            
+            return "Pulei para a próxima música com sucesso!"
+        
+        except Exception as e:
+            print(f"[YOUTUBE ASYNC] Erro ao pular música: {e}")
+            return f"Erro ao tentar pular a música: {str(e)}"
         

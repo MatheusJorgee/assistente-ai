@@ -1,6 +1,6 @@
-"""
-Ferramentas de Automação para Terminal/PowerShell
-Implementa segurança aprimorada com Regex avan\u00e7ado.
+﻿"""
+Ferramentas de AutomaÃ§Ã£o para Terminal/PowerShell
+Implementa seguranÃ§a aprimorada com Regex avan\u00e7ado.
 """
 
 import re
@@ -10,29 +10,29 @@ import asyncio
 from typing import Dict, Any
 
 try:
-    from backend.core.tool_registry import Tool, ToolMetadata
+    from core.tool_registry import Tool, ToolMetadata
 except ModuleNotFoundError:
     from core.tool_registry import Tool, ToolMetadata
 
 
 class TerminalSecurityValidator:
     """
-    Validador de segurança para comandos de terminal.
-    Usa Regex para identificar padrões destrutivos e perigosos.
+    Validador de seguranÃ§a para comandos de terminal.
+    Usa Regex para identificar padrÃµes destrutivos e perigosos.
     """
     
     def __init__(self, security_profile: str = "trusted-local"):
         self.security_profile = security_profile
         
-        # Padrões CRÍTICOS: Comandos destrutivos, persistentes, admin escalation
+        # PadrÃµes CRÃTICOS: Comandos destrutivos, persistentes, admin escalation
         self.critical_patterns = [
-            # Formatação/Apagamento de disco
-            (r"\bformat\b[^a-z]*(?:/fs|/v)?\s+[A-Z]:", "DESTRUIÇÃO DE DISCO"),
+            # FormataÃ§Ã£o/Apagamento de disco
+            (r"\bformat\b[^a-z]*(?:/fs|/v)?\s+[A-Z]:", "DESTRUIÃ‡ÃƒO DE DISCO"),
             (r"\bdiskpart\b", "Acesso ao gerenciador de disco"),
-            (r"\bmkfs\b", "Formatação Linux"),
+            (r"\bmkfs\b", "FormataÃ§Ã£o Linux"),
             (r"\b(?:rmdir|rm)\b\s+/s|--recursive|/r", "Apagamento recursivo"),
             
-            # Limpeza de registros/evidências
+            # Limpeza de registros/evidÃªncias
             (r"\bvssadmin\b.*delete.*shadow", "Apagamento de shadow copies"),
             (r"\bwmic\b.*logicaldisk.*delete", "Apagamento via WMI"),
             (r"\bclear\b.*event\b.*log|eventclear", "Limpeza de event logs"),
@@ -42,7 +42,7 @@ class TerminalSecurityValidator:
             (r"\breg\b\s+delete\b", "Dele\u00e7\u00e3o de registro"),
             (r"\bREG\s+DELETE", "DELETE registry"),
             
-            # Boot/Recuperação System
+            # Boot/RecuperaÃ§Ã£o System
             (r"\bbcdedit\b\s+/delete", "Manipula\u00e7\u00e3o BCD"),
             (r"\bbootcfg\b\s+/delete", "Manipula\u00e7\u00e3o boot config"),
             
@@ -58,7 +58,7 @@ class TerminalSecurityValidator:
             # Code Execution Obfuscation (tentativa de bypass)
             (r"\bpowershell\b.*-enc(?:odedcommand)?", "PowerShell encoded command"),
             (r"\bcmd\b\s+/c.*(?:del|format|diskpart)", "CMD com comando destrutivo"),
-            (r"\b(?:invoke-expression|IEX)\b", "Execução dinâmica de código"),
+            (r"\b(?:invoke-expression|IEX)\b", "ExecuÃ§Ã£o dinÃ¢mica de cÃ³digo"),
             (r"[\x00-\x1F](?:cmd|powershell)", "Null-byte injection"),
             
             # Ransomware/Cryptolocker indicators
@@ -66,7 +66,7 @@ class TerminalSecurityValidator:
             (r"\bwbadmin\b\s+delete\b", "Delet backup Windows"),
         ]
         
-        # Padrões MÉDIOS: Requerem confirmação ou logging extra
+        # PadrÃµes MÃ‰DIOS: Requerem confirmaÃ§Ã£o ou logging extra
         self.medium_patterns = [
             (r"\bdel\b\s+(?:/f|/s|/q)", "Apagamento com flags possibilidade recursiva"),
             (r"\brm\b\s+(?:-r|-rf|-f)", "Remove recursivo"),
@@ -74,50 +74,50 @@ class TerminalSecurityValidator:
             (r"\bnet\b\s+share", "Compartilha de arquivo"),
         ]
         
-        # Padrões BAIXO: Apenas logging
+        # PadrÃµes BAIXO: Apenas logging
         self.low_patterns = [
-            (r"\bwhoami\b", "Verificação de usuário"),
-            (r"\bwhere\b", "Busca de executável"),
+            (r"\bwhoami\b", "VerificaÃ§Ã£o de usuÃ¡rio"),
+            (r"\bwhere\b", "Busca de executÃ¡vel"),
         ]
     
     def classify_command(self, comando: str) -> Dict[str, Any]:
         """
-        Classifica um comando por nível de risco.
+        Classifica um comando por nÃ­vel de risco.
         
         Returns:
             {
-                'risk': 'CRÍTICO' | 'MÉDIO' | 'BAIXO' | 'SEGURO',
-                'pattern': str (padrão que correspondeu),
-                'reason': str (explicação humana),
+                'risk': 'CRÃTICO' | 'MÃ‰DIO' | 'BAIXO' | 'SEGURO',
+                'pattern': str (padrÃ£o que correspondeu),
+                'reason': str (explicaÃ§Ã£o humana),
                 'allowed': bool (deve executar?),
                 'needs_confirmation': bool
             }
         """
         cmd_lower = (comando or "").strip().lower()
         
-        # Verificar padrões críticos
+        # Verificar padrÃµes crÃ­ticos
         for pattern, reason in self.critical_patterns:
             if re.search(pattern, cmd_lower, re.IGNORECASE):
                 return {
-                    'risk': 'CRÍTICO',
+                    'risk': 'CRÃTICO',
                     'pattern': pattern,
                     'reason': reason,
                     'allowed': False,
                     'needs_confirmation': False
                 }
         
-        # Verificar padrões médios
+        # Verificar padrÃµes mÃ©dios
         for pattern, reason in self.medium_patterns:
             if re.search(pattern, cmd_lower, re.IGNORECASE):
                 return {
-                    'risk': 'MÉDIO',
+                    'risk': 'MÃ‰DIO',
                     'pattern': pattern,
                     'reason': reason,
                     'allowed': self.security_profile != 'strict',
                     'needs_confirmation': True
                 }
         
-        # Verificar padrões baixos (apenas para logging)
+        # Verificar padrÃµes baixos (apenas para logging)
         for pattern, reason in self.low_patterns:
             if re.search(pattern, cmd_lower, re.IGNORECASE):
                 return {
@@ -128,11 +128,11 @@ class TerminalSecurityValidator:
                     'needs_confirmation': False
                 }
         
-        # Comando não identificado como perigoso
+        # Comando nÃ£o identificado como perigoso
         return {
             'risk': 'SEGURO',
             'pattern': None,
-            'reason': 'Comando padr\u00e3o sem padrões perigosos detectados',
+            'reason': 'Comando padr\u00e3o sem padrÃµes perigosos detectados',
             'allowed': True,
             'needs_confirmation': False
         }
@@ -151,7 +151,7 @@ class ExecutarTerminalTool(Tool):
         super().__init__(
             metadata=ToolMetadata(
                 name="terminal",
-                description="Executa comandos no PowerShell/CMD do Windows com validação de segurança",
+                description="Executa comandos no PowerShell/CMD do Windows com validaÃ§Ã£o de seguranÃ§a",
                 version="2.0.0",
                 tags=["system", "automation", "security"]
             )
@@ -162,16 +162,16 @@ class ExecutarTerminalTool(Tool):
         self.max_output_lines = 200
     
     def validate_input(self, **kwargs) -> bool:
-        """Valida se comando e justificacao estão presentes."""
+        """Valida se comando e justificacao estÃ£o presentes."""
         return 'comando' in kwargs and 'justificacao' in kwargs
     
     async def execute(self, **kwargs) -> str:
         """
-        Executa comando com validação de segurança.
+        Executa comando com validaÃ§Ã£o de seguranÃ§a.
         
         Args:
             comando (str): Comando a executar
-            justificacao (str): Motivo/contexto para execução
+            justificacao (str): Motivo/contexto para execuÃ§Ã£o
             
         Returns:
             str: Output do comando ou erro
@@ -194,12 +194,12 @@ class ExecutarTerminalTool(Tool):
             return msg
         
         if validacao['needs_confirmation']:
-            msg = f"[ATENÇÃO] Requer confirma\u00e7\u00e3o: {validacao['reason']} (Risco: {validacao['risk']})"
+            msg = f"[ATENÃ‡ÃƒO] Requer confirma\u00e7\u00e3o: {validacao['reason']} (Risco: {validacao['risk']})"
             if self._event_bus:
                 self._event_bus.emit('action_terminal', {
                     'command': comando,
                     'risk_level': validacao['risk'],
-                    'result': 'PENDENTE_CONFIRMAÇÃO',
+                    'result': 'PENDENTE_CONFIRMAÃ‡ÃƒO',
                     'reason': msg
                 })
             return msg
@@ -222,7 +222,7 @@ class ExecutarTerminalTool(Tool):
             return resultado
             
         except Exception as e:
-            error_msg = f"[ERRO] Execução falhou: {str(e)}"
+            error_msg = f"[ERRO] ExecuÃ§Ã£o falhou: {str(e)}"
             if self._event_bus:
                 self._event_bus.emit('action_terminal', {
                     'command': comando,
@@ -233,7 +233,7 @@ class ExecutarTerminalTool(Tool):
             return error_msg
     
     def _executar_sync(self, comando: str) -> str:
-        """Executa comando de forma síncrona (para asyncio.to_thread)."""
+        """Executa comando de forma sÃ­ncrona (para asyncio.to_thread)."""
         try:
             resultado = subprocess.run(
                 comando,
@@ -262,7 +262,7 @@ class ExecutarTerminalTool(Tool):
 
 class AprenderemExecutarTool(Tool):
     """
-    Ferramenta para aprender novos comandos via Oráculo e executá-los.
+    Ferramenta para aprender novos comandos via OrÃ¡culo e executÃ¡-los.
     Consulta o modelo de IA para gerar comandos seguros para objetivos desconhecidos.
     """
     
@@ -270,7 +270,7 @@ class AprenderemExecutarTool(Tool):
         super().__init__(
             metadata=ToolMetadata(
                 name="aprender_executar",
-                description="Consulta Oráculo para aprender comando desconhecido, valida e executa",
+                description="Consulta OrÃ¡culo para aprender comando desconhecido, valida e executa",
                 version="2.0.0",
                 tags=["learning", "automation", "system"]
             )
@@ -285,17 +285,17 @@ class AprenderemExecutarTool(Tool):
     
     async def execute(self, **kwargs) -> str:
         """
-        Aprende do Oráculo, guarda em cache e executa.
+        Aprende do OrÃ¡culo, guarda em cache e executa.
         
         Args:
-            objetivo (str): O que você quer fazer
+            objetivo (str): O que vocÃª quer fazer
             ambiente (str): "Windows PowerShell" ou similar
             
         Returns:
-            str: Resultado da execução
+            str: Resultado da execuÃ§Ã£o
         """
         if not self.oraculo or not self.db:
-            return "[ERRO] Oráculo ou Database não injetados"
+            return "[ERRO] OrÃ¡culo ou Database nÃ£o injetados"
         
         objetivo = kwargs.get('objetivo', '').strip()
         ambiente = kwargs.get('ambiente', 'Windows PowerShell').strip()
@@ -306,7 +306,7 @@ class AprenderemExecutarTool(Tool):
                 'objective': objetivo
             })
         
-        # Consultar Oráculo
+        # Consultar OrÃ¡culo
         conhecimento = await asyncio.to_thread(
             self.oraculo.consultar_comando_tecnico,
             objetivo,
@@ -317,10 +317,10 @@ class AprenderemExecutarTool(Tool):
         risco = conhecimento.get("risco", "ALTO")
         
         if not comando:
-            return f"[ERRO] Oráculo não conseguiu gerar comando para: {objetivo}"
+            return f"[ERRO] OrÃ¡culo nÃ£o conseguiu gerar comando para: {objetivo}"
         
         if risco == "ALTO":
-            msg = f"[AVISO] Oráculo gerou comando com risco ALTO. Requer permissão explícita antes de executar."
+            msg = f"[AVISO] OrÃ¡culo gerou comando com risco ALTO. Requer permissÃ£o explÃ­cita antes de executar."
             if self._event_bus:
                 self._event_bus.emit('cortex_thinking', {
                     'step': 'high_risk_detected',
@@ -332,10 +332,11 @@ class AprenderemExecutarTool(Tool):
         try:
             self.db.salvar_habilidade(objetivo, ambiente, comando)
         except:
-            pass  # Falha silenciosa se DB não estiver pronto
+            pass  # Falha silenciosa se DB nÃ£o estiver pronto
         
         # Executar usando a terminal tool
         return await self.terminal_tool.safe_execute(
             comando=comando,
-            justificacao=f"Execução autônoma pós-aprendizado: {objetivo}"
+            justificacao=f"ExecuÃ§Ã£o autÃ´noma pÃ³s-aprendizado: {objetivo}"
         )
+

@@ -6,16 +6,19 @@ python-dotenv>=1.0.0
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 websockets>=12.0
+aiohttp>=3.9.0  # Async HTTP client (ElevenLabs voice API)
 
 # Utilities
 requests>=2.31.0
 Pillow>=10.0.0  # Image processing (WebP compression)
 pyttsx3>=2.90   # Text-to-speech fallback
+SpeechRecognition>=3.10.0  # Speech-to-text para wake word (requer backend de microfone)
 pyautogui>=0.9.53  # Screen automation
 
 # Audio/Music
 spotipy>=2.22.0  # Spotify API
-youtubesearchpython>=1.14.0  # YouTube search
+youtube-search-python>=1.6.6  # YouTube search (alternativa mantida)
+yt-dlp>=2023.12.0  # Download de vídeos
 playwright>=1.40.0  # YouTube automation (Playwright for cross-browser)
 
 # WhatsApp & Browser Automation (Fase 3)

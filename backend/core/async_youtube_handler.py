@@ -1,7 +1,7 @@
-"""
-ASYNC YOUTUBE HANDLER - Funções assíncronas para YouTube
+﻿"""
+ASYNC YOUTUBE HANDLER - FunÃ§Ãµes assÃ­ncronas para YouTube
 
-Encapsula toda a lógica de Playwright em funções que não bloqueiam o event loop.
+Encapsula toda a lÃ³gica de Playwright em funÃ§Ãµes que nÃ£o bloqueiam o event loop.
 Usa PlaywrightManager singleton internally.
 """
 
@@ -12,7 +12,7 @@ from youtubesearchpython import VideosSearch
 
 
 class AsyncYouTubeHandler:
-    """Handler assíncrono para YouTube + Playwright."""
+    """Handler assÃ­ncrono para YouTube + Playwright."""
     
     def __init__(self, default_volume: float = 0.05):
         """Inicializa handler."""
@@ -21,12 +21,15 @@ class AsyncYouTubeHandler:
     
     async def initialize_manager(self):
         """Inicializa PlaywrightManager."""
-        from backend.core.playwright_manager import PlaywrightManager
+        try:
+            from core.playwright_manager import PlaywrightManager
+        except ImportError:
+            from core.playwright_manager import PlaywrightManager
         self.playwright_manager = await PlaywrightManager.get_instance()
         await self.playwright_manager.initialize()
     
     def _resolver_video_youtube(self, pesquisa: str):
-        """Resolve vídeo no YouTube (síncrono - rápido)."""
+        """Resolve vÃ­deo no YouTube (sÃ­ncrono - rÃ¡pido)."""
         query = pesquisa.strip()
         if not query:
             return None
@@ -52,7 +55,7 @@ class AsyncYouTubeHandler:
     
     async def tocar_youtube_invisivel(self, pesquisa: str) -> str:
         """
-        Toca vídeo YouTube de forma assíncrona (sem bloquear event loop).
+        Toca vÃ­deo YouTube de forma assÃ­ncrona (sem bloquear event loop).
         
         Usa PlaywrightManager singleton + async/await.
         """
@@ -60,17 +63,17 @@ class AsyncYouTubeHandler:
         if self.playwright_manager is None:
             await self.initialize_manager()
         
-        print(f"[YT] 🎵 Tocando: {pesquisa}...")
+        print(f"[YT] ðŸŽµ Tocando: {pesquisa}...")
         
         query_url = urllib.parse.quote(pesquisa)
         video_resolvido = self._resolver_video_youtube(pesquisa)
         
         try:
-            # Obter página do manager (fecha anterior se existir, cria nova)
+            # Obter pÃ¡gina do manager (fecha anterior se existir, cria nova)
             page = await self.playwright_manager.get_page()
             
-            # Navegar até YouTube
-            print(f"[YT] 🌐 Navegando até YouTube...")
+            # Navegar atÃ© YouTube
+            print(f"[YT] ðŸŒ Navegando atÃ© YouTube...")
             if video_resolvido and video_resolvido.get("id"):
                 await page.goto(
                     f"https://www.youtube.com/watch?v={video_resolvido['id']}",
@@ -84,14 +87,14 @@ class AsyncYouTubeHandler:
                 await page.wait_for_selector("a#video-title", timeout=10000)
                 await page.click("a#video-title")
             
-            # Aguardar player de vídeo
-            print(f"[YT] ⏳ Aguardando player...")
+            # Aguardar player de vÃ­deo
+            print(f"[YT] â³ Aguardando player...")
             await page.wait_for_selector("video", timeout=15000)
             
-            # Pequena pausa para garantir que vídeo iniciou
+            # Pequena pausa para garantir que vÃ­deo iniciou
             await asyncio.sleep(2)
             
-            # Injetar código mágico para controlar anúncios e volume
+            # Injetar cÃ³digo mÃ¡gico para controlar anÃºncios e volume
             codigo_magico = f"""
             () => {{
                 const DEFAULT_VOLUME = {self.default_volume};
@@ -111,11 +114,11 @@ class AsyncYouTubeHandler:
                         const video = document.querySelector('video');
                         if (!video) return;
                         
-                        // Detectar anúncio
+                        // Detectar anÃºncio
                         const isAd = document.querySelector('.ytp-ad-player-overlay, .ad-showing');
                         
                         if (isAd) {{
-                            // É anúncio: muta e pula
+                            // Ã‰ anÃºncio: muta e pula
                             video.muted = true;
                             video.volume = 0;
                             video.playbackRate = 16.0;
@@ -124,7 +127,7 @@ class AsyncYouTubeHandler:
                                 video.currentTime = video.duration - 0.5;
                             }}
                         }} else {{
-                            // Não é anúncio: restaura
+                            // NÃ£o Ã© anÃºncio: restaura
                             aplicarVolume(video);
                             video.playbackRate = 1.0;
                         }}
@@ -137,46 +140,46 @@ class AsyncYouTubeHandler:
             """
             
             await page.evaluate(codigo_magico)
-            print(f"[YT] ✓ Motor furtivo injetado!")
+            print(f"[YT] âœ“ Motor furtivo injetado!")
             
             if video_resolvido and video_resolvido.get("title"):
-                return f"▶ Tocando: {video_resolvido['title']}"
-            return f"▶ Tocando: {pesquisa}"
+                return f"â–¶ Tocando: {video_resolvido['title']}"
+            return f"â–¶ Tocando: {pesquisa}"
         
         except asyncio.TimeoutError:
             return f"[ERRO] Timeout ao carregar YouTube para '{pesquisa}'"
         except Exception as e:
-            print(f"[YT] ❌ Erro: {e}")
-            return f"[ERRO] Falha na automação do YouTube: {str(e)}"
+            print(f"[YT] âŒ Erro: {e}")
+            return f"[ERRO] Falha na automaÃ§Ã£o do YouTube: {str(e)}"
     
     async def controlar_reproducao(self, acao: str) -> str:
-        """Controla reprodução (pausar/retomar)."""
+        """Controla reproduÃ§Ã£o (pausar/retomar)."""
         if self.playwright_manager is None or not self.playwright_manager.page:
-            return "Erro: YouTube não está aberto"
+            return "Erro: YouTube nÃ£o estÃ¡ aberto"
         
         try:
             page = self.playwright_manager.page
             
             if "pausar" in acao.lower() or "parar" in acao.lower():
                 await page.evaluate("() => { const v = document.querySelector('video'); if(v) v.pause(); }")
-                return "⏸ Música pausada com sucesso"
+                return "â¸ MÃºsica pausada com sucesso"
             elif "retomar" in acao.lower() or "voltar" in acao.lower() or "play" in acao.lower():
                 await page.evaluate("() => { const v = document.querySelector('video'); if(v) v.play(); }")
-                return "▶ Música retomada"
+                return "â–¶ MÃºsica retomada"
             
-            return "Ação não reconhecida"
+            return "AÃ§Ã£o nÃ£o reconhecida"
         except Exception as e:
-            return f"Erro ao controlar reprodução: {str(e)}"
+            return f"Erro ao controlar reproduÃ§Ã£o: {str(e)}"
     
     async def pular_musica(self) -> str:
-        """Pula para próxima música."""
+        """Pula para prÃ³xima mÃºsica."""
         if self.playwright_manager is None or not self.playwright_manager.page:
-            return "Erro: YouTube não está aberto"
+            return "Erro: YouTube nÃ£o estÃ¡ aberto"
         
         try:
             page = self.playwright_manager.page
             await page.evaluate("() => { const btn = document.querySelector('.ytp-next-button'); if(btn) btn.click(); }")
-            return "⏭ Pulada para próxima"
+            return "â­ Pulada para prÃ³xima"
         except Exception as e:
             return f"Erro ao pular: {str(e)}"
     
@@ -186,13 +189,14 @@ class AsyncYouTubeHandler:
             await self.playwright_manager.cleanup()
 
 
-# Instância global (lazy-loaded)
+# InstÃ¢ncia global (lazy-loaded)
 _async_yt_handler = None
 
 async def get_async_yt_handler() -> AsyncYouTubeHandler:
-    """Obtém instância do handler assíncrono."""
+    """ObtÃ©m instÃ¢ncia do handler assÃ­ncrono."""
     global _async_yt_handler
     if _async_yt_handler is None:
         _async_yt_handler = AsyncYouTubeHandler()
         await _async_yt_handler.initialize_manager()
     return _async_yt_handler
+

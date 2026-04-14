@@ -1,4 +1,4 @@
-"""
+﻿"""
 Ferramenta de Controle de Energia: Desligar, Reiniciar, Dormir
 """
 
@@ -8,7 +8,7 @@ import subprocess
 from typing import Dict, Any
 
 try:
-    from backend.core.tool_registry import Tool, ToolMetadata
+    from core.tool_registry import Tool, ToolMetadata
 except ModuleNotFoundError:
     from core.tool_registry import Tool, ToolMetadata
 
@@ -41,13 +41,13 @@ class SystemPowerControlTool(Tool):
         
         Args:
             acao (str): 'shutdown' (desligar), 'restart' (reiniciar), 'sleep' (suspender)
-            delay (int): Segundos para aguardar antes de executar (opcional, padrão: 10)
+            delay (int): Segundos para aguardar antes de executar (opcional, padrÃ£o: 10)
             
         Returns:
-            str: Resultado da ação
+            str: Resultado da aÃ§Ã£o
         """
         if not self.power_controller:
-            # Fallback: usar função nativa se não houver controller externo
+            # Fallback: usar funÃ§Ã£o nativa se nÃ£o houver controller externo
             return await self._executar_nativo(**kwargs)
         
         try:
@@ -75,7 +75,7 @@ class SystemPowerControlTool(Tool):
         acao = kwargs.get('acao', 'shutdown').strip().lower()
         delay = kwargs.get('delay', 10)
         
-        # Normalizar ação
+        # Normalizar aÃ§Ã£o
         if acao in ['desligar', 'shutdown']:
             acao_normalizada = 'shutdown'
         elif acao in ['reiniciar', 'restart']:
@@ -83,7 +83,7 @@ class SystemPowerControlTool(Tool):
         elif acao in ['dormir', 'suspender', 'sleep']:
             acao_normalizada = 'sleep'
         else:
-            return f"Ação desconhecida: {acao}. Use: shutdown, restart, ou sleep."
+            return f"AÃ§Ã£o desconhecida: {acao}. Use: shutdown, restart, ou sleep."
         
         try:
             # Detectar SO
@@ -92,24 +92,24 @@ class SystemPowerControlTool(Tool):
             if sistema == 'nt':  # Windows
                 if acao_normalizada == 'shutdown':
                     cmd = f'shutdown /s /t {delay}'
-                    msg = f"Computador será desligado em {delay} segundos."
+                    msg = f"Computador serÃ¡ desligado em {delay} segundos."
                 elif acao_normalizada == 'restart':
                     cmd = f'shutdown /r /t {delay}'
-                    msg = f"Computador será reiniciado em {delay} segundos."
+                    msg = f"Computador serÃ¡ reiniciado em {delay} segundos."
                 else:  # sleep
                     cmd = 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0'
-                    msg = "Computador entrando em modo de suspensão."
+                    msg = "Computador entrando em modo de suspensÃ£o."
             
             else:  # Linux/Mac
                 if acao_normalizada == 'shutdown':
                     cmd = f'shutdown -h +{delay // 60}'
-                    msg = f"Computador será desligado em {delay} segundos."
+                    msg = f"Computador serÃ¡ desligado em {delay} segundos."
                 elif acao_normalizada == 'restart':
                     cmd = f'shutdown -r +{delay // 60}'
-                    msg = f"Computador será reiniciado em {delay} segundos."
+                    msg = f"Computador serÃ¡ reiniciado em {delay} segundos."
                 else:  # sleep
                     cmd = 'systemctl suspend'
-                    msg = "Computador entrando em modo de suspensão."
+                    msg = "Computador entrando em modo de suspensÃ£o."
             
             # Executar comando
             await asyncio.to_thread(
@@ -134,3 +134,4 @@ class SystemPowerControlTool(Tool):
             
         except Exception as e:
             return f"Erro ao executar comando de energia: {str(e)}"
+

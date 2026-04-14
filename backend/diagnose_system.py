@@ -1,15 +1,15 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SCRIPT DE DIAGNÓSTICO COMPLETO - Quinta-Feira v2.1
+SCRIPT DE DIAGNÃ“STICO COMPLETO - Quinta-Feira v2.1
 
 Uso:
   python diagnose_system.py
 
 O que verifica:
-  1. Versão do Python e pacotes
-  2. Imports dos módulos críticos
-  3. Conexão com .env
+  1. VersÃ£o do Python e pacotes
+  2. Imports dos mÃ³dulos crÃ­ticos
+  3. ConexÃ£o com .env
   4. Status do banco de dados
   5. Disponibilidade das ferramentas
   6. Geminai API key
@@ -108,7 +108,7 @@ def main():
     cwd = os.getcwd()
     is_backend = cwd.endswith('backend')
     report.add_check(
-        "Diretório Correto",
+        "DiretÃ³rio Correto",
         is_backend or os.path.basename(cwd) == 'assistente-ai',
         f"CWD: {cwd}",
         "Execute de backend/ ou da raiz assistente-ai/"
@@ -125,7 +125,7 @@ def main():
     report.add_check(
         ".env File",
         env_exists,
-        f"Localização: {env_path}",
+        f"LocalizaÃ§Ã£o: {env_path}",
         "Crie com: cp .env.example .env"
     )
     
@@ -143,39 +143,39 @@ def main():
     report.add_check(
         "Gemini API Key",
         api_key_ok,
-        "✓ Configurada" if api_key_ok else "✗ Não encontrada",
+        "âœ“ Configurada" if api_key_ok else "âœ— NÃ£o encontrada",
         "Adicione GEMINI_API_KEY ao .env"
     )
     
-    # ========== IMPORTS CRÍTICOS ==========
+    # ========== IMPORTS CRÃTICOS ==========
     
     # FastAPI
     try:
         import fastapi
         report.add_check("FastAPI", True, f"v{fastapi.__version__}", "")
     except ImportError:
-        report.add_check("FastAPI", False, "Não instalado", "pip install fastapi uvicorn")
+        report.add_check("FastAPI", False, "NÃ£o instalado", "pip install fastapi uvicorn")
     
     # Google GenAI
     try:
         from google import genai
-        report.add_check("Google GenAI", True, "Instalado ✓", "")
+        report.add_check("Google GenAI", True, "Instalado âœ“", "")
     except ImportError:
-        report.add_check("Google GenAI", False, "Não instalado", "pip install google-genai")
+        report.add_check("Google GenAI", False, "NÃ£o instalado", "pip install google-genai")
     
     # Pydantic
     try:
         import pydantic
         report.add_check("Pydantic", True, f"v{pydantic.__version__}", "")
     except ImportError:
-        report.add_check("Pydantic", False, "Não instalado", "pip install pydantic")
+        report.add_check("Pydantic", False, "NÃ£o instalado", "pip install pydantic")
     
     # PIL/Pillow
     try:
         from PIL import Image
-        report.add_check("Pillow", True, "Instalado ✓", "")
+        report.add_check("Pillow", True, "Instalado âœ“", "")
     except ImportError:
-        report.add_check("Pillow", False, "Não instalado", "pip install pillow")
+        report.add_check("Pillow", False, "NÃ£o instalado", "pip install pillow")
     
     # Backend Brain
     try:
@@ -186,7 +186,7 @@ def main():
         report.add_check(
             "QuintaFeiraBrain v2",
             True,
-            "Importação OK ✓",
+            "ImportaÃ§Ã£o OK âœ“",
             ""
         )
     except Exception as e:
@@ -197,13 +197,16 @@ def main():
             "Verifique imports em brain_v2.py"
         )
     
-    # Database
+    # Database canÃ´nico
     try:
-        from database import BaseDadosMemoria
+        if is_backend:
+            from services.database import Database, get_database
+        else:
+            from services.database import Database, get_database
         report.add_check(
             "Database Module",
             True,
-            "BaseDadosMemoria importável ✓",
+            "services.database importÃ¡vel âœ“",
             ""
         )
     except Exception as e:
@@ -211,7 +214,7 @@ def main():
             "Database Module",
             False,
             f"Erro: {str(e)[:50]}...",
-            "Verifique database.py"
+            "Verifique services/database.py"
         )
     
     # Oracle
@@ -220,7 +223,7 @@ def main():
         report.add_check(
             "Oracle Module",
             True,
-            "OraculoEngine importável ✓",
+            "OraculoEngine importÃ¡vel âœ“",
             ""
         )
     except Exception as e:
@@ -237,7 +240,7 @@ def main():
         report.add_check(
             "Core Modules",
             True,
-            "tool_registry, EventBus, DIContainer ✓",
+            "tool_registry, EventBus, DIContainer âœ“",
             ""
         )
     except Exception as e:
@@ -254,11 +257,11 @@ def main():
     report.add_check(
         "main.py Existe",
         main_exists,
-        f"Localização: {main_py_path}",
+        f"LocalizaÃ§Ã£o: {main_py_path}",
         "Arquivo FastAPI principal"
     )
     
-    # ========== PRÓXIMOS PASSOS ==========
+    # ========== PRÃ“XIMOS PASSOS ==========
     print(f"\n{Colors.CYAN}{Colors.BOLD}[NEXT] PROXIMOS PASSOS{Colors.END}\n")
     
     if report.errors:
@@ -299,3 +302,4 @@ if __name__ == "__main__":
         print(f"\n{Colors.RED}[ERROR] ERRO NAO TRATADO:{Colors.END}")
         traceback.print_exc()
         sys.exit(1)
+
