@@ -1,0 +1,37 @@
+# Backup da primeira versão (v2.0)
+primeira_versao/
+
+# Ambientes virtuais e dependências
+venv/
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+
+# Chaves de API e segredos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Tokens e caches locais sensíveis
+backend/.cache
+backend/.cache*
+
+# Artefatos de runtime locais
+backend/temp_vision/
+backend/audio_temp.wav
+
+# Banco local (contém memória e possivelmente dados sensíveis)
+backend/memoria_quinta_feira.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
