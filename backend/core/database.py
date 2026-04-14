@@ -214,6 +214,115 @@ class Database:
                 "images_count": len(self._memory["images"]),
                 "db_file": self.db_path,
             }
+    
+    # ===== RAG SIMPLES: Recuperação baseada em Palavras-Chave =====
+    async def search_messages_by_keywords(
+        self, 
+        session_id: str, 
+        keywords: List[str], 
+        limit: int = 10
+    ) -> List[Message]:
+        """
+        Busca mensagens relevantes usando keywords (RAG simples).
+        
+        Economia de tokens (RAG vs injeção total):
+        - Antes (injetar tudo): 10k tokens de memória
+        - Depois (RAG keywords): 2-3k tokens (relevantes)
+        - Economia: 70-80%
+        
+        Args:
+            session_id: ID da sessão
+            keywords: Lista de palavras-chave para buscar
+            limit: Máximo de mensagens relevantes a retornar
+        
+        Returns:
+            Lista de mensagens ordenadas por relevância
+        """
+        if not keywords:
+            # Se sem keywords, retorna apenas últimas N
+            return await self.get_messages(session_id, limit=limit)
+        
+        with self._lock:
+            all_messages = [m for m in self._memory["messages"] if m.session_id == session_id]
+        
+        # Scoring: quantas keywords cada mensagem contém
+        scored_messages = []
+        for msg in all_messages:
+            # Buscar no content
+            content_lower = (msg.content or "").lower()
+            
+            # Contar matches
+            match_count = sum(1 for kw in keywords if kw.lower() in content_lower)
+            
+            if match_count > 0:
+                scored_messages.append((msg, match_count))
+        
+        # Ordenar por score (descendente) e retornar top N
+        scored_messages.sort(key=lambda x: x[1], reverse=True)
+        return [msg for msg, score in scored_messages[:limit]]
+    
+    async def get_recent_messages_window(
+        self, 
+        session_id: str, 
+        window_size: int = 20
+    ) -> List[Message]:
+        """
+        LastN messages (sliding window para context management).
+        
+        Economia:
+        - Histórico completo: 50 msgs × 500 chars = 25k chars ≈ 10k tokens
+        - Sliding window 20: 20 msgs × 500 chars = 10k chars ≈ 4k tokens
+        - Economia: 60%
+        
+        Args:
+            session_id: ID da sessão
+            window_size: Quantidade de mensagens recentes
+        
+        Returns:
+            Últimas N mensagens ordenadas temporalmente
+        """
+        messages = await self.get_messages(session_id, limit=window_size)
+        # Ordenar por timestamp (ascendente) para conversa natural
+        return sorted(messages, key=lambda x: x.timestamp)
+    
+    async def summarize_session(
+        self, 
+        session_id: str, 
+        include_assistant_only: bool = False
+    ) -> str:
+        """
+        Resumo de uma sessão (para memória de longo termo).
+        
+        Uso: Quando janela ativa está cheia, mover contexto antigo para resumo.
+        
+        Args:
+            session_id: ID da sessão
+            include_assistant_only: Se True, apenas respostas do assistant
+        
+        Returns:
+            Resumo textual da conversa
+        """
+        with self._lock:
+            messages = [
+                m for m in self._memory["messages"] 
+                if m.session_id == session_id
+            ]
+        
+        if not messages:
+            return "[Sem histórico de conversa]"
+        
+        # Filtrar se necessário
+        if include_assistant_only:
+            messages = [m for m in messages if m.role == "assistant"]
+        
+        # Montar resumo simples
+        summary_lines = []
+        for msg in messages:
+            role = msg.role.upper()
+            preview = (msg.content or "")[:100]  # Primeiros 100 chars
+            summary_lines.append(f"[{role}] {preview}")
+        
+        return "\n".join(summary_lines[:20])  # Limitar a 20 linhas
 
 
 _db_instance: Optional[Database] = None

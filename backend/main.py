@@ -21,29 +21,27 @@ IMPORTA APENAS:
 """
 
 import asyncio
+import sys
 import json
 import traceback
-import sys
 from typing import Optional, Dict, Any, Set, List
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+# ===== CONFIGURAÇÃO CRÍTICA: Event Loop no Windows para Playwright =====
+# Forçar o Event Loop correto no Windows para suportar subprocessos do Playwright
+# Sem isto, Uvicorn força SelectorEventLoop que não suporta subprocess no Windows
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    print("[SISTEMA] Windows detectado: PolicyEventLoop ajustado para ProactorEventLoopPolicy")
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-# ===== CONFIGURAÇÃO CRÍTICA: Event Loop para Windows + Playwright =====
-# No Windows, o SelectorEventLoop não suporta subprocessos (necessários para Chromium)
-# Forçar ProactorEventLoop para compatibilidade com async_playwright
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    try:
-        print("[SYSTEM] \u2705 Windows ProactorEventLoopPolicy ativada para Playwright")
-    except UnicodeEncodeError:
-        print("[SYSTEM] OK - Windows ProactorEventLoopPolicy ativada para Playwright")
-
-# ===== IMPORTAÇÕES RESILIENTES (funciona de qualquer cwd) =====
+# ===== IMPORTAÃ‡Ã•ES RESILIENTES (funciona de qualquer cwd) =====
 try:
     # Tentar importaÃ§Ã£o absoluta (uvicorn backend.main:app do pai)
     from core import (

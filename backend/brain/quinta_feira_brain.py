@@ -160,39 +160,9 @@ class MessageHistory:
         if len(self.messages) > self.max_messages:
             self.messages = self.messages[-self.max_messages:]
     
-    def get_messages(self, limit: int = None) -> List[Message]:
-        """
-        Retorna histÃ³rico de mensagens com limite opcional.
-        
-        Args:
-            limit: NÃºmero máximo de mensagens a retornar.
-                   Se None, retorna todas as mensagens.
-                   Para env. para LLM, usar limit=10.
-        
-        Returns:
-            Lista de mensagens (cópia) em ordem cronológica.
-        """
-        messages = self.messages.copy()
-        
-        if limit and len(messages) > limit:
-            # Pega últimas N mensagens em ordem cronológica
-            messages = messages[-limit:]
-        
-        return messages
-    
-    def get_recent_messages_for_llm(self, limit: int = 10) -> List[Message]:
-        """
-        Retorna Ãºltimas N mensagens para enviar ao LLM.
-        
-        Use este método ao construir contexto para o LLM para limitar tokens.
-        
-        Args:
-            limit: NÃºmero máximo de mensagens (default 10).
-        
-        Returns:
-            Lista de mensagens em ordem cronológica.
-        """
-        return self.get_messages(limit=limit)
+    def get_messages(self) -> List[Message]:
+        """Retorna histÃ³rico completo."""
+        return self.messages.copy()
     
     def clear(self) -> None:
         """Limpa histÃ³rico."""
@@ -370,8 +340,7 @@ Quando nÃ£o souber:
             llm_messages = [
                 Message(role="system", content=system_prompt)
             ]
-            # Usar apenas as últimas 10 mensagens para economizar tokens
-            llm_messages.extend(self.message_history.get_recent_messages_for_llm(limit=10))
+            llm_messages.extend(self.message_history.get_messages())
             
             # 4. Se incluir visÃ£o, adicionar imagens recentes ao contexto
             if include_vision and self.vision_buffer.has_images():

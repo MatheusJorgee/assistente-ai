@@ -10,9 +10,9 @@ import json
 import unicodedata
 import asyncio
 import traceback
-import sys
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from youtubesearchpython import VideosSearch
 from playwright.sync_api import sync_playwright
 from playwright.async_api import async_playwright
 
@@ -61,21 +61,6 @@ class OSAutomation:
         self.playwright = None  # Instance de async_playwright
         self.browser = None  # Browser assíncrono persistente
         self.page = None  # Page assíncrona persistente (reutilizável)
-        self._browser_init_lock = None
-
-        # Estado async complementar usado por metodos antigos e cleanup.
-        self.page_async = None
-        self.context_async = None
-        self.browser_async = None
-        self.pw_async = None
-        self._async_pb_lock = None
-        self._async_pb_lock_initialized = False
-
-        # Estado sync legado para cleanup defensivo.
-        self.context = None
-        self.browser_instance = None
-        self.pw_motor = None
-        self.playwright_ativo = False
         
         self.youtube_volume_path = os.path.join(os.path.dirname(__file__), "temp_vision", "youtube_volume_pref.json")
         self.youtube_default_volume = self._carregar_volume_preferido()
@@ -107,15 +92,12 @@ class OSAutomation:
         }
     
     def __del__(self):
-        """Destrutor: Cleanup de recursos ao destruir objeto (SYNC only)
-        
-        IMPORTANTE: Para cleanup ASYNC completo, chamar await self._cleanup_playwright_async()
-        durante shutdown (ex: em FastAPI lifespan.
-        """
+        """Destrutor: Cleanup de recursos ao destruir objeto"""
         try:
             self._cleanup_playwright()
         except:
             pass
+        # Nota: Cleanup async será feito via _cleanup_playwright_async()
     
     def _cleanup_playwright(self):
         """Cleanup rigoroso de recursos Playwright (SYNC)"""
@@ -193,7 +175,7 @@ class OSAutomation:
             print(f"[CLEANUP ASYNC] Erro ao encerrar (async): {e}")
     
     async def _inicializar_async_playwright(self):
-        """Inicializa async_playwright uma única vez e armazena em self (Singleton Pattern)"""
+        """Inicializa async_playwright uma única vez e armazena em self"""
         if self.browser_async is not None:
             print("[YOUTUBE ASYNC] Browser já inicializado, reutilizando...")
             return
@@ -203,37 +185,30 @@ class OSAutomation:
             self._async_pb_lock = asyncio.Lock()
             self._async_pb_lock_initialized = True
         
-        # Usar lock para evitar race condition (múltiplas coroutines tentando inicializar simultaneamente)
-        async with self._async_pb_lock:
-            # Double-check: se outro coroutine já inicializou durante a espera, pular
-            if self.browser_async is not None:
-                print("[YOUTUBE ASYNC] Browser já inicializado por outro coroutine, reutilizando...")
-                return
+        print("[YOUTUBE ASYNC] Inicializando Playwright assíncrono...")
+        try:
+            self.pw_async = await async_playwright().start()
+            self.browser_async = await self.pw_async.chromium.launch(
+                headless=False,
+                channel="msedge",
+                args=[
+                    "--autoplay-policy=no-user-gesture-required",
+                    "--window-position=-32000,-32000",
+                    "--window-size=800,600",
+                    "--disable-blink-features=AutomationControlled"
+                ]
+            )
             
-            print("[YOUTUBE ASYNC] Inicializando Playwright assíncrono (Singleton)...")
-            try:
-                self.pw_async = await async_playwright().start()
-                self.browser_async = await self.pw_async.chromium.launch(
-                    headless=False,
-                    channel="msedge",
-                    args=[
-                        "--autoplay-policy=no-user-gesture-required",
-                        "--window-position=-32000,-32000",
-                        "--window-size=800,600",
-                        "--disable-blink-features=AutomationControlled"
-                    ]
-                )
-                
-                # Criar contexto
-                self.context_async = await self.browser_async.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )
-                
-                print("[YOUTUBE ASYNC] ✓ Playwright assíncrono inicializado (Singleton) e armazenado em self")
-            except Exception as e:
-                print(f"[YOUTUBE ASYNC] ✗ Erro ao inicializar: {e}")
-                await self._cleanup_playwright_async()
-                raise
+            # Criar contexto
+            self.context_async = await self.browser_async.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            
+            print("[YOUTUBE ASYNC] ✓ Playwright assíncrono inicializado e armazenado em self")
+        except Exception as e:
+            print(f"[YOUTUBE ASYNC] ✗ Erro ao inicializar: {e}")
+            await self._cleanup_playwright_async()
+            raise
     
     @property
     def async_pb_lock(self):
@@ -307,32 +282,14 @@ class OSAutomation:
 
         for tentativa in tentativas:
             try:
-                cmd = [
-                    sys.executable, "-m", "yt_dlp",
-                    "-j", "--no-warnings",
-                    f"ytsearch:{tentativa}"
-                ]
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=2  # Ultra short timeout - fallback to search
-                )
-                if result.returncode == 0 and result.stdout:
-                    try:
-                        dados = json.loads(result.stdout)
-                        if dados and "entries" in dados and dados["entries"]:
-                            video = dados["entries"][0]
-                            return {
-                                "id": video.get("id", ""),
-                                "title": video.get("title", ""),
-                                "url": video.get("url", ""),
-                                "query": tentativa,
-                            }
-                    except json.JSONDecodeError:
-                        continue
-            except subprocess.TimeoutExpired:
-                continue
+                resultados = VideosSearch(tentativa, limit=3).result()
+                videos = resultados.get("result", [])
+                if videos:
+                    return {
+                        "id": videos[0].get("id", ""),
+                        "title": videos[0].get("title", ""),
+                        "query": tentativa,
+                    }
             except Exception:
                 continue
 
@@ -735,68 +692,32 @@ class OSAutomation:
             return f"Erro no Spotify: {str(e)}"
 
     # ===== MÉTODO UTILITÁRIO: INICIALIZAR BROWSER ASSÍNCRONO PERSISTENTE =====
-    def _get_browser_init_lock(self):
-        if self._browser_init_lock is None:
-            self._browser_init_lock = asyncio.Lock()
-        return self._browser_init_lock
-
-    def _browser_is_active(self) -> bool:
-        if self.browser is None:
-            return False
-        try:
-            is_connected = getattr(self.browser, "is_connected", None)
-            if callable(is_connected):
-                return bool(is_connected())
-            return True
-        except Exception:
-            return False
-
     async def _init_browser(self):
         """Inicializa o Playwright assíncrono e o browser Chromium persistentes.
         Se já iniciado, reutiliza as instâncias. O navegador fica aberto em background."""
-        if self._browser_is_active() and self.playwright is not None:
-            # Browser ja esta inicializado e conectado
+        if self.browser is not None:
+            # Browser já está inicializado e pronto
             return
-
-        lock = self._get_browser_init_lock()
-        async with lock:
-            if self._browser_is_active() and self.playwright is not None:
-                return
-
-            print("[PLAYWRIGHT ASYNC] Inicializando Chromium persistente...")
-            try:
-                # Garante ambiente limpo antes de novo start.
-                if self.browser is not None:
-                    try:
-                        await self.browser.close()
-                    except Exception:
-                        pass
-                    self.browser = None
-
-                if self.playwright is not None:
-                    try:
-                        await self.playwright.stop()
-                    except Exception:
-                        pass
-                    self.playwright = None
-
-                # Inicializar async_playwright
-                self.playwright = await async_playwright().start()
-
-                # Lançar Chromium com ignore-certificate-errors para HTTPS
-                self.browser = await self.playwright.chromium.launch(
-                    headless=True,  # Invisivel em background
-                    args=[
-                        "--autoplay-policy=no-user-gesture-required",
-                        "--disable-blink-features=AutomationControlled",
-                        "--ignore-certificate-errors"
-                    ]
-                )
-                print("[PLAYWRIGHT ASYNC] ✅ Browser Chromium persistente pronto (headless mode)")
-            except Exception as e:
-                print(f"[ERRO PLAYWRIGHT] Falha ao inicializar: {type(e).__name__}: {str(e)}")
-                print(traceback.format_exc())
-                raise
+        
+        print("[PLAYWRIGHT ASYNC] Inicializando Chromium persistente...")
+        try:
+            # Inicializar async_playwright
+            self.playwright = await async_playwright().start()
+            
+            # Lançar Chromium com ignore-certificate-errors para HTTPS
+            self.browser = await self.playwright.chromium.launch(
+                headless=True,  # Invisível em background
+                args=[
+                    "--autoplay-policy=no-user-gesture-required",
+                    "--disable-blink-features=AutomationControlled",
+                    "--ignore-certificate-errors"
+                ]
+            )
+            print("[PLAYWRIGHT ASYNC] ✅ Browser Chromium persistente pronto (headless mode)")
+        except Exception as e:
+            print(f"[ERRO PLAYWRIGHT] Falha ao inicializar: {type(e).__name__}: {str(e)}")
+            print(traceback.format_exc())
+            raise
 
     # --- FUNÇÃO 2: YOUTUBE PLAYWRIGHT (BLINDADO CONTRA ANTI-BOT) ---
     async def tocar_youtube_invisivel_async(self, pesquisa: str, **kwargs) -> str:
