@@ -11,9 +11,10 @@ try:
     from ..tools.vision_tool import VisionTool
     from ..tools.os_tools import OSCommandTool, ProcessControlTool
     from ..tools.file_ops_tool import FileOpsTool
-    from ..tools.memory_tools import MemoryTool, MemorizarInformacaoTool, PesquisarMemoriaTool
-    from ..tools.obsidian_tool import ObsidianMemoryTool, AnotarMemoriaDiariaTool
-    from ..tools.whatsapp_tool import WhatsAppTool
+    from ..tools.memory_tools import MemoryTool
+    from ..tools.clipboard_tool import ClipboardTool
+    from ..tools.network_scan_tool import NetworkScanTool
+    from ..tools.vlc_tool import VLCTool
     from ..tools.base import ToolRegistry
     from ..memory import MemoryManager
     from .. import (
@@ -31,9 +32,10 @@ except ImportError:
     from .vision_tool import VisionTool
     from .os_tools import OSCommandTool, ProcessControlTool
     from .file_ops_tool import FileOpsTool
-    from .memory_tools import MemoryTool, MemorizarInformacaoTool, PesquisarMemoriaTool
-    from .obsidian_tool import ObsidianMemoryTool, AnotarMemoriaDiariaTool
-    from .whatsapp_tool import WhatsAppTool
+    from .memory_tools import MemoryTool
+    from .clipboard_tool import ClipboardTool
+    from .network_scan_tool import NetworkScanTool
+    from .vlc_tool import VLCTool
     from .base import ToolRegistry
     from ..memory import MemoryManager
     from .. import (
@@ -107,13 +109,23 @@ def inicializar_ferramentas(event_publisher=None) -> ToolRegistry:
             "salvar_memoria_obsidian",
         ],
     )
+
+    # Host utilities (zero-trace)
     registry.register(
-        PesquisarMemoriaTool(),
-        aliases=["buscar_memoria", "active_recall", "recall"],
+        ClipboardTool(),
+        aliases=["clipboard", "copy_to_clipboard"],
     )
+
+    # Rede local
     registry.register(
-        WhatsAppTool(),
-        aliases=["whatsapp_send", "enviar_whatsapp", "whatsapp_mensagem"],
+        NetworkScanTool(),
+        aliases=["scan_network", "lan_scan", "discover_devices"],
+    )
+
+    # VLC via HTTP API (requer VLC com web interface ativada)
+    registry.register(
+        VLCTool(),
+        aliases=["vlc", "media_vlc"],
     )
 
     return registry
@@ -130,11 +142,9 @@ __all__ = [
     "ProcessControlTool",
     "FileOpsTool",
     "MemoryTool",
-    "ObsidianMemoryTool",
-    "AnotarMemoriaDiariaTool",
-    "MemorizarInformacaoTool",
-    "PesquisarMemoriaTool",
-    "WhatsAppTool",
+    "ClipboardTool",
+    "NetworkScanTool",
+    "VLCTool",
     "inicializar_ferramentas",
 ]
 

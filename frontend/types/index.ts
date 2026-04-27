@@ -126,13 +126,10 @@ export interface ChatMessage {
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
-export interface IntermediateStatus {
-  step: string;
-  progress: number;
-  details?: Record<string, any>;
-}
+// --- Orb Visual State ---
+export type OrbState = 'idle' | 'listening' | 'processing' | 'speaking'
 
-// ===== HOOK RETURN TYPE =====
+// --- Hook Return Type ---
 
 export interface UseQuintaFeira {
   isConnected: boolean;
