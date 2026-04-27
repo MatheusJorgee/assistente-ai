@@ -44,6 +44,9 @@ export interface BrainResponse {
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
+// --- Orb Visual State ---
+export type OrbState = 'idle' | 'listening' | 'processing' | 'speaking'
+
 // --- Hook Return Type ---
 
 export interface UseQuintaFeira {

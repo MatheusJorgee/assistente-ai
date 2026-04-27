@@ -12,6 +12,9 @@ try:
     from ..tools.os_tools import OSCommandTool, ProcessControlTool
     from ..tools.file_ops_tool import FileOpsTool
     from ..tools.memory_tools import MemoryTool
+    from ..tools.clipboard_tool import ClipboardTool
+    from ..tools.network_scan_tool import NetworkScanTool
+    from ..tools.vlc_tool import VLCTool
     from ..tools.base import ToolRegistry
     from ..memory import MemoryManager
     from .. import (
@@ -30,6 +33,9 @@ except ImportError:
     from .os_tools import OSCommandTool, ProcessControlTool
     from .file_ops_tool import FileOpsTool
     from .memory_tools import MemoryTool
+    from .clipboard_tool import ClipboardTool
+    from .network_scan_tool import NetworkScanTool
+    from .vlc_tool import VLCTool
     from .base import ToolRegistry
     from ..memory import MemoryManager
     from .. import (
@@ -88,7 +94,25 @@ def inicializar_ferramentas(event_publisher=None) -> ToolRegistry:
         MemoryTool(memory_manager=memory_manager),
         aliases=["memory", "memory_engine", "memory_retrieval"],
     )
-    
+
+    # Host utilities (zero-trace)
+    registry.register(
+        ClipboardTool(),
+        aliases=["clipboard", "copy_to_clipboard"],
+    )
+
+    # Rede local
+    registry.register(
+        NetworkScanTool(),
+        aliases=["scan_network", "lan_scan", "discover_devices"],
+    )
+
+    # VLC via HTTP API (requer VLC com web interface ativada)
+    registry.register(
+        VLCTool(),
+        aliases=["vlc", "media_vlc"],
+    )
+
     return registry
 
 
@@ -103,6 +127,9 @@ __all__ = [
     "ProcessControlTool",
     "FileOpsTool",
     "MemoryTool",
+    "ClipboardTool",
+    "NetworkScanTool",
+    "VLCTool",
     "inicializar_ferramentas",
 ]
 

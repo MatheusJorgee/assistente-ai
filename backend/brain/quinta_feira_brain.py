@@ -42,6 +42,7 @@ try:
         FunctionCallingOrchestrator,
     )
     from core.gemini_provider import GeminiAdapter
+    from core.memory.sliding_window_context import ConversationMemory, LLMCompressionStrategy
 except ImportError:
     # Fallback: importaÃ§Ã£o relativa (uvicorn main:app do backend/)
     from core import get_config, get_logger
@@ -53,6 +54,7 @@ except ImportError:
         FunctionCallingOrchestrator,
     )
     from core.gemini_provider import GeminiAdapter
+    from core.memory.sliding_window_context import ConversationMemory, LLMCompressionStrategy
 
 logger = get_logger(__name__)
 
@@ -230,7 +232,11 @@ class QuintaFeiraBrain:
         )
         
         # Gerenciadores de contexto
-        self.message_history = MessageHistory(max_messages=50)
+        self.message_history = ConversationMemory(
+            max_messages=20,
+            compress_trigger=16,
+            keep_after_compress=4,
+        )
         self.vision_buffer = VisionBuffer(max_images=5)
         
         # System Prompt (personalidade da Quinta-Feira)
@@ -277,9 +283,12 @@ Quando nÃ£o souber:
 """
     
     async def initialize(self) -> None:
-        """Inicializa componentes na startup."""
+        “””Inicializa componentes na startup.”””
         await self.llm_provider.initialize()
-        self.logger.info("[BRAIN] âœ“ Inicializado com sucesso")
+        self.message_history.inject_strategy(
+            LLMCompressionStrategy(self.llm_provider)
+        )
+        self.logger.info(“[BRAIN] âœ” Inicializado com sucesso”)
     
     async def ask(
         self,
@@ -327,8 +336,8 @@ Quando nÃ£o souber:
             self.message_history.add("user", content=message)
             
             # 3. Preparar lista de mensagens para LLM
-            # Sempre comeÃ§ar com system prompt
-            system_prompt = self.system_prompt
+            # Sempre comeÃ§ar com system prompt (inclui long-term summary se houver)
+            system_prompt = self.message_history.build_system_prompt(self.system_prompt)
             if hidden_context:
                 system_prompt = (
                     f"{system_prompt}\n\n"
