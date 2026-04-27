@@ -1,57 +1,148 @@
 /**
  * TYPES: Tipos Compartilhados do Frontend
  * ======================================
- * Definições TypeScript para WebSocket, Mensagens e Respostas
+ * Espelha os DTOs do backend (backend/core/api/dtos.py)
+ * Comunicação via Message Envelope Pattern
  */
 
-// --- WebSocket Message Types ---
+// ===== MESSAGE ENVELOPE (Base) =====
+/**
+ * Padrão base para TODAS as mensagens WebSocket
+ * Espelha: backend.core.api.dtos.MessageEnvelope
+ */
+export type MessageType =
+  | 'user_message'
+  | 'brain_response'
+  | 'intermediate_status'
+  | 'system_status'
+  | 'audio_chunk'
+  | 'error'
+  | 'ping'
+  | 'pong'
+  | 'runtime_event';
 
-export interface WebSocketMessage {
-  type: 'chat' | 'connection' | 'response' | 'error' | 'audio' | 'streaming' | 'complete';
-  payload?: string;
-  message?: string;
-  text?: string;
-  audio?: string;
-  base64?: string;
-  mode?: 'responding' | 'listening' | 'thinking';
-  status?: 'connected' | 'connected' | 'error';
-  session_id?: string;
-  error?: string;
-  timestamp?: string;
-  [key: string]: any;
+export interface MessageEnvelope<T = Record<string, any>> {
+  type: MessageType;
+  payload: T;
+  timestamp: string; // ISO8601Z
+  request_id: string; // UUID
 }
 
-// --- Chat Message Type ---
+// ===== MESSAGE PAYLOADS (Entrada) =====
 
-export interface Message {
+export interface UserMessagePayload {
+  text: string;
+  mode?: 'streaming' | 'deliberative' | 'interactive';
+  vision_context?: Array<{ type: string; content: string }>;
+  audio_context?: Record<string, any>;
+}
+
+export interface AudioChunkPayload {
+  data: string; // base64
+  format: string;
+  is_final: boolean;
+}
+
+export interface PingPayload {
+  // Vazio
+}
+
+// ===== MESSAGE PAYLOADS (Saída) =====
+
+export interface BrainResponsePayload {
+  text: string;
+  mode?: string;
+  confidence?: number;
+  tools_used?: string[];
+  execution_time_ms?: number;
+  action_taken?: Record<string, any>;
+}
+
+export interface IntermediateStatusPayload {
+  step: string; // 'thinking', 'processing', 'executing', etc
+  progress: number; // 0-1
+  details?: Record<string, any>;
+}
+
+export interface SystemStatusPayload {
+  status: 'online' | 'offline' | 'degraded';
+  autonomous_enabled?: boolean;
+  active_connections?: number;
+  timestamp_server?: string;
+}
+
+export interface ErrorPayload {
+  error_code:
+    | 'INVALID_INPUT'
+    | 'TIMEOUT'
+    | 'SERVICE_UNAVAILABLE'
+    | 'POLICY_VIOLATION'
+    | 'AUTHORIZATION_FAILED'
+    | 'INTERNAL_ERROR'
+    | 'JSON_PARSE_ERROR'
+    | 'UNKNOWN_MESSAGE_TYPE';
+  message: string;
+  details?: Record<string, any>;
+  retry_after_seconds?: number;
+}
+
+export interface PongPayload {
+  received_at: string;
+}
+
+export interface RuntimeEventPayload {
+  event_type: string;
+  data: Record<string, any>;
+}
+
+// ===== UNION TYPES (Facilita type-safe dispatch) =====
+
+export type IncomingMessageEnvelope =
+  | MessageEnvelope<IntermediateStatusPayload>
+  | MessageEnvelope<BrainResponsePayload>
+  | MessageEnvelope<SystemStatusPayload>
+  | MessageEnvelope<ErrorPayload>
+  | MessageEnvelope<PongPayload>
+  | MessageEnvelope<RuntimeEventPayload>;
+
+export type OutgoingMessageEnvelope =
+  | MessageEnvelope<UserMessagePayload>
+  | MessageEnvelope<AudioChunkPayload>
+  | MessageEnvelope<PingPayload>;
+
+// ===== HISTORIA DE CHAT =====
+
+export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
-  audio?: string; // Base64
+  tools_used?: string[];
+  execution_time_ms?: number;
+  error?: string;
 }
 
-// --- Brain Response Type ---
-
-export interface BrainResponse {
-  text: string;
-  audio?: string; // Base64
-  mode?: 'responding' | 'listening' | 'thinking';
-  timestamp?: string;
-}
-
-// --- Status Type ---
+// ===== ESTADOS =====
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
-// --- Hook Return Type ---
+export interface IntermediateStatus {
+  step: string;
+  progress: number;
+  details?: Record<string, any>;
+}
+
+// ===== HOOK RETURN TYPE =====
 
 export interface UseQuintaFeira {
   isConnected: boolean;
-  status: ConnectionStatus;
-  messages: Message[];
-  isLoading: boolean;
+  connectionStatus: ConnectionStatus;
+  messages: ChatMessage[];
+  intermediateStatus: IntermediateStatus | null;
+  lastAiResponse: string | null;
   error: string | null;
-  sendMessage: (text: string) => Promise<void>;
+  isLoading: boolean;
+  sendMessage: (text: string, mode?: 'streaming' | 'deliberative' | 'interactive') => Promise<void>;
+  ping: () => Promise<void>;
   disconnect: () => void;
 }

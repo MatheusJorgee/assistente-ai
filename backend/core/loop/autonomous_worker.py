@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
+from collections import deque
 from typing import Any, Optional
 
 try:
@@ -36,7 +36,6 @@ class AutonomousWorker:
         event_bus: AsyncEventBus,
         brain: Any,
         memory_manager: Optional[Any] = None,
-        audit_file: str | Path = ".runtime/audit/host_audit.jsonl",
         tick_interval_seconds: int = 20,
         max_audit_lines: int = 10,
         memory_context_limit: int = 5,
@@ -44,10 +43,10 @@ class AutonomousWorker:
         self._bus = event_bus
         self._brain = brain
         self._memory_manager = memory_manager
-        self._audit_file = Path(audit_file)
         self._tick_interval_seconds = max(5, tick_interval_seconds)
         self._max_audit_lines = max(1, max_audit_lines)
         self._memory_context_limit = max(1, memory_context_limit)
+        self._audit_ring: deque[str] = deque(maxlen=self._max_audit_lines)
 
         self._running = False
         self._paused = False
@@ -124,8 +123,10 @@ class AutonomousWorker:
         if self._paused:
             return
 
+        self._audit_ring.append(f"{event.timestamp} [{event.type}] {json.dumps(event.payload)}")
+
         async with self._semaphore:
-            audit_tail = self._read_audit_tail()
+            audit_tail = self._get_audit_tail()
             memory_context = await self._build_memory_context(event)
 
             prompt = (
@@ -165,17 +166,10 @@ class AutonomousWorker:
             )
             logger.info("[AUTONOMOUS] DecisÃ£o proativa publicada")
 
-    def _read_audit_tail(self) -> str:
-        if not self._audit_file.exists():
+    def _get_audit_tail(self) -> str:
+        if not self._audit_ring:
             return "(sem telemetria ainda)"
-
-        try:
-            lines = self._audit_file.read_text(encoding="utf-8").splitlines()
-            if not lines:
-                return "(sem telemetria ainda)"
-            return "\n".join(lines[-self._max_audit_lines :])
-        except Exception as exc:
-            return f"(erro ao ler telemetria: {exc})"
+        return "\n".join(self._audit_ring)
 
     async def _build_memory_context(self, event: LoopEvent) -> str:
         if not self._memory_manager:

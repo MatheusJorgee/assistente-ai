@@ -304,3 +304,35 @@ def get_vision_optimizer() -> VisionOptimizerMemory:
     if _vision_memory is None:
         _vision_memory = VisionOptimizerMemory()
     return _vision_memory
+
+
+def trim_messages_to_token_limit(
+    messages: List[Any],
+    max_tokens: int = 30_000,
+) -> List[Any]:
+    """
+    Prune messages so estimated token count stays below max_tokens.
+    System message at index 0 is always preserved.
+    Oldest non-system messages are dropped until within limit.
+    """
+    counter = get_token_counter()
+
+    def _msg_tokens(msg: Any) -> int:
+        parts: List[str] = []
+        if hasattr(msg, "content") and msg.content:
+            parts.append(str(msg.content))
+        if hasattr(msg, "tool_result") and msg.tool_result:
+            parts.append(str(msg.tool_result))
+        return counter.estimate_tokens(" ".join(parts), is_portuguese=True)
+
+    def _total(msgs: List[Any]) -> int:
+        return sum(_msg_tokens(m) for m in msgs)
+
+    if _total(messages) <= max_tokens:
+        return messages
+
+    result = list(messages)
+    while len(result) > 2 and _total(result) > max_tokens:
+        result.pop(1)  # Remove oldest non-system message
+
+    return result

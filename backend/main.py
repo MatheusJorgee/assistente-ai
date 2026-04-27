@@ -50,6 +50,7 @@ try:
         AsyncEventBus,
         AutonomousWorker,
         LoopEvent,
+        ManualCommandHandler,
         VoiceCommandOrchestrator,
         WakeWordListener,
         get_config,
@@ -59,7 +60,7 @@ try:
     )
     from core.memory import MemoryManager
     from brain import QuintaFeiraBrain, BrainResponse
-    from core.api import ws_observability_router
+    from core.api import ws_observability_router, brain_router, init_connection_manager
     from core.tools import inicializar_ferramentas
     from services import get_database, get_voice_manager
 except ImportError:
@@ -70,6 +71,7 @@ except ImportError:
         AsyncEventBus,
         AutonomousWorker,
         LoopEvent,
+        ManualCommandHandler,
         VoiceCommandOrchestrator,
         WakeWordListener,
         get_config,
@@ -79,7 +81,7 @@ except ImportError:
     )
     from core.memory import MemoryManager
     from brain import QuintaFeiraBrain, BrainResponse
-    from core.api import ws_observability_router
+    from core.api import ws_observability_router, brain_router, init_connection_manager
     from core.tools import inicializar_ferramentas
     from services import get_database, get_voice_manager
 
@@ -108,6 +110,7 @@ memory_manager = None
 autonomous_event_bus = None
 autonomous_worker = None
 action_orchestrator = None
+manual_command_handler = None
 audio_adapter = None
 wake_word_listener = None
 voice_command_orchestrator = None
@@ -148,7 +151,7 @@ async def lifespan(app: FastAPI):
     
     BenefÃ­cio: Garantido executar cleanup mesmo com exceÃ§Ãµes
     """
-    global brain, motor, database, voice_manager, memory_manager, autonomous_event_bus, autonomous_worker, action_orchestrator, audio_adapter, wake_word_listener, voice_command_orchestrator
+    global brain, motor, database, voice_manager, memory_manager, autonomous_event_bus, autonomous_worker, action_orchestrator, manual_command_handler, audio_adapter, wake_word_listener, voice_command_orchestrator
     
     # ===== STARTUP =====
     logger.info("[STARTUP] Quinta-Feira Gateway carregando...")
@@ -156,6 +159,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"[STARTUP] Security profile: {config.SECURITY_PROFILE}")
     
     try:
+        # 0. Inicializar ConnectionManager (Singleton para WebSocket)
+        logger.info("[STARTUP] Inicializando ConnectionManager (Singleton)...")
+        init_connection_manager()
+        logger.info("[STARTUP] ConnectionManager pronto")
         # 1. Inicializar EventBus cedo para receber telemetria desde o bootstrap
         logger.info("[STARTUP] Inicializando EventBus...")
         autonomous_event_bus = AsyncEventBus()
@@ -177,6 +184,10 @@ async def lifespan(app: FastAPI):
         # 2. Inicializar Motor (automaÃ§Ã£o)
         logger.info("[STARTUP] Inicializando Motor...")
         motor = inicializar_ferramentas(event_publisher=publish_runtime_event)
+        # Bridge: ferramentas podem publicar diretamente no AsyncEventBus
+        # (ex.: TocarYoutubeTool -> media_playback_requested -> WebSocket)
+        if hasattr(motor, "set_runtime_publisher"):
+            motor.set_runtime_publisher(publish_runtime_event)
         ferramentas = motor.list_tools()
         logger.info(f"[STARTUP] Motor: {len(ferramentas)} ferramentas registradas")
         
@@ -210,13 +221,19 @@ async def lifespan(app: FastAPI):
         app.state.brain = brain
         logger.info(f"[STARTUP] Brain inicializado com LLM: Gemini")
 
+        # 5.1 Inicializar ManualCommandHandler
+        manual_command_handler = ManualCommandHandler(
+            event_bus=autonomous_event_bus,
+            brain=brain,
+        )
+        await manual_command_handler.start()
+
         # 6. Inicializar runtime autÃ´nomo
         logger.info("[STARTUP] Inicializando EventBus + AutonomousWorker...")
         autonomous_worker = AutonomousWorker(
             event_bus=autonomous_event_bus,
             brain=brain,
             memory_manager=memory_manager,
-            audit_file=".runtime/audit/host_audit.jsonl",
             tick_interval_seconds=20,
             max_audit_lines=10,
         )
@@ -261,6 +278,15 @@ async def lifespan(app: FastAPI):
     
     # ===== SHUTDOWN =====
     logger.info("[SHUTDOWN] Encerrando Gateway...")
+    
+    # Fechar todas as conexoes WebSocket (ConnectionManager)
+    from core.api import get_connection_manager
+    try:
+        manager = get_connection_manager()
+        await manager.close_all()
+        logger.info("[SHUTDOWN] ConnectionManager: todas as conexoes fechadas")
+    except Exception as e:
+        logger.warning(f"[SHUTDOWN] Erro ao fechar ConnectionManager: {e}")
 
     # Parar runtime autÃ´nomo primeiro (graceful shutdown)
     if autonomous_worker:
@@ -274,6 +300,12 @@ async def lifespan(app: FastAPI):
             await action_orchestrator.stop()
         except Exception as e:
             logger.warning(f"[SHUTDOWN] Erro ao parar action orchestrator: {e}")
+
+    if manual_command_handler:
+        try:
+            await manual_command_handler.stop()
+        except Exception as e:
+            logger.warning(f"[SHUTDOWN] Erro ao parar manual command handler: {e}")
 
     if voice_command_orchestrator:
         try:
@@ -316,7 +348,7 @@ app = FastAPI(
     lifespan=lifespan  # â† NOVO: gerencia lifecycle
 )
 app.include_router(ws_observability_router)
-
+app.include_router(brain_router)  # Rota /ws/quinta para comunicacao com Brain
 
 class ChatRequest(BaseModel):
     message: str
@@ -692,25 +724,64 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 logger.warning(f"[WS] Timeout: {session_id} inativo por 5min")
                 await websocket.send_json({
                     "type": "error",
-                    "error": "TIMEOUT",
-                    "message": "SessÃ£o inativa por muito tempo",
+                    "payload": {
+                        "error_code": "TIMEOUT",
+                        "message": "Sessao inativa por muito tempo",
+                    },
+                    "request_id": "",
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
                 })
                 break
             
             # Parsear mensagem
             try:
-                message_text = data.get("message", "").strip()
-                include_vision = data.get("include_vision", False)
+                message_type = data.get("type", "").strip()
+                payload = data.get("payload", {})
+                request_id = data.get("request_id", "")
+                
+                logger.info(f"[WS] Recebido envelope type={message_type} de {session_id}")
+                
+                # Rota por tipo de mensagem
+                if message_type == "ping":
+                    await websocket.send_json({
+                        "type": "pong",
+                        "payload": {},
+                        "request_id": request_id,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    })
+                    logger.debug(f"[WS] Pong enviado")
+                    continue
+                
+                if message_type != "user_message":
+                    logger.warning(f"[WS] Tipo de mensagem desconhecido: {message_type}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "payload": {
+                            "error_code": "UNKNOWN_MESSAGE_TYPE",
+                            "message": f"Tipo de mensagem nao suportado: {message_type}",
+                        },
+                        "request_id": request_id,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    })
+                    continue
+                
+                # Processar user_message
+                message_text = payload.get("text", "").strip()
+                mode = payload.get("mode", "streaming")
                 
                 if not message_text:
                     await websocket.send_json({
                         "type": "error",
-                        "error": "EMPTY_MESSAGE",
-                        "message": "Mensagem vazia",
+                        "payload": {
+                            "error_code": "INVALID_INPUT",
+                            "message": "Mensagem vazia",
+                        },
+                        "request_id": request_id,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
                     })
                     continue
                 
-                logger.info(f"[WS] Recebido de {session_id}: '{message_text[:50]}'...")
+                logger.info(f"[WS] Recebido de {session_id}: '{message_text[:50]}'... (mode={mode})")
                 
                 # ===== CHAMAR BRAIN REAL =====
                 if not brain:
@@ -732,18 +803,19 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         brain.ask(
                             message=message_text,
                             image_data=None,
-                            include_vision=include_vision
+                            include_vision=False
                         ),
                         timeout=30.0,
                     )
                 except asyncio.TimeoutError:
                     logger.error(f"[WS] Timeout em brain.ask() para {session_id}")
                     await websocket.send_json({
-                        "type": "response",
-                        "status": "timeout",
-                        "text": "Estou com lentidao para responder agora. Tente novamente em alguns segundos.",
-                        "audio": "",
-                        "mode": "responding",
+                        "type": "error",
+                        "payload": {
+                            "error_code": "TIMEOUT",
+                            "message": "Estou com lentidao para responder agora. Tente novamente em alguns segundos.",
+                        },
+                        "request_id": request_id,
                         "timestamp": datetime.utcnow().isoformat() + "Z",
                     })
                     continue
@@ -778,22 +850,30 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 # Enviar resposta do Brain
                 logger.info(f"[WS] Enviando resposta para {session_id}...")
                 await websocket.send_json({
-                    "type": "response",
-                    "status": "success",
-                    "text": brain_response.text,
-                    "audio": response_audio,
-                    "mode": brain_response.mode,
+                    "type": "brain_response",
+                    "payload": {
+                        "text": brain_response.text,
+                        "audio": response_audio,
+                        "mode": brain_response.mode,
+                        "execution_time_ms": 0,
+                        "tools_used": [],
+                    },
+                    "request_id": request_id,
                     "timestamp": brain_response.timestamp,
                 })
                 
                 logger.info(f"[WS] Respondido a {session_id}")
             
             except json.JSONDecodeError as e:
-                logger.error(f"[WS] JSON invÃ¡lido de {session_id}: {e}")
+                logger.error(f"[WS] JSON invalido de {session_id}: {e}")
                 await websocket.send_json({
                     "type": "error",
-                    "error": "INVALID_JSON",
-                    "message": f"JSON invÃ¡lido: {str(e)}",
+                    "payload": {
+                        "error_code": "JSON_PARSE_ERROR",
+                        "message": f"JSON invalido: {str(e)}",
+                    },
+                    "request_id": "",
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
                 })
             
             except Exception as e:
@@ -803,8 +883,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 else:
                     await websocket.send_json({
                         "type": "error",
-                        "error": "PROCESSING_ERROR",
-                        "message": f"Erro interno: {str(e)}",
+                        "payload": {
+                            "error_code": "INTERNAL_ERROR",
+                            "message": f"Erro interno: {str(e)}",
+                        },
+                        "request_id": "",
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
                     })
     
     except WebSocketDisconnect:

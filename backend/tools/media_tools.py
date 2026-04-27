@@ -1,10 +1,38 @@
-﻿"""
+"""
 Ferramentas de MultimÃ­dia: Spotify, YouTube, Musica, Control
 """
 
 import asyncio
 import os
+import sys
 from typing import Dict, Any
+
+
+import threading as _threading
+
+
+def _play_media_in_background_legacy(query: str) -> None:
+    """Fire-and-forget para TocarYoutubeTool (legacy Tool)."""
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        try:
+            import os as _os
+            _bd = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+            if _bd not in sys.path:
+                sys.path.insert(0, _bd)
+            from automation import OSAutomation
+        except Exception:
+            return
+        automation = OSAutomation()
+        loop.run_until_complete(automation.tocar_youtube_invisivel_async(query))
+        loop.run_until_complete(asyncio.sleep(3600))
+    except Exception:
+        pass
+    finally:
+        loop.close()
 
 try:
     from core.tool_registry import Tool, ToolMetadata
@@ -100,84 +128,135 @@ class TocarMusicaSpotifyTool(Tool):
 
 class TocarYoutubeTool(Tool):
     """
-    Ferramenta para tocar vÃ­deo/mÃºsica no YouTube (via Playwright).
+    Ferramenta de midia: toca musica/video no YouTube.
+
+    Estrategia dupla:
+      1. Motor invisivel (OSAutomation.tocar_youtube_invisivel) — executa
+         Playwright no host para reproducao real com audio.
+      2. Evento media_playback_requested — aviso visual ao frontend para
+         exibir player inline (fallback se automacao indisponivel).
+
+    Aliases aceitos: youtube_play, youtube, tocar_youtube, controlar_midia.
     """
-    
+
+    _YT_URL_RE = __import__('re').compile(
+        r"(?:youtube\.com/(?:watch\?v=|embed/|v/)|youtu\.be/)([A-Za-z0-9_-]{6,})"
+    )
+
     def __init__(self, youtube_controller=None):
         super().__init__(
             metadata=ToolMetadata(
                 name="youtube_play",
-                description="Toca vÃ­deo/mÃºsica no YouTube automaticamente",
-                version="1.0.0",
+                description=(
+                    "Toca musica ou video no YouTube via automacao invisivel no host. "
+                    "Use os parametros: pesquisa, video_url ou video_id."
+                ),
+                version="3.0.0",
                 tags=["media", "youtube", "music"]
             )
         )
         self.youtube_controller = youtube_controller
-    
+
     def validate_input(self, **kwargs) -> bool:
-        # Aceitar tanto 'pesquisa' quanto 'video_query' (ou 'query')
-        return ('pesquisa' in kwargs) or ('video_query' in kwargs) or ('query' in kwargs)
-    
+        return (
+            ('pesquisa' in kwargs) or ('video_query' in kwargs) or
+            ('query' in kwargs) or ('video_url' in kwargs) or
+            ('video_id' in kwargs)
+        )
+
+    @classmethod
+    def _extract_video_id(cls, text: str) -> str:
+        if not text:
+            return ""
+        match = cls._YT_URL_RE.search(text)
+        return match.group(1) if match else ""
+
+    def _get_automation(self):
+        """Lazy-load do OSAutomation."""
+        try:
+            from automation import OSAutomation
+        except ImportError:
+            try:
+                from backend.automation import OSAutomation
+            except ImportError:
+                return None
+        return OSAutomation()
+
     async def execute(self, **kwargs) -> str:
         """
-        Toca no YouTube.
-        
+        1. Tenta tocar via motor invisivel (OSAutomation).
+        2. Publica media_playback_requested no EventBus como aviso ao frontend.
+
         Args:
-            pesquisa (str): Termo de busca (alias 1)
-            video_query (str): Termo de busca (alias 2 - do Gemini)
-            query (str): Termo de busca (alias 3)
-            raciocinio (str): Contexto (opcional)
-            
-        Returns:
-            str: Resultado
+            pesquisa / video_query / query (str): termo de busca
+            video_url (str): URL direta (opcional)
+            video_id  (str): ID direto (opcional)
+            raciocinio (str): contexto para log (opcional)
         """
-        if not self.youtube_controller:
-            return "[ERRO] YouTube controller nao configurado"
-        
-        # âœ“ CRÃTICO: Extrair pesquisa com fallback para multiplos nomes de parametro
-        # Garantir que a pesquisa NÃƒO esteja vazia antes de chamar Playwright
         pesquisa = (
-            kwargs.get('pesquisa', '').strip() or
-            kwargs.get('video_query', '').strip() or
-            kwargs.get('query', '').strip()
+            kwargs.get("pesquisa", "").strip() or
+            kwargs.get("video_query", "").strip() or
+            kwargs.get("query", "").strip()
         )
-        
-        # âœ“ FIX: Validar pesquisa nÃ£o vazia ANTES de chamar controller
-        if not pesquisa:
-            return "[ERRO] Nenhum termo de busca fornecido para YouTube"
-        
-        raciocinio = kwargs.get('raciocinio', '')
-        
+        video_url = (kwargs.get("video_url") or "").strip()
+        video_id  = (kwargs.get("video_id")  or "").strip()
+
+        if not video_id and video_url:
+            video_id = self._extract_video_id(video_url)
+        if not video_id and pesquisa:
+            maybe = self._extract_video_id(pesquisa)
+            if maybe:
+                video_id = maybe
+
+        if not (pesquisa or video_id or video_url):
+            return "[ERRO] Nenhum termo de busca, URL ou ID fornecido para YouTube"
+
+        raciocinio = kwargs.get("raciocinio", "")
         if raciocinio and self._event_bus:
-            self._event_bus.emit('cortex_thinking', {
-                'step': 'youtube_reasoning',
-                'reasoning': raciocinio,
-                'search_query': pesquisa
+            self._event_bus.emit("cortex_thinking", {
+                "step": "youtube_reasoning",
+                "reasoning": raciocinio,
+                "search_query": pesquisa,
             })
-        
+
+        # ── 1) Motor invisivel (daemon thread fire-and-forget) ────────
+        automation_result = "reproducao iniciada em segundo plano"
+        query_for_automation = pesquisa or (
+            f"https://www.youtube.com/watch?v={video_id}" if video_id else video_url
+        )
         try:
-            # âœ“ CRÃTICO: Se o controller tem mÃ©todo async, usar async (NÃƒO bloqueia event loop)
-            if hasattr(self.youtube_controller, 'async_tocar_youtube_invisivel'):
-                # Chamar versÃ£o async diretamente
-                result = await self.youtube_controller.async_tocar_youtube_invisivel(pesquisa)
-            else:
-                # Fallback: executar em thread (bloqueia ligeiramente)
-                result = await asyncio.to_thread(
-                    self.youtube_controller,
-                    pesquisa
-                )
-            
-            if self._event_bus:
-                self._event_bus.emit('action_terminal', {
-                    'action': 'youtube_play',
-                    'query': pesquisa,
-                    'result': 'SUCESSO'
-                })
-            
-            return result
-            
+            _threading.Thread(
+                target=_play_media_in_background_legacy,
+                args=(query_for_automation,),
+                name="yt-media-play",
+                daemon=True,
+            ).start()
         except Exception as e:
-            return f"[ERRO YouTube] {str(e)}"
+            automation_result = f"[AVISO Motor] {type(e).__name__}: {e}"
+
+        # ── 2) Evento visual para o frontend ──────────────────────────
+        media_payload: Dict[str, Any] = {
+            "provider": "youtube",
+            "video_id": video_id or None,
+            "video_url": video_url or (
+                f"https://www.youtube.com/watch?v={video_id}" if video_id else None
+            ),
+            "search_query": pesquisa or None,
+            "title": pesquisa or None,
+            "autoplay": True,
+        }
+        self.publish_runtime("media_playback_requested", media_payload)
+        if self._event_bus:
+            self._event_bus.emit("media_playback_requested", media_payload)
+            self._event_bus.emit("action_terminal", {
+                "action": "youtube_play",
+                "query": pesquisa,
+                "video_id": video_id,
+                "result": automation_result,
+            })
+
+        label = pesquisa or (f"youtube.com/watch?v={video_id}" if video_id else video_url)
+        return f"Tocando: {label} ({automation_result})"
 
 
 class ControlarReproducaoTool(Tool):

@@ -42,6 +42,8 @@ try:
         FunctionCallingOrchestrator,
     )
     from core.gemini_provider import GeminiAdapter
+    from core.memory.memory_manager import recuperar_memoria_nuclear, recuperar_memoria_diaria
+    from core.tools.memory_tools import memorizar_informacao
 except ImportError:
     # Fallback: importaÃ§Ã£o relativa (uvicorn main:app do backend/)
     from core import get_config, get_logger
@@ -53,6 +55,8 @@ except ImportError:
         FunctionCallingOrchestrator,
     )
     from core.gemini_provider import GeminiAdapter
+    from core.memory.memory_manager import recuperar_memoria_nuclear, recuperar_memoria_diaria
+    from core.tools.memory_tools import memorizar_informacao
 
 logger = get_logger(__name__)
 
@@ -242,7 +246,15 @@ class QuintaFeiraBrain:
     
     def _build_system_prompt(self) -> str:
         """ConstrÃ³i system prompt com personalidade da Quinta-Feira."""
-        return """VocÃª Ã© o Sistema Operativo Quinta-Feira, uma IA operacional criada por Matheus.
+        return """[DIRETRIZ DE SISTEMA CRÃTICA]
+VocÃª TEM UMA FERRAMENTA chamada `memorizar_informacao`.
+Ã‰ ESTRITAMENTE PROIBIDO responder ao usuÃ¡rio dizendo "Anotei" ou "Guardei"
+sem antes ter efetivamente executado a ferramenta `memorizar_informacao`.
+Se o usuÃ¡rio relatar um fato novo (preferÃªncia, dor, evento do dia), PARE,
+chame a ferramenta de memÃ³ria e SÃ“ DEPOIS gere sua resposta em texto.
+[FIM DA DIRETRIZ CRÃTICA]
+
+VocÃª Ã© o Sistema Operativo Quinta-Feira, uma IA operacional criada por Matheus.
 
 CaracterÃ­sticas:
 - Brilhante e pragmÃ¡tica, com humor seco
@@ -264,6 +276,22 @@ Uso esperado de memÃ³ria:
 - Use memory_type=episodic para eventos relevantes de execuÃ§Ã£o/falhas/decisÃµes
 - Antes de assumir contexto antigo, consulte retrieve_memory/search_memory quando necessÃ¡rio
 
+============================================================
+DIRETRIZ DE MEMÃ“RIA OBRIGATÃ“RIA (LEIA E CUMPRA SEMPRE):
+============================================================
+VocÃª possui ferramentas de memÃ³ria (ex: `salvar_memoria_obsidian`, `memory_manager`, `anotar_memoria`).
+TODA VEZ que o usuÃ¡rio compartilhar uma informaÃ§Ã£o nova (um fato sobre si mesmo, um estado
+de humor, um evento do dia, uma preferÃªncia ou um plano), VOCÃŠ DEVE OBRIGATORIAMENTE
+chamar a ferramenta de memÃ³ria apropriada para registrar esse fato ANTES de responder.
+
+REGRAS CRÃTICAS:
+- Fatos imutÃ¡veis/permanentes (alergias, vÃ­nculos, preferÃªncias fixas): use `salvar_memoria_obsidian`.
+- Fatos volÃ¡teis/do dia (dores, humor, refeiÃ§Ãµes, eventos temporÃ¡rios): use a ferramenta de memÃ³ria diÃ¡ria/curto prazo.
+- Nunca confie apenas no contexto da conversa. Se o usuÃ¡rio disser "hoje estou com dor", GRAVE.
+  Se disser "gosto de azul", GRAVE. Se disser "comi pizza no almoÃ§o", GRAVE.
+- GRAVE PRIMEIRO, RESPONDA DEPOIS. NÃƒO pergunte se pode gravar â€” simplesmente grave.
+============================================================
+
 Regras obrigatÃ³rias de execuÃ§Ã£o:
 - Nunca digas ao utilizador que nÃ£o consegues fazer algo ou que precisas que ele abra um programa manualmente,
   a menos que nÃ£o exista ferramenta disponÃ­vel para a aÃ§Ã£o solicitada.
@@ -274,6 +302,18 @@ Quando nÃ£o souber:
 - Diga "nÃ£o sei" e por quÃª
 - Sugira prÃ³ximos passos
 - NÃ£o invente informaÃ§Ãµes
+
+============================================================
+DIRETRIZ VIP (CONTATOS FIXADOS NO WHATSAPP):
+============================================================
+Contatos com is_pinned=true sao alta prioridade absoluta.
+Ao reportar novidades do WhatsApp, trate-os PRIMEIRO com tom de secretaria executiva que antecipa necessidades.
+Se houver dados no campo contexto_obsidian para esse contato, cruze com o status atual do WhatsApp
+e mencione proativamente qualquer coisa relevante para hoje.
+Exemplo: "O Paulo (fixado) tem mensagem nova. Pelo Obsidian, ele e alergico a frutos do mar
+-- se for marcar algo com ele hoje, leve isso em conta."
+NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
+============================================================
 """
     
     async def initialize(self) -> None:
@@ -328,7 +368,13 @@ Quando nÃ£o souber:
             
             # 3. Preparar lista de mensagens para LLM
             # Sempre comeÃ§ar com system prompt
+            memoria_nuclear = recuperar_memoria_nuclear(message)
             system_prompt = self.system_prompt
+            if memoria_nuclear:
+                system_prompt = memoria_nuclear + "\n\n" + system_prompt
+            memoria_diaria = recuperar_memoria_diaria()
+            if memoria_diaria:
+                system_prompt = memoria_diaria + "\n\n" + system_prompt
             if hidden_context:
                 system_prompt = (
                     f"{system_prompt}\n\n"
@@ -485,6 +531,12 @@ Quando nÃ£o souber:
                 temperature=temperature,
             )
 
+            print("\n--- INÍCIO: RESPOSTA CRUA DA LLM ---")
+            print(response)
+            print(f"tool_calls: {getattr(response, 'tool_calls', None)}")
+            print(f"text: {getattr(response, 'text', None)!r}")
+            print("--- FIM: RESPOSTA CRUA DA LLM ---\n")
+
             if not response.tool_calls:
                 return response
 
@@ -567,10 +619,26 @@ Quando nÃ£o souber:
 
             if hasattr(result, "success") and hasattr(result, "output"):
                 if bool(getattr(result, "success", False)):
-                    return str(getattr(result, "output", "") or "")
-                return str(getattr(result, "error", "") or "[TOOL_ERROR] Sem detalhes")
+                    output = str(getattr(result, "output", "") or "")
+                else:
+                    return str(getattr(result, "error", "") or "[TOOL_ERROR] Sem detalhes")
+            else:
+                output = str(result)
 
-            return str(result)
+            # Enriquecer VIPs com contexto do Obsidian após triagem do WhatsApp
+            resolved = self._aliases_resolve(tool_name) if hasattr(self, "_aliases_resolve") else tool_name
+            if resolved in {"whatsapp", "triagem_whatsapp"} or arguments.get("acao") == "triagem":
+                try:
+                    import json as _json
+                    triagem = _json.loads(output)
+                    for contato in triagem.get("vip_contacts", []):
+                        contexto = recuperar_memoria_nuclear(contato.get("nome", ""))
+                        contato["contexto_obsidian"] = contexto if contexto else ""
+                    output = _json.dumps(triagem, ensure_ascii=False)
+                except Exception:
+                    pass
+
+            return output
         except Exception as exc:
             return f"[ERRO ao executar {tool_name}] {type(exc).__name__}: {exc}"
 

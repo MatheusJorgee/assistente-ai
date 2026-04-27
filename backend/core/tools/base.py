@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import asyncio
+import re
 from datetime import datetime
 
 try:
@@ -20,6 +21,36 @@ except ImportError:
     from .. import get_logger
 
 logger = get_logger(__name__)
+
+_DANGEROUS_PATTERNS = [
+    r"\brm\s+-[rRfF]*[rR]",
+    r"\bdel\b.*/[fFsS]",
+    r"\brd\s+/[sS]\b",
+    r"\brmdir\s+/[sS]\b",
+    r"\bformat\s+[a-zA-Z]:",
+    r"\bdiskpart\b",
+    r"\bdd\s+if=.*of=",
+    r"\breg\s+delete\b",
+    r"\bRemove-Item.*-Recurse",
+    r"\bkillall\b",
+    r"\bshutdown\s+/[rRsS]\b",
+    r"\bsudo\s+rm\b",
+    r"\bchmod\s+777\s+/",
+    r">\s*/dev/[sh]d[a-z]",
+    r"\bFormat-Volume\b",
+    r"\bClear-Disk\b",
+    r"\bInitialize-Disk\b",
+]
+_COMPILED_DANGEROUS = [re.compile(p, re.IGNORECASE) for p in _DANGEROUS_PATTERNS]
+
+
+def _contains_dangerous_content(kwargs: Dict[str, Any]) -> bool:
+    for value in kwargs.values():
+        text = str(value)
+        for pattern in _COMPILED_DANGEROUS:
+            if pattern.search(text):
+                return True
+    return False
 
 
 class SecurityLevel(Enum):
@@ -55,20 +86,67 @@ class ToolMetadata:
 
 @dataclass
 class ToolResult:
-    """Resultado da execuÃ§Ã£o de uma ferramenta."""
+    """Resultado da execução de uma ferramenta."""
     success: bool
     output: str
-    error: Optional[str] = None
+    error: str = ""
     duration_ms: float = 0.0
     timestamp: str = field(default_factory=datetime.now().isoformat)
 
 
 class MotorTool(ABC):
     """Interface base para todas as ferramentas do Motor."""
-    
+
     def __init__(self, metadata: ToolMetadata):
         self.metadata = metadata
         self._execution_count = 0
+        self._runtime_publisher = None  # injetado por set_runtime_publisher
+
+    def set_runtime_publisher(self, publisher) -> None:
+        """Injeta o callback de eventos de runtime (EventBus bridge)."""
+        self._runtime_publisher = publisher
+
+    def publish_runtime(self, event_type: str, data: Dict[str, Any]) -> None:
+        """
+        Publica evento de runtime no EventBus/Gateway.
+        Adapta automaticamente para a assinatura do publisher injetado:
+          - publisher(payload)       -> main.py publish_runtime_event
+          - publisher(type, data)    -> assinatura alternativa
+        No-op se nenhum publisher foi injetado.
+        """
+        if self._runtime_publisher is None:
+            return
+        # Monta payload padrao esperado pelo gateway
+        payload: Dict[str, Any] = {"type": event_type, "data": data}
+        try:
+            import inspect as _inspect
+            try:
+                sig = _inspect.signature(self._runtime_publisher)
+                n_params = len(
+                    [
+                        p for p in sig.parameters.values()
+                        if p.default is _inspect.Parameter.empty
+                        and p.kind not in (
+                            _inspect.Parameter.VAR_POSITIONAL,
+                            _inspect.Parameter.VAR_KEYWORD,
+                        )
+                    ]
+                )
+            except (ValueError, TypeError):
+                n_params = 1
+            call_args = (payload,) if n_params <= 1 else (event_type, data)
+            result = self._runtime_publisher(*call_args)
+            # Se for coroutine, agenda no loop corrente
+            if result is not None:
+                import inspect as _i2
+                if _i2.isawaitable(result):
+                    import asyncio as _asyncio
+                    try:
+                        _asyncio.get_running_loop().create_task(result)
+                    except RuntimeError:
+                        pass
+        except Exception as exc:
+            logger.warning("[MOTOR] publish_runtime falhou: %s", exc)
     
     @abstractmethod
     async def execute(self, **kwargs) -> str:
@@ -231,11 +309,19 @@ class MotorTool(ABC):
 
 class ToolRegistry:
     """Registro dinÃ¢mico e descoberta de ferramentas."""
-    
+
     def __init__(self):
         self._tools: Dict[str, MotorTool] = {}
         self._aliases: Dict[str, str] = {}  # alias -> nome real
-    
+        self._runtime_publisher = None
+
+    def set_runtime_publisher(self, publisher) -> None:
+        """Injeta publisher em todas as ferramentas ja registradas e nas futuras."""
+        self._runtime_publisher = publisher
+        for tool in self._tools.values():
+            if hasattr(tool, "set_runtime_publisher"):
+                tool.set_runtime_publisher(publisher)
+
     def register(self, tool: MotorTool, aliases: Optional[List[str]] = None) -> None:
         """
         Registra uma ferramenta no registry.
@@ -251,7 +337,11 @@ class ToolRegistry:
         
         self._tools[tool_name] = tool
         logger.info(f"Registrada ferramenta: {tool_name} ({tool.metadata.category})")
-        
+
+        # Propagar publisher se ja configurado
+        if self._runtime_publisher is not None and hasattr(tool, "set_runtime_publisher"):
+            tool.set_runtime_publisher(self._runtime_publisher)
+
         # Registrar aliases
         if aliases:
             for alias in aliases:
@@ -259,26 +349,28 @@ class ToolRegistry:
                 logger.debug(f"  â””â”€ Alias: {alias} â†’ {tool_name}")
     
     async def execute(self, tool_name: str, **kwargs) -> ToolResult:
-        """
-        Executa uma ferramenta pelo nome ou alias.
-        
-        Args:
-            tool_name: Nome ou alias da ferramenta
-            **kwargs: Argumentos para a ferramenta
-        
-        Returns:
-            ToolResult com sucesso/erro
-        """
-        # Resolver alias
+        """Executa uma ferramenta com middleware de segurança e proteção total do event loop."""
         real_name = self._aliases.get(tool_name, tool_name)
-        
+
         if real_name not in self._tools:
-            error_msg = f"Ferramenta nÃ£o encontrada: {tool_name}"
+            error_msg = f"Ferramenta não encontrada: {tool_name}"
             logger.error(error_msg)
             return ToolResult(success=False, output="", error=error_msg)
-        
-        tool = self._tools[real_name]
-        return await tool.safe_execute(**kwargs)
+
+        if _contains_dangerous_content(kwargs):
+            logger.warning(f"[SECURITY] Padrão destrutivo bloqueado — ferramenta='{tool_name}' args={kwargs}")
+            return ToolResult(
+                success=False,
+                output="",
+                error="[POLICY_BLOCKED] Comando perigoso interceptado pelo Sistema de Segurança.",
+            )
+
+        try:
+            return await self._tools[real_name].safe_execute(**kwargs)
+        except Exception as exc:
+            error_msg = f"[TOOL_EXCEPTION] {type(exc).__name__}: {exc}"
+            logger.error(f"[REGISTRY] Exceção não tratada — ferramenta='{tool_name}': {error_msg}")
+            return ToolResult(success=False, output="", error=error_msg)
     
     def list_tools(self) -> List[Dict[str, Any]]:
         """Lista todas as ferramentas registradas."""

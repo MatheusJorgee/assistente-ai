@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useState, useSyncExternalStore, useCallback, useRef, useEffect } from 'react';
+import { useState, useSyncExternalStore, useRef, useEffect } from 'react';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 interface VoiceControlProps {
@@ -16,16 +16,6 @@ interface VoiceControlProps {
   onBrowserWarning?: (msg: string) => void;
   onAISpeakingStateChange?: (isSpeaking: boolean) => void;  // ← Novo: Controlar quando IA está a falar
 }
-
-const normalizarTexto = (texto: string) => {
-  return texto
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9\s-]/g, " ")
-    .replace(/\s+/g, " ")
-    .toLowerCase()
-    .trim();
-};
 
 // ===== V1 SILENT ACK: Dois tons diferentes =====
 // Sucesso: 660Hz (frequência harmônica, aguda)
@@ -60,13 +50,6 @@ const playToneSilentAck = (frequency: number, duration: number, type: 'success' 
   } catch (e) {
     console.log('Silent ACK not available', e);
   }
-};
-
-// ===== V1 DICIONÁRIO: Comandos que NÃO precisam de resposta de IA =====
-const deveResponderSemFala = (texto: string): boolean => {
-  const t = normalizarTexto(texto);
-  const regex = /pausa|resume|play\b|pause\b|volume\s*\d+|skip|proxima|proximo|anterior|prev|mudo|silencio|mute|unmute|next|previous/i;
-  return regex.test(t);
 };
 
 // ===== NOVO: Som de Ativação Wake Word (Radar) =====
@@ -127,8 +110,7 @@ export function VoiceControl({
 }: VoiceControlProps) {
   const [adjustedCommand, setAdjustedCommand] = useState("");
   const [browserWarning, setBrowserWarning] = useState<string | null>(null);
-  const pendingSilentAckRef = useRef(false);  // ← V1 RESTORED
-  
+
   // ===== CONTINUOUS LISTENING: Expor setAISpeaking para o componente pai =====
   const aISpeakingRef = useRef(false);
 
@@ -142,17 +124,8 @@ export function VoiceControl({
     language: 'pt-BR',
     isWakeWordEnabled: isWakeWordEnabled,  // ← Novo: Passar o estado
     onTranscription: (text: string) => {
-      const command = adjustBilingualCommand(text);
-      setAdjustedCommand(command);
-      
-      // ===== V1 SILENT ACK LOGIC =====
-      if (deveResponderSemFala(command)) {
-        pendingSilentAckRef.current = true;
-        playToneSilentAck(660, 80, 'success');  // Sucesso: 660Hz
-        console.log('[SILENT_ACK_TRIGGERED] Comando simples detectado:', command);
-      }
-      
-      onCommand(command);
+      setAdjustedCommand(text);
+      onCommand(text);
     },
     onError: (error: string) => {
       console.error('Speech error:', error);
@@ -229,20 +202,6 @@ export function VoiceControl({
       }
     }
   }, [isWakeWordEnabled, speechRecognition]);
-
-  // Função para ajustar comandos bilingues
-  const adjustBilingualCommand = (text: string) => {
-    let adjusted = text
-      .replace(/\b(volume\s*up|increase volume)\b/gi, "aumentar volume")
-      .replace(/\b(volume\s*down|decrease volume)\b/gi, "diminuir volume")
-      .replace(/\b(next track|skip)\b/gi, "proxima musica")
-      .replace(/\b(play|resume)\b/gi, "retomar")
-      .replace(/\b(pause|stop)\b/gi, "pausar")
-      .replace(/\b(the perfect pear|the perfect pair)\b/gi, "the perfect pair")  // V1 Bilingual fix
-      .replace(/\bperfeit paira\b/gi, "the perfect pair");  // V1 Phonetic fix
-    
-    return adjusted.trim();
-  };
 
   return (
     <div className="flex flex-col items-center gap-4">

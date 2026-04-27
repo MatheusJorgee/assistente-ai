@@ -28,6 +28,18 @@ class GeminiAdapter(LLMProvider):
         self.model_name = model
         self.client = None
         self.api_key = api_key or self.config.GEMINI_API_KEY
+        
+        # ===== VALIDAÇÃO DE MODELO =====
+        # system_instruction é suportado apenas em:
+        # - gemini-1.5-flash (e acima)
+        # - gemini-2.0-flash
+        # - Modelos legados (1.0) NÃO suportam
+        supported_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"]
+        if not any(m in model for m in supported_models):
+            logger.warning(
+                f"[Gemini] ⚠️ Modelo '{model}' pode não suportar system_instruction. "
+                f"Use: {', '.join(supported_models)}"
+            )
 
         logger.info(f"[Gemini] Inicializando com modelo: {self.model_name}")
 
@@ -53,20 +65,38 @@ class GeminiAdapter(LLMProvider):
             await self.initialize()
 
         try:
-            gemini_messages = self._convert_messages(messages)
+            # ===== EXTRAÇÃO CRÍTICA: system_instruction =====
+            # Extrair a mensagem de sistema como texto para injetar no config
+            system_instruction_text = next(
+                (msg.content for msg in messages if msg.role == "system"), 
+                None
+            )
+            filtered_messages = [msg for msg in messages if msg.role != "system"]
+            
+            gemini_messages = self._convert_messages(filtered_messages)
             gemini_tools = self._convert_tools(tools) if tools and self.supports_tools() else None
 
+            # ===== PREPARAÇÃO DO CONFIG =====
+            # CRÍTICO: O novo SDK exige system_instruction dentro do dicionário config
+            # Não use GenerativeModel() - use client.models.generate_content() diretamente
+            call_config = {
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+            }
+            
+            if system_instruction_text:
+                call_config["system_instruction"] = system_instruction_text
+                logger.info(f"[Gemini] System instruction injetado no config")
+            
+            if gemini_tools:
+                call_config["tools"] = gemini_tools
+
+            # ===== CHAMADA DIRETA AO MODELO PELO SDK NOVO =====
             call_kwargs = {
                 "model": f"models/{self.model_name}",
                 "contents": gemini_messages,
-                "config": {
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens,
-                },
+                "config": call_config,
             }
-
-            if gemini_tools:
-                call_kwargs["config"]["tools"] = gemini_tools
 
             gemini_response = await asyncio.wait_for(
                 asyncio.to_thread(self.client.models.generate_content, **call_kwargs),
@@ -101,20 +131,38 @@ class GeminiAdapter(LLMProvider):
             await self.initialize()
 
         try:
-            gemini_messages = self._convert_messages(messages)
+            # ===== EXTRAÇÃO CRÍTICA: system_instruction =====
+            # Extrair a mensagem de sistema como texto para injetar no config
+            system_instruction_text = next(
+                (msg.content for msg in messages if msg.role == "system"), 
+                None
+            )
+            filtered_messages = [msg for msg in messages if msg.role != "system"]
+            
+            gemini_messages = self._convert_messages(filtered_messages)
             gemini_tools = self._convert_tools(tools) if tools and self.supports_tools() else None
 
+            # ===== PREPARAÇÃO DO CONFIG =====
+            # CRÍTICO: O novo SDK exige system_instruction dentro do dicionário config
+            # Não use GenerativeModel() - use client.models.generate_content() diretamente
+            stream_config = {
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+            }
+            
+            if system_instruction_text:
+                stream_config["system_instruction"] = system_instruction_text
+                logger.info(f"[Gemini Stream] System instruction injetado no config")
+            
+            if gemini_tools:
+                stream_config["tools"] = gemini_tools
+
+            # ===== CHAMADA DIRETA AO MODELO PELO SDK NOVO =====
             stream_kwargs = {
                 "model": f"models/{self.model_name}",
                 "contents": gemini_messages,
-                "config": {
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens,
-                },
+                "config": stream_config,
             }
-
-            if gemini_tools:
-                stream_kwargs["config"]["tools"] = gemini_tools
 
             gemini_response = await asyncio.to_thread(
                 self.client.models.generate_content,

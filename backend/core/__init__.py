@@ -86,7 +86,7 @@ from .policy import (
     create_default_policy_engine,
 )
 from .telemetry import AuditEvent, AuditLogger, ToolCallTelemetry
-from .loop import ActionOrchestrator, AsyncEventBus, AutonomousWorker, LoopEvent
+from .loop import ActionOrchestrator, AsyncEventBus, AutonomousWorker, LoopEvent, ManualCommandHandler
 from .audio import (
     AudioAdapter,
     AudioAvailability,
@@ -163,6 +163,7 @@ __all__ = [
     "AutonomousWorker",
     "LoopEvent",
     "ActionOrchestrator",
+    "ManualCommandHandler",
     # Audio
     "AudioAdapter",
     "AudioAvailability",

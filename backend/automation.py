@@ -10,11 +10,29 @@ import json
 import unicodedata
 import asyncio
 import traceback
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
-from youtubesearchpython import VideosSearch
-from playwright.sync_api import sync_playwright
-from playwright.async_api import async_playwright
+try:
+    import spotipy
+    from spotipy.oauth2 import SpotifyOAuth
+    _SPOTIPY_AVAILABLE = True
+except ImportError:
+    spotipy = None  # type: ignore
+    SpotifyOAuth = None  # type: ignore
+    _SPOTIPY_AVAILABLE = False
+
+try:
+    from youtubesearchpython import VideosSearch
+    _YT_SEARCH_AVAILABLE = True
+except ImportError:
+    VideosSearch = None  # type: ignore
+    _YT_SEARCH_AVAILABLE = False
+try:
+    from playwright.sync_api import sync_playwright
+    from playwright.async_api import async_playwright
+    _PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    sync_playwright = None  # type: ignore
+    async_playwright = None  # type: ignore
+    _PLAYWRIGHT_AVAILABLE = False
 
 class OSAutomation:
     def __init__(self):
@@ -44,7 +62,7 @@ class OSAutomation:
         self.sp_redirect_uri = "http://127.0.0.1:8080"
         
         self.sp = None
-        if self.sp_client_id and self.sp_client_secret:
+        if _SPOTIPY_AVAILABLE and self.sp_client_id and self.sp_client_secret:
             try:
                 escopos = "user-modify-playback-state user-read-playback-state"
                 self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
@@ -204,9 +222,9 @@ class OSAutomation:
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
             
-            print("[YOUTUBE ASYNC] ✓ Playwright assíncrono inicializado e armazenado em self")
+            print("[YOUTUBE ASYNC] [OK] Playwright assíncrono inicializado e armazenado em self")
         except Exception as e:
-            print(f"[YOUTUBE ASYNC] ✗ Erro ao inicializar: {e}")
+            print(f"[YOUTUBE ASYNC]  Erro ao inicializar: {e}")
             await self._cleanup_playwright_async()
             raise
     
@@ -279,6 +297,9 @@ class OSAutomation:
         tentativas = [query]
         if "letra" not in query.lower() and "lyrics" not in query.lower():
             tentativas.append(f"{query} official audio")
+
+        if not _YT_SEARCH_AVAILABLE or VideosSearch is None:
+            return None
 
         for tentativa in tentativas:
             try:
@@ -505,7 +526,7 @@ class OSAutomation:
         if not self._comando_e_seguro(comando):
             return f"ERRO DE SEGURANÇA: Comando '{comando}' bloqueado."
         try:
-            # ✓ CRÍTICO: Forçar PowerShell para garantir Start-Process funcione
+            # CRITICO: Forçar PowerShell para garantir Start-Process funcione
             # PowerShell é mais robusto para comandos complexos como "start browser URL"
             resultado = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", comando],
@@ -706,14 +727,15 @@ class OSAutomation:
             
             # Lançar Chromium com ignore-certificate-errors para HTTPS
             self.browser = await self.playwright.chromium.launch(
-                headless=True,  # Invisível em background
+                headless=False,  # Visível para debug de audio
+                channel="msedge",  # Usa Microsoft Edge nativo do host
                 args=[
                     "--autoplay-policy=no-user-gesture-required",
                     "--disable-blink-features=AutomationControlled",
                     "--ignore-certificate-errors"
                 ]
             )
-            print("[PLAYWRIGHT ASYNC] ✅ Browser Chromium persistente pronto (headless mode)")
+            print("[PLAYWRIGHT ASYNC] [OK] Browser persistente pronto (headless mode)")
         except Exception as e:
             print(f"[ERRO PLAYWRIGHT] Falha ao inicializar: {type(e).__name__}: {str(e)}")
             print(traceback.format_exc())
@@ -799,8 +821,8 @@ class OSAutomation:
             print(">>> [YOUTUBE ASYNC] Motor furtivo ativado!")
             
             if video_resolvido and video_resolvido.get("title"):
-                return f"✅ Encontrei e coloquei '{video_resolvido['title']}' a tocar."
-            return f"✅ Coloquei '{pesquisa}' a tocar no YouTube."
+                return f"[OK] Encontrei e coloquei '{video_resolvido['title']}' a tocar."
+            return f"[OK] Coloquei '{pesquisa}' a tocar no YouTube."
             
         except Exception as e:
             print(f"\n[ERRO FATAL PLAYWRIGHT]")
@@ -863,19 +885,19 @@ class OSAutomation:
             
             if "pausar" in acao_lower or "parar" in acao_lower:
                 await self.page.evaluate("() => { const v = document.querySelector('video'); if(v) v.pause(); }")
-                return "✅ A música foi pausada com sucesso."
+                return "[OK] A musica foi pausada com sucesso."
             
             elif "retomar" in acao_lower or "voltar" in acao_lower or "play" in acao_lower or "começar" in acao_lower:
                 await self.page.evaluate("() => { const v = document.querySelector('video'); if(v) v.play(); }")
-                return "✅ A música voltou a tocar."
+                return "[OK] A musica voltou a tocar."
             
             elif "pular" in acao_lower or "skip" in acao_lower or "proxima" in acao_lower or "próxima" in acao_lower:
                 await self.page.evaluate("() => { const nextBtn = document.querySelector('.ytp-next-button'); if(nextBtn) nextBtn.click(); }")
-                return "✅ Pulei para a próxima música."
+                return "[OK] Pulei para a proxima musica."
             
             elif "loop" in acao_lower or "repeat" in acao_lower or "repetir" in acao_lower or "lupi" in acao_lower:
                 await self.page.evaluate("() => { const repeatBtn = document.querySelector('.ytp-repeat'); if(repeatBtn) repeatBtn.click(); }")
-                return "✅ Modo de repetição (loop) ativado."
+                return "[OK] Modo de repeticao (loop) ativado."
             
             else:
                 return f"Ação '{acao}' não reconhecida. Tente: pausar, retomar (play), pular (skip), ou loop (repetir)."
@@ -1035,17 +1057,17 @@ class OSAutomation:
     
     async def async_tocar_youtube_invisivel(self, pesquisa: str, **kwargs) -> str:
         """
-        ✅ Versão ASYNC refatorada que NÃO BLOQUEIA o FastAPI event loop.
-        ✅ Usa async_playwright com persistência de contexto.
-        ✅ Mantém browser, context, page em self para reutilização.
-        ✅ Toda lógica anti-bot intacta.
+        Versao ASYNC refatorada que NÃO BLOQUEIA o FastAPI event loop.
+        Usa async_playwright com persistência de contexto.
+        Mantem browser, context, page em self para reutilização.
+        Toda logica anti-bot intacta.
         
         Requisitos atendidos:
-        1. async def ✓
-        2. Ciclo de vida do async_playwright mantido em self ✓
-        3. Todas as interações com página usam await ✓
-        4. Lógica anti-bot intacta ✓
-        5. À prova de falhas no event loop ✓
+        1. async def --
+        2. Ciclo de vida do async_playwright mantido em self
+        3. Todas as interacoes com pagina usam await
+        4. Logica anti-bot intacta
+        5. A prova de falhas no event loop
         """
         print(f">>> [YOUTUBE ASYNC] A preparar motor web para: '{pesquisa}'...")
         
@@ -1187,7 +1209,7 @@ class OSAutomation:
                 await self.page_async.evaluate(codigo_magico)
                 print(">>> [YOUTUBE ASYNC] Motor furtivo injetado!")
                 
-                # ✅ NÃO FECHAR A PÁGINA - manter para próximos comandos (controlar_reproducao, pular_musica, etc)
+                # NAO FECHAR A PAGINA - manter para próximos comandos (controlar_reproducao, pular_musica, etc)
                 
                 if video_resolvido and video_resolvido.get("title"):
                     return f"Sucesso! Encontrei e coloquei '{video_resolvido['title']}' a tocar."
@@ -1199,9 +1221,9 @@ class OSAutomation:
     
     async def async_controlar_reproducao(self, acao: str, **kwargs) -> str:
         """
-        ✅ Versão ASYNC do controle de reprodução (Pausa, Retoma, Pula, Loop).
-        ✅ Não bloqueia o event loop.
-        ✅ Reutiliza a página assíncrona persistente mantida em self.
+        Versao ASYNC do controle de reprodução (Pausa, Retoma, Pula, Loop).
+        Nao bloqueia o event loop.
+        Reutiliza a pagina assincrona persistente mantida em self.
         """
         if not self.page_async:
             return "Erro: O YouTube não está aberto no momento (página async não existe)."
@@ -1235,9 +1257,9 @@ class OSAutomation:
     
     async def async_ajustar_volume(self, nivel, **kwargs) -> str:
         """
-        ✅ Versão ASYNC de ajuste de volume.
-        ✅ Não bloqueia o event loop.
-        ✅ Mantém volume persistido para futuras sessões.
+        Versao ASYNC de ajuste de volume.
+        Nao bloqueia o event loop.
+         Mantém volume persistido para futuras sessões.
         """
         if not self.page_async:
             return "Erro: O YouTube não está aberto no momento (página async não existe)."
@@ -1265,9 +1287,9 @@ class OSAutomation:
     
     async def async_pular_musica(self, **kwargs) -> str:
         """
-        ✅ Versão ASYNC para pular a música.
-        ✅ Não bloqueia o event loop.
-        ✅ Reutiliza a página assíncrona persistente.
+        Versao ASYNC para pular a música.
+        Nao bloqueia o event loop.
+        Reutiliza a pagina assincrona persistente.
         """
         if not self.page_async:
             return "Erro: O YouTube não está aberto no momento (página async não existe)."

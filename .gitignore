@@ -1,37 +1,191 @@
-# Backup da primeira versão (v2.0)
-primeira_versao/
+# ==============================================================
+#  .gitignore — Jarvis Modular (Quinta-Feira)
+#  Regra de Ouro: Zero-Trace — nenhum dado de runtime vaza
+#  Cobre: Python Backend · Next.js Frontend · Windows · macOS
+# ==============================================================
 
-# Ambientes virtuais e dependências
-venv/
-.venv/
-node_modules/
-__pycache__/
-*.pyc
 
-# Chaves de API e segredos
+# ──────────────────────────────────────────────────────────────
+# RUNTIME & ESTADO DE EXECUÇÃO
+# Qualquer pasta .runtime/ em qualquer nível da árvore
+# ──────────────────────────────────────────────────────────────
+.runtime/
+.audit/
+
+# Logs de auditoria e telemetria (format JSONL do audit_logger)
+*.jsonl
+*.log
+logs/
+
+
+# ──────────────────────────────────────────────────────────────
+# SEGREDOS & DADOS PESSOAIS — CRÍTICO
+# ──────────────────────────────────────────────────────────────
+
+# Vault local (chaves, tokens, material criptográfico)
+.vault/
+
+# Perfil WhatsApp (sessão autenticada — dados pessoais)
+.wa_profile/
+PyWhatKit_DB.txt
+
+# Variáveis de ambiente — nunca commitar o arquivo real
 .env
 .env.*
 !.env.example
+
+# Material criptográfico
 *.pem
 *.key
 *.crt
+*.p12
+*.pfx
+secrets/
+credentials/
 
-# Tokens e caches locais sensíveis
-backend/.cache
-backend/.cache*
 
-# Artefatos de runtime locais
+# ──────────────────────────────────────────────────────────────
+# PYTHON — AMBIENTE & BUILD
+# ──────────────────────────────────────────────────────────────
+
+# Bytecode compilado
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+.python-version
+
+# Build & distribuição
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+*.whl
+*.tar.gz
+
+# Ferramentas de análise estática e testes
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# Temporários de runtime Python
 backend/temp_vision/
 backend/audio_temp.wav
+*.wav.tmp
 
-# Banco local (contém memória e possivelmente dados sensíveis)
-backend/memoria_quinta_feira.db
-*.db
-*.sqlite
-*.sqlite3
 
-# Logs
-*.log
+# ──────────────────────────────────────────────────────────────
+# FRONTEND — NODE / NEXT.JS
+# ──────────────────────────────────────────────────────────────
+
+# Dependências
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Build output do Next.js
+.next/
+out/
+/build
+
+# TypeScript incremental
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs do gerenciador de pacotes
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Relatório de build gerado localmente
+build_output.txt
+
+# Deploy artifacts
+.vercel
+
+
+# ──────────────────────────────────────────────────────────────
+# BANCOS DE DADOS LOCAIS
+# ──────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+
+
+# ──────────────────────────────────────────────────────────────
+# OS SPECIFIC — WINDOWS
+# ──────────────────────────────────────────────────────────────
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+
+# ──────────────────────────────────────────────────────────────
+# OS SPECIFIC — macOS
+# ──────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+Icon?
+
+
+# ──────────────────────────────────────────────────────────────
+# OS SPECIFIC — LINUX
+# ──────────────────────────────────────────────────────────────
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+
+# ──────────────────────────────────────────────────────────────
+# EDITORES & IDEs
+# ──────────────────────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+
+# ──────────────────────────────────────────────────────────────
+# LEGADO — padrões do .gitignore anterior mantidos
+# ──────────────────────────────────────────────────────────────
+primeira_versao/
+backend/.cache
+backend/.cache*
+backend/memoria_quinta_feira.db
+
+# ------------------------------------------------------------------------------
+# DOCUMENTA��O E ARQUIVOS DA IA
+# ------------------------------------------------------------------------------
+ai_docs/

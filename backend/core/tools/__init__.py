@@ -11,7 +11,9 @@ try:
     from ..tools.vision_tool import VisionTool
     from ..tools.os_tools import OSCommandTool, ProcessControlTool
     from ..tools.file_ops_tool import FileOpsTool
-    from ..tools.memory_tools import MemoryTool
+    from ..tools.memory_tools import MemoryTool, MemorizarInformacaoTool, PesquisarMemoriaTool
+    from ..tools.obsidian_tool import ObsidianMemoryTool, AnotarMemoriaDiariaTool
+    from ..tools.whatsapp_tool import WhatsAppTool
     from ..tools.base import ToolRegistry
     from ..memory import MemoryManager
     from .. import (
@@ -29,7 +31,9 @@ except ImportError:
     from .vision_tool import VisionTool
     from .os_tools import OSCommandTool, ProcessControlTool
     from .file_ops_tool import FileOpsTool
-    from .memory_tools import MemoryTool
+    from .memory_tools import MemoryTool, MemorizarInformacaoTool, PesquisarMemoriaTool
+    from .obsidian_tool import ObsidianMemoryTool, AnotarMemoriaDiariaTool
+    from .whatsapp_tool import WhatsAppTool
     from .base import ToolRegistry
     from ..memory import MemoryManager
     from .. import (
@@ -82,13 +86,36 @@ def inicializar_ferramentas(event_publisher=None) -> ToolRegistry:
         aliases=["file_ops", "filesystem_v2", "v2_file_ops"],
     )
 
-    # Long-term memory tools
-    memory_manager = MemoryManager()
+    # Long-term memory tool — ÚNICA tool de memória exposta à LLM.
+    # Nome propositalmente claro e direto: memorizar_informacao.
+    # Aliases 'memory_manager', 'memory' etc. apontam para ela para compat.
     registry.register(
-        MemoryTool(memory_manager=memory_manager),
-        aliases=["memory", "memory_engine", "memory_retrieval"],
+        MemorizarInformacaoTool(),
+        aliases=[
+            "memorizar",
+            "memorizar_fato",
+            "memory_manager",
+            "memory",
+            "memory_engine",
+            "memory_retrieval",
+            "obsidian_memory",
+            "memoria_nuclear",
+            "salvar_obsidian",
+            "anotar_memoria",
+            "memoria_diaria",
+            "memoria_curto_prazo",
+            "salvar_memoria_obsidian",
+        ],
     )
-    
+    registry.register(
+        PesquisarMemoriaTool(),
+        aliases=["buscar_memoria", "active_recall", "recall"],
+    )
+    registry.register(
+        WhatsAppTool(),
+        aliases=["whatsapp_send", "enviar_whatsapp", "whatsapp_mensagem"],
+    )
+
     return registry
 
 
@@ -103,6 +130,11 @@ __all__ = [
     "ProcessControlTool",
     "FileOpsTool",
     "MemoryTool",
+    "ObsidianMemoryTool",
+    "AnotarMemoriaDiariaTool",
+    "MemorizarInformacaoTool",
+    "PesquisarMemoriaTool",
+    "WhatsAppTool",
     "inicializar_ferramentas",
 ]
 

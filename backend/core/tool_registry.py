@@ -10,7 +10,47 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Callable
 from dataclasses import dataclass
 import inspect
+import re
 import asyncio
+
+
+@dataclass
+class ToolResult:
+    """Resultado estrito de execução de ferramenta."""
+    success: bool
+    output: str
+    error: str = ""
+
+
+_DANGEROUS_PATTERNS = [
+    r"\brm\s+-[rRfF]*[rR]",
+    r"\bdel\b.*/[fFsS]",
+    r"\brd\s+/[sS]\b",
+    r"\brmdir\s+/[sS]\b",
+    r"\bformat\s+[a-zA-Z]:",
+    r"\bdiskpart\b",
+    r"\bdd\s+if=.*of=",
+    r"\breg\s+delete\b",
+    r"\bRemove-Item.*-Recurse",
+    r"\bkillall\b",
+    r"\bshutdown\s+/[rRsS]\b",
+    r"\bsudo\s+rm\b",
+    r"\bchmod\s+777\s+/",
+    r">\s*/dev/[sh]d[a-z]",
+    r"\bFormat-Volume\b",
+    r"\bClear-Disk\b",
+    r"\bInitialize-Disk\b",
+]
+_COMPILED_DANGEROUS = [re.compile(p, re.IGNORECASE) for p in _DANGEROUS_PATTERNS]
+
+
+def _contains_dangerous_content(kwargs: Dict[str, Any]) -> bool:
+    for value in kwargs.values():
+        text = str(value)
+        for pattern in _COMPILED_DANGEROUS:
+            if pattern.search(text):
+                return True
+    return False
 
 
 @dataclass
@@ -41,10 +81,31 @@ class Tool(ABC):
     def __init__(self, metadata: ToolMetadata):
         self.metadata = metadata
         self._event_bus: Optional['EventBus'] = None
-    
+        # Bridge opcional para o AsyncEventBus/WebSocket (publish_runtime_event)
+        self._runtime_publisher = None
+
     def set_event_bus(self, event_bus: 'EventBus'):
         """Setter para injetar o EventBus (DI)."""
         self._event_bus = event_bus
+
+    def set_runtime_publisher(self, publisher) -> None:
+        """
+        Injeta um callable(payload: dict) que publica eventos no
+        AsyncEventBus do runtime (propagados ao WebSocket).
+        Tools podem usá-lo para emitir eventos que precisam atravessar
+        a fronteira até o frontend (ex.: media_playback_requested).
+        """
+        self._runtime_publisher = publisher
+
+    def publish_runtime(self, event_type: str, data: Dict[str, Any]) -> None:
+        """Helper: publica evento no runtime (se bridge estiver ligado)."""
+        if self._runtime_publisher is None:
+            return
+        try:
+            payload = {"type": event_type, **(data or {})}
+            self._runtime_publisher(payload)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN Tool.publish_runtime] {type(exc).__name__}: {exc}")
     
     @abstractmethod
     async def execute(self, **kwargs) -> str:
@@ -115,13 +176,21 @@ class ToolRegistry:
         self._tools: Dict[str, Tool] = {}
         self._aliases: Dict[str, str] = {}  # alias -> canonical_name
         self._event_bus: Optional['EventBus'] = None
-    
+        self._runtime_publisher = None
+
     def set_event_bus(self, event_bus: 'EventBus'):
         """Injetar EventBus (DI)."""
         self._event_bus = event_bus
         # Propagar para todas as ferramentas registradas
         for tool in self._tools.values():
             tool.set_event_bus(event_bus)
+
+    def set_runtime_publisher(self, publisher) -> None:
+        """Propaga o runtime publisher (ponte ao AsyncEventBus) para todas
+        as ferramentas atualmente registradas e para as futuras."""
+        self._runtime_publisher = publisher
+        for tool in self._tools.values():
+            tool.set_runtime_publisher(publisher)
     
     def register(self, tool: Tool, aliases: list[str] = None) -> None:
         """
@@ -137,7 +206,9 @@ class ToolRegistry:
         # Se injetamos EventBus antes, propagar para nova ferramenta
         if self._event_bus:
             tool.set_event_bus(self._event_bus)
-        
+        if self._runtime_publisher is not None:
+            tool.set_runtime_publisher(self._runtime_publisher)
+
         # Registrar aliases
         if aliases:
             for alias in aliases:
@@ -145,25 +216,36 @@ class ToolRegistry:
         
         print(f"[OK] Ferramenta registrada: {name}")
     
-    async def execute(self, tool_name: str, **kwargs) -> str:
-        """
-        Executa uma ferramenta pelo nome ou alias.
-        
-        Args:
-            tool_name: Nome ou alias da ferramenta
-            **kwargs: Argumentos para a ferramenta
-            
-        Returns:
-            str: Resultado da execução
-        """
+    async def execute(self, tool_name: str, **kwargs) -> ToolResult:
+        """Executa uma ferramenta com middleware de segurança e proteção total do event loop."""
         canonical_name = self._aliases.get(tool_name, tool_name)
-        
+
         if canonical_name not in self._tools:
             available = ", ".join(list(self._tools.keys())[:5])
-            return f"[ERRO] Ferramenta '{tool_name}' não encontrada. Disponíveis: {available}"
-        
-        tool = self._tools[canonical_name]
-        return await tool.safe_execute(**kwargs)
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"[ERRO] Ferramenta '{tool_name}' não encontrada. Disponíveis: {available}",
+            )
+
+        if _contains_dangerous_content(kwargs):
+            return ToolResult(
+                success=False,
+                output="",
+                error="[POLICY_BLOCKED] Comando perigoso interceptado pelo Sistema de Segurança.",
+            )
+
+        try:
+            raw = await self._tools[canonical_name].safe_execute(**kwargs)
+            if isinstance(raw, ToolResult):
+                return raw
+            return ToolResult(success=True, output=str(raw), error="")
+        except Exception as exc:
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"[TOOL_EXCEPTION] {type(exc).__name__}: {exc}",
+            )
     
     def list_tools(self) -> Dict[str, Dict[str, Any]]:
         """Lista todas as ferramentas registradas com metadados."""

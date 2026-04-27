@@ -7,8 +7,91 @@ PersistÃªncia usa o SQLite canÃ´nico do Core.
 from __future__ import annotations
 
 import json
+import os
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+VAULT_BASE_PATH = "./.vault"
+
+ENTIDADES_MAP = {
+    r"\b(paulo)\b": "pessoas/paulo.md",
+    r"\b(matheus|filhote)\b": "pessoas/matheus_filhote.md",
+    r"\b(comida|pizza|comer|fome|alergia)\b": "preferencias/comida.md",
+    r"\b(jogo|jogar|dbd|game)\b": "preferencias/jogos.md",
+    r"\b(trabalho|chefe|empresa)\b": "rotina/trabalho.md"
+}
+
+def recuperar_memoria_nuclear(mensagem_usuario: str) -> str:
+    contexto_injetado = []
+
+    # 1. Ler todos os arquivos gravados pelo memorizar_informacao (.vault/Memorias/)
+    memorias_path = os.path.join(VAULT_BASE_PATH, "Memorias")
+    if os.path.isdir(memorias_path):
+        for nome_arquivo in sorted(os.listdir(memorias_path)):
+            if not nome_arquivo.endswith(".md"):
+                continue
+            caminho_completo = os.path.join(memorias_path, nome_arquivo)
+            try:
+                with open(caminho_completo, "r", encoding="utf-8") as f:
+                    conteudo = f.read().strip()
+                    if conteudo:
+                        nome_entidade = nome_arquivo.replace(".md", "").upper()
+                        contexto_injetado.append(f"--- Fatos sobre {nome_entidade} ---\n{conteudo}")
+            except (OSError, UnicodeDecodeError):
+                continue
+
+    # 2. ENTIDADES_MAP: arquivos específicos filtrados por keyword na mensagem
+    mensagem_lower = mensagem_usuario.lower()
+    arquivos_mapa = set()
+    for padrao, caminho_arquivo in ENTIDADES_MAP.items():
+        if re.search(padrao, mensagem_lower):
+            arquivos_mapa.add(caminho_arquivo)
+
+    for caminho_relativo in arquivos_mapa:
+        caminho_completo = os.path.join(VAULT_BASE_PATH, caminho_relativo)
+        try:
+            with open(caminho_completo, "r", encoding="utf-8") as f:
+                nome_entidade = os.path.basename(caminho_relativo).replace(".md", "").upper()
+                bloco = f"--- Fatos sobre {nome_entidade} ---\n{f.read().strip()}"
+                if bloco not in contexto_injetado:
+                    contexto_injetado.append(bloco)
+        except FileNotFoundError:
+            continue
+
+    if contexto_injetado:
+        return "MEMORIA NUCLEAR (Fatos Criticos):\n" + "\n\n".join(contexto_injetado)
+
+    return ""
+
+
+def recuperar_memoria_diaria() -> str:
+    """Recupera o arquivo de contexto volátil do dia atual."""
+    import datetime
+    hoje = datetime.date.today().isoformat()
+    caminho_diario = f"./data/memoria_curto_prazo_{hoje}.txt"
+
+    if os.path.exists(caminho_diario):
+        with open(caminho_diario, "r", encoding="utf-8") as f:
+            conteudo = f.read().strip()
+            if conteudo:
+                return f"CONTEXTO EFÊMERO (Acontecimentos de Hoje):\n{conteudo}"
+    return ""
+
+
+def anotar_memoria_diaria(fato: str) -> str:
+    """Anexa um fato volátil do dia ao arquivo de memória de curto prazo."""
+    import datetime
+    hoje = datetime.date.today().isoformat()
+    agora = datetime.datetime.now().strftime("%H:%M:%S")
+    pasta = "./data"
+    os.makedirs(pasta, exist_ok=True)
+    caminho_diario = os.path.join(pasta, f"memoria_curto_prazo_{hoje}.txt")
+
+    with open(caminho_diario, "a", encoding="utf-8") as f:
+        f.write(f"[{agora}] {fato.strip()}\n")
+
+    return f"Fato volátil anotado em {caminho_diario}"
 
 try:
     from ..logger import get_logger

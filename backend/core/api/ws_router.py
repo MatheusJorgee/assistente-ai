@@ -1,15 +1,33 @@
 ﻿"""
 Router WebSocket de observabilidade em tempo real.
 
-Transmite eventos do AsyncEventBus para clientes conectados.
+Implementa o padrao WebSocket Pub/Sub Bridge (Observer Pattern):
+
+  [Brain/ActionOrchestrator] -> AsyncEventBus
+                                    |
+                       gateway_manager.WebSocketEventBridge
+                       (converte LoopEvent -> JSON formatado)
+                                    |
+                       EnhancedConnectionManager
+                       (filtra + broadcast para clientes)
+                                    |
+                             [Next.js Frontend]
+
+O desacoplamento e fundamental:
+- Brain nao sabe que existe frontend
+- ActionOrchestrator nao sabe que existe WebSocket
+- WebSocket nao conhece a logica de negocio
+- Toda comunicacao e via AsyncEventBus (Pub/Sub puro)
+
+IMPORTANTE: Use EnhancedConnectionManager do gateway_manager!
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import asdict
-from typing import Any, Awaitable, Callable, Dict
+import uuid
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
@@ -22,6 +40,12 @@ try:
 except ImportError:
     from ..loop import AsyncEventBus, LoopEvent
 
+from .gateway_manager import (
+    EnhancedConnectionManager,
+    EventPayloadFormatter,
+    EventFilter,
+    WebSocketEventBridge,
+)
 
 EventHandler = Callable[[LoopEvent], Awaitable[None] | None]
 logger = get_logger(__name__)
@@ -52,7 +76,32 @@ class ConnectionManager:
 
 
 router = APIRouter(prefix="/runtime/events", tags=["Observability"])
-manager = ConnectionManager()
+manager = EnhancedConnectionManager()  # EnhancedConnectionManager do gateway_manager
+
+# Sera inicializado em main.py quando FastAPI app inicia
+ws_bridge: Optional[WebSocketEventBridge] = None
+
+
+def get_ws_bridge() -> Optional[WebSocketEventBridge]:
+    """Retorna a instancia global do bridge WebSocket (None se nao inicializado)."""
+    return ws_bridge
+
+
+async def init_ws_bridge(event_bus: AsyncEventBus) -> None:
+    """Inicializa o bridge WebSocket (chamar uma vez ao iniciar)."""
+    global ws_bridge
+    ws_bridge = WebSocketEventBridge(event_bus, manager=manager)
+    await ws_bridge.start()
+    logger.info("[WS Router] Bridge WebSocket inicializado")
+
+
+async def stop_ws_bridge() -> None:
+    """Para o bridge WebSocket (chamar no shutdown)."""
+    global ws_bridge
+    if ws_bridge:
+        await ws_bridge.stop()
+        ws_bridge = None
+        logger.info("[WS Router] Bridge WebSocket parado")
 
 
 class AutonomousControlRequest(BaseModel):
@@ -76,163 +125,181 @@ async def control_autonomous_loop(payload: AutonomousControlRequest, request: Re
 
 @router.websocket("/ws")
 async def events_websocket(websocket: WebSocket) -> None:
+    """
+    WebSocket handler para observabilidade em tempo real.
+
+    O cliente se conecta e recebe eventos do AsyncEventBus formatados como JSON.
+    Tambem pode enviar comandos manuais (manual_command) ou controlar o loop autonomo.
+
+    Protocolos aceitos:
+    - Entrada do cliente:
+      {"type": "manual_command", "command": "texto do comando"}
+      {"type": "autonomous_control", "paused": true/false}
+      "ping"
+
+    - Saida para cliente:
+      Eventos do EventBus formatados por EventPayloadFormatter
+      {"type": "error", ...}
+      {"type": "connection", "status": "connected", ...}
+      {"type": "pong"}
+    """
+    # Resolve dependencias da app
     event_bus = getattr(websocket.app.state, "autonomous_event_bus", None)
-    brain = getattr(websocket.app.state, "brain", None)
     worker = getattr(websocket.app.state, "autonomous_worker", None)
+
+    # Validacao: event_bus deve estar inicializado
     if not isinstance(event_bus, AsyncEventBus):
         await websocket.accept()
-        await websocket.send_json(
-            {
-                "type": "error",
-                "message": "Event bus nÃ£o inicializado",
-            }
+        error_payload = EventPayloadFormatter.format_error(
+            "Event bus nao inicializado",
+            error_code="SERVICE_UNAVAILABLE",
         )
+        await websocket.send_json(error_payload)
         await websocket.close(code=1011)
         return
 
-    await manager.connect(websocket)
+    # Registra cliente no manager
+    client_id = await manager.connect(websocket)
+    logger.info(f"[WS] Cliente {client_id} conectado")
 
-    async def forward_event(event: LoopEvent) -> None:
-        payload = {
-            "type": "runtime_event",
-            "event": asdict(event),
-        }
-        try:
-            await manager.send_json(websocket, payload)
-        except Exception:
-            # DesconexÃ£o serÃ¡ tratada no finally
-            pass
-
-    event_bus.subscribe("*", forward_event)
+    # Rastreia tarefas em voo (comandos em processamento)
     in_flight_commands: set[asyncio.Task[Any]] = set()
 
-    async def handle_manual_command(command: str) -> None:
+    async def handle_manual_command(command: str, request_id: str) -> None:
+        """Publica manual_command_requested no barramento e finaliza."""
         command = command.strip()
         if not command:
-            await manager.send_json(websocket, {"type": "error", "message": "Comando vazio"})
+            await manager.send_json(
+                client_id,
+                EventPayloadFormatter.format_error(
+                    "Comando vazio",
+                    error_code="INVALID_INPUT",
+                    event_id=request_id,
+                ),
+            )
             return
 
         await event_bus.publish(
             LoopEvent(
                 type="manual_command_requested",
-                payload={"command": command},
+                payload={"command": command, "client_id": client_id, "request_id": request_id},
                 source="frontend_terminal",
             )
         )
 
-        if not brain:
-            await manager.send_json(websocket, {"type": "error", "message": "Brain indisponÃ­vel"})
-            return
-
-        try:
-            response = await brain.ask(command, include_vision=False)
-            response_text = (response.text or "").strip()
-
-            await event_bus.publish(
-                LoopEvent(
-                    type="manual_command_completed",
-                    payload={
-                        "command": command,
-                        "response": response_text,
-                    },
-                    source="frontend_terminal",
-                )
-            )
-            await manager.send_json(
-                websocket,
-                {
-                    "type": "command_result",
-                    "command": command,
-                    "response": response_text,
-                },
-            )
-        except Exception as exc:
-            logger.warning(f"[OBS_WS] Falha em comando manual: {exc}")
-            await event_bus.publish(
-                LoopEvent(
-                    type="manual_command_failed",
-                    payload={"command": command, "error": str(exc)},
-                    source="frontend_terminal",
-                )
-            )
-            await manager.send_json(
-                websocket,
-                {
-                    "type": "error",
-                    "message": f"Falha ao executar comando manual: {exc}",
-                },
-            )
-
     try:
-        await manager.send_json(
-            websocket,
-            {
-                "type": "connection",
-                "status": "connected",
-                "channel": "runtime_events",
-                "active_clients": await manager.active_count(),
-                "autonomous_paused": bool(getattr(worker, "is_paused", False)),
-            },
+        # Envia status de conexao
+        connection_status = EventPayloadFormatter.format_connection_status(
+            status="connected",
+            client_id=client_id,
+            active_clients=await manager.active_count(),
+            autonomous_paused=bool(getattr(worker, "is_paused", False)),
         )
+        await manager.send_json(client_id, connection_status)
 
-        # MantÃ©m conexÃ£o viva e recebe comandos do frontend.
+        # Loop principal: recebe mensagens do cliente
         while True:
             raw_message = await websocket.receive_text()
             if not raw_message:
                 continue
 
+            # Ping/Pong keep-alive
             if raw_message.lower() == "ping":
-                await manager.send_json(websocket, {"type": "pong"})
+                pong_payload = EventPayloadFormatter.format_pong()
+                await manager.send_json(client_id, pong_payload)
                 continue
 
+            # Parse JSON
             try:
                 message = json.loads(raw_message)
             except json.JSONDecodeError:
-                await manager.send_json(websocket, {"type": "error", "message": "JSON invÃ¡lido"})
+                error_payload = EventPayloadFormatter.format_error(
+                    "JSON invalido",
+                    error_code="PARSE_ERROR",
+                )
+                await manager.send_json(client_id, error_payload)
                 continue
 
             msg_type = str(message.get("type", "")).strip()
 
+            # Comando manual do frontend
             if msg_type == "manual_command":
                 command_text = str(message.get("command", "")).strip()
-                task = asyncio.create_task(handle_manual_command(command_text))
+                request_id = str(message.get("request_id", str(uuid.uuid4())))
+
+                task = asyncio.create_task(
+                    handle_manual_command(command_text, request_id)
+                )
                 in_flight_commands.add(task)
                 task.add_done_callback(in_flight_commands.discard)
                 continue
 
+            # Controle do worker autonomo
             if msg_type == "autonomous_control":
                 should_pause = bool(message.get("paused", False))
                 if worker is None:
-                    await manager.send_json(websocket, {"type": "error", "message": "Autonomous worker indisponÃ­vel"})
+                    error_payload = EventPayloadFormatter.format_error(
+                        "Autonomous worker indisponivel",
+                        error_code="SERVICE_UNAVAILABLE",
+                    )
+                    await manager.send_json(client_id, error_payload)
                     continue
 
-                if should_pause:
-                    await worker.pause()
-                else:
-                    await worker.resume()
+                try:
+                    if should_pause:
+                        await worker.pause()
+                    else:
+                        await worker.resume()
 
-                await event_bus.publish(
-                    LoopEvent(
-                        type="autonomous_control_changed",
-                        payload={"paused": bool(getattr(worker, "is_paused", False))},
-                        source="frontend_terminal",
+                    # Publica evento
+                    await event_bus.publish(
+                        LoopEvent(
+                            type="autonomous_control_changed",
+                            payload={
+                                "paused": bool(getattr(worker, "is_paused", False))
+                            },
+                            source="frontend_terminal",
+                        )
                     )
-                )
-                await manager.send_json(
-                    websocket,
-                    {
-                        "type": "autonomous_control_ack",
-                        "paused": bool(getattr(worker, "is_paused", False)),
-                    },
-                )
+
+                    # Confirmacao
+                    ack_payload = EventPayloadFormatter.format_event(
+                        LoopEvent(
+                            type="autonomous_control_ack",
+                            payload={
+                                "paused": bool(getattr(worker, "is_paused", False))
+                            },
+                        )
+                    )
+                    await manager.send_json(client_id, ack_payload)
+                except Exception as exc:
+                    logger.warning(f"[WS] Erro ao controlar worker: {exc}")
+                    error_payload = EventPayloadFormatter.format_error(
+                        f"Erro ao controlar worker: {exc}",
+                        error_code="CONTROL_ERROR",
+                    )
+                    await manager.send_json(client_id, error_payload)
                 continue
 
-            await manager.send_json(websocket, {"type": "error", "message": "Tipo de mensagem nÃ£o suportado"})
+            # Tipo de mensagem nao suportado
+            error_payload = EventPayloadFormatter.format_error(
+                f"Tipo de mensagem nao suportado: {msg_type}",
+                error_code="UNSUPPORTED_MESSAGE",
+            )
+            await manager.send_json(client_id, error_payload)
+
     except WebSocketDisconnect:
-        pass
+        logger.debug(f"[WS] Cliente {client_id} desconectado (WebSocketDisconnect)")
+    except Exception as exc:
+        logger.warning(f"[WS] Erro inesperado para cliente {client_id}: {exc}")
     finally:
+        # Aguarda tarefas em voo
         if in_flight_commands:
+            logger.debug(f"[WS] Aguardando {len(in_flight_commands)} tarefas em voo para {client_id}")
             await asyncio.gather(*in_flight_commands, return_exceptions=True)
-        event_bus.unsubscribe("*", forward_event)
-        await manager.disconnect(websocket)
+
+        # Remove cliente do manager
+        await manager.disconnect(client_id)
+        logger.info(f"[WS] Cliente {client_id} removing completo")
+
 
