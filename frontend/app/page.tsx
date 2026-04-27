@@ -1,11 +1,10 @@
 'use client'
 
-import { useMemo } from 'react'
 import { useQuintaFeiraUI } from '@/hooks/useQuintaFeiraUI'
 import { VoiceOrb } from '@/components/VoiceOrb'
 import { ChatOverlay } from '@/components/ChatOverlay'
 import { ControlDeck } from '@/components/ControlDeck'
-import { AudioPlayer } from '@/components/AudioPlayer'
+import { MediaPlayer } from '@/components/MediaPlayer'
 
 // Label de estado exibido abaixo do orbe
 const STATE_LABEL: Record<string, string> = {
@@ -20,23 +19,18 @@ export default function Page() {
     orbState,
     isChatOpen,
     isMuted,
-    isSpeaking,
     messages,
     isConnected,
     status,
+    activeMedia,
     toggleChat,
     toggleMute,
     endSession,
+    clearMedia,
     sendTextMessage,
     onAudioStart,
     onAudioEnd,
   } = useQuintaFeiraUI()
-
-  // Último áudio da IA para tocar via AudioPlayer
-  const latestAudio = useMemo(() => {
-    const assistantMsgs = messages.filter((m) => m.role === 'assistant' && m.audio)
-    return assistantMsgs.at(-1)?.audio
-  }, [messages])
 
   return (
     <main className="w-screen h-screen overflow-hidden flex items-center justify-center relative select-none deck-bg">
@@ -92,14 +86,6 @@ export default function Page() {
           />
         </div>
 
-        <ControlDeck
-          isMuted={isMuted}
-          isChatOpen={isChatOpen}
-          isConnected={isConnected}
-          connectionStatus={connectionStatus}
-          onToggleMute={toggleMute}
-          onToggleChat={toggleChat}
-        />
       </div>
 
       {/* --- VoiceOrb central --- */}
@@ -143,15 +129,13 @@ export default function Page() {
         onEndSession={endSession}
       />
 
-      {/* --- AudioPlayer oculto (reproduz respostas com áudio) --- */}
-      {latestAudio && (
-        <AudioPlayer
-          audioBase64={latestAudio}
-          autoplay
-          onPlayStart={onAudioStart}
-          onPlayEnd={onAudioEnd}
-        />
-      )}
+      {/* --- MediaPlayer flutuante (YouTube + áudio base64) --- */}
+      <MediaPlayer
+        media={activeMedia}
+        onClose={clearMedia}
+        onPlayStart={onAudioStart}
+        onPlayEnd={onAudioEnd}
+      />
 
       {/* Animações CSS dos blobs (preservadas do design original) */}
       <style>{`

@@ -91,7 +91,7 @@ class ToolResult:
     output: str
     error: str = ""
     duration_ms: float = 0.0
-    timestamp: str = field(default_factory=datetime.now().isoformat)
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
 class MotorTool(ABC):
@@ -211,7 +211,7 @@ class MotorTool(ABC):
             return ToolResult(
                 success=True,
                 output=output,
-                error=None,
+                error="",
                 duration_ms=duration_ms,
             )
         
@@ -346,7 +346,7 @@ class ToolRegistry:
         if aliases:
             for alias in aliases:
                 self._aliases[alias] = tool_name
-                logger.debug(f"  â""â"€ Alias: {alias} â†' {tool_name}")
+                logger.debug(f"  Alias: {alias} -> {tool_name}")
     
     async def execute(self, tool_name: str, **kwargs) -> ToolResult:
         """Executa uma ferramenta com middleware de segurança e proteção total do event loop."""

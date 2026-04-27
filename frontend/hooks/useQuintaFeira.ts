@@ -263,8 +263,8 @@ export function useQuintaFeira({
       };
 
       // ===== ON ERROR =====
-      ws.onerror = (event: Event) => {
-        console.error('[WS] ✗ Erro WebSocket:', event);
+      ws.onerror = () => {
+        console.warn(`[WS] Falha ao conectar em: ${wsUrl} — aguardando reconexão`);
         isConnectingRef.current = false;
         setConnectionStatus('error');
         setError('Erro na conexão WebSocket');

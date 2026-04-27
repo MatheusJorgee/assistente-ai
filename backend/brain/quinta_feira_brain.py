@@ -39,7 +39,6 @@ try:
         Message,
         Response,
         ToolDefinition,
-        FunctionCallingOrchestrator,
     )
     from core.gemini_provider import GeminiAdapter
     from core.memory.sliding_window_context import ConversationMemory, LLMCompressionStrategy
@@ -51,7 +50,6 @@ except ImportError:
         Message,
         Response,
         ToolDefinition,
-        FunctionCallingOrchestrator,
     )
     from core.gemini_provider import GeminiAdapter
     from core.memory.sliding_window_context import ConversationMemory, LLMCompressionStrategy
@@ -224,13 +222,7 @@ class QuintaFeiraBrain:
         # Injetar Tool Registry
         self.tool_registry = tool_registry
         self._automation = None
-        
-        # Orquestrador de Function Calling
-        self.orchestrator = FunctionCallingOrchestrator(
-            llm_provider=self.llm_provider,
-            tool_registry=self.tool_registry
-        )
-        
+
         # Gerenciadores de contexto
         self.message_history = ConversationMemory(
             max_messages=20,
@@ -248,13 +240,13 @@ class QuintaFeiraBrain:
     
     def _build_system_prompt(self) -> str:
         """Constrói system prompt com personalidade da Quinta-Feira."""
-        return """[DIRETRIZ DE SISTEMA CRÃTICA]
+        return """[DIRETRIZ DE SISTEMA CRÍTICA]
 Você TEM UMA FERRAMENTA chamada `memorizar_informacao`.
 É ESTRITAMENTE PROIBIDO responder ao usuário dizendo "Anotei" ou "Guardei"
 sem antes ter efetivamente executado a ferramenta `memorizar_informacao`.
 Se o usuário relatar um fato novo (preferência, dor, evento do dia), PARE,
-chame a ferramenta de memória e SÃ" DEPOIS gere sua resposta em texto.
-[FIM DA DIRETRIZ CRÃTICA]
+chame a ferramenta de memória e SÓ DEPOIS gere sua resposta em texto.
+[FIM DA DIRETRIZ CRÍTICA]
 
 Você é o Sistema Operativo Quinta-Feira, uma IA operacional criada por Matheus.
 
@@ -279,19 +271,19 @@ Uso esperado de memória:
 - Antes de assumir contexto antigo, consulte retrieve_memory/search_memory quando necessário
 
 ============================================================
-DIRETRIZ DE MEMÃ"RIA OBRIGATÃ"RIA (LEIA E CUMPRA SEMPRE):
+DIRETRIZ DE MEMÓRIA OBRIGATÓRIA (LEIA E CUMPRA SEMPRE):
 ============================================================
 Você possui ferramentas de memória (ex: `salvar_memoria_obsidian`, `memory_manager`, `anotar_memoria`).
 TODA VEZ que o usuário compartilhar uma informação nova (um fato sobre si mesmo, um estado
 de humor, um evento do dia, uma preferência ou um plano), VOCÊ DEVE OBRIGATORIAMENTE
 chamar a ferramenta de memória apropriada para registrar esse fato ANTES de responder.
 
-REGRAS CRÃTICAS:
+REGRAS CRÍTICAS:
 - Fatos imutáveis/permanentes (alergias, vínculos, preferências fixas): use `salvar_memoria_obsidian`.
 - Fatos voláteis/do dia (dores, humor, refeições, eventos temporários): use a ferramenta de memória diária/curto prazo.
 - Nunca confie apenas no contexto da conversa. Se o usuário disser "hoje estou com dor", GRAVE.
   Se disser "gosto de azul", GRAVE. Se disser "comi pizza no almoço", GRAVE.
-- GRAVE PRIMEIRO, RESPONDA DEPOIS. NÃO pergunte se pode gravar â€" simplesmente grave.
+- GRAVE PRIMEIRO, RESPONDA DEPOIS. NÃO pergunte se pode gravar — simplesmente grave.
 ============================================================
 
 Regras obrigatórias de execução:
@@ -683,13 +675,21 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
             flags=re.IGNORECASE,
         )
         query = re.sub(r"^(uma\s+)?(música|musica)\s+(de\s+)?", "", query, flags=re.IGNORECASE)
+        # Remove referências de plataforma: "no youtube", "pelo spotify", etc.
+        query = re.sub(
+            r"\b(no|na|pelo?|via)\s+(youtube|spotify|deezer|soundcloud|apple\s+music)\b",
+            "",
+            query,
+            flags=re.IGNORECASE,
+        )
+        # Remove preposições soltas de artista: "do", "da", "de" no final
+        query = re.sub(r"\s+(do|da|de)\s*$", "", query, flags=re.IGNORECASE)
         query = query.strip(" .,!;:-")
         return query or text
     
     def inject_tool_registry(self, tool_registry: Any) -> None:
         """Injeta registry de ferramentas (para adicionar tools depois)."""
         self.tool_registry = tool_registry
-        self.orchestrator.tool_registry = tool_registry
         self.logger.info(f"[BRAIN] Tool Registry injetado ({len(tool_registry.get_all_tools())} tools)")
     
     def clear_history(self) -> None:

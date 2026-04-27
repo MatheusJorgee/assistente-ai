@@ -122,6 +122,11 @@ export interface ChatMessage {
   error?: string;
 }
 
+// ===== ALIASES DE COMPATIBILIDADE =====
+
+export type Message = ChatMessage;
+export type IntermediateStatus = IntermediateStatusPayload;
+
 // ===== ESTADOS =====
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';

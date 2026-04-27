@@ -509,18 +509,17 @@ export function useSpeechRecognition({
     recognition.onerror = (event: SpeechErrorEvent) => {
       // ===== FIX CRÍTICO: Tratar 'aborted' silenciosamente (é transição normal) =====
       if (event.error === 'aborted') {
-        console.warn('[SPEECH ERROR] Erro "aborted" detectado - isto é normal durante transições');
         isTransitioningRef.current = false;
         setIsListening(false);
-        return;  // ← Não dispara som de erro nem callback de erro
+        return;
       }
       
-      const errorMsg = `Erro mic: ${event.error}`;
-      if (event.error !== "no-speech") {
-        setDiagnostic(`❌ ${errorMsg}`);
-        onError?.(event.error);
-        console.error('[SPEECH ERROR]', event.error);
-      }
+      // Erros transitórios — onend reinicia o stream automaticamente
+      if (event.error === 'no-speech' || event.error === 'network') return;
+
+      setDiagnostic(`❌ Erro mic: ${event.error}`);
+      onError?.(event.error);
+      console.error('[SPEECH ERROR]', event.error);
     };
 
     recognition.onend = () => {

@@ -27,6 +27,8 @@ export interface ActiveMedia {
 interface Props {
   media: ActiveMedia | null;
   onClose: () => void;
+  onPlayStart?: () => void;
+  onPlayEnd?: () => void;
 }
 
 function extractYoutubeId(src?: string): string | null {
@@ -37,7 +39,7 @@ function extractYoutubeId(src?: string): string | null {
   return m ? m[1] : null;
 }
 
-export function MediaPlayer({ media, onClose }: Props) {
+export function MediaPlayer({ media, onClose, onPlayStart, onPlayEnd }: Props) {
   const youtubeId = useMemo(() => {
     if (!media) return null;
     if (media.video_id) return media.video_id;
@@ -97,7 +99,7 @@ export function MediaPlayer({ media, onClose }: Props) {
 
       {media.audio_base64 ? (
         <div className='p-3'>
-          <AudioPlayer audioBase64={media.audio_base64} autoplay={media.autoplay !== false} />
+          <AudioPlayer audioBase64={media.audio_base64} autoplay={media.autoplay !== false} onPlayStart={onPlayStart} onPlayEnd={onPlayEnd} />
           <div className='text-[10px] font-mono text-zinc-400'>reproduzindo áudio…</div>
         </div>
       ) : null}

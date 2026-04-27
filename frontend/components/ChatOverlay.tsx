@@ -26,12 +26,12 @@ const panelVariants = {
   hidden: {
     x: '100%',
     opacity: 0,
-    transition: { duration: 0.32, ease: [0.4, 0, 1, 1] },
+    transition: { duration: 0.32, ease: [0.4, 0, 1, 1] as [number, number, number, number] },
   },
   visible: {
     x: 0,
     opacity: 1,
-    transition: { duration: 0.38, ease: [0, 0, 0.2, 1] },
+    transition: { duration: 0.38, ease: [0, 0, 0.2, 1] as [number, number, number, number] },
   },
 }
 

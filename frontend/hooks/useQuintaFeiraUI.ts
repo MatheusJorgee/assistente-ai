@@ -12,6 +12,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useQuintaFeira } from './useQuintaFeira'
 import { useSpeechRecognition } from './useSpeechRecognition'
 import type { Message, ConnectionStatus, OrbState } from '@/types'
+import type { ActiveMedia } from '@/components/MediaPlayer'
 
 export interface UseQuintaFeiraUIReturn {
   orbState: OrbState
@@ -21,9 +22,11 @@ export interface UseQuintaFeiraUIReturn {
   messages: Message[]
   isConnected: boolean
   status: ConnectionStatus
+  activeMedia: ActiveMedia | null
   toggleChat: () => void
   toggleMute: () => void
   endSession: () => void
+  clearMedia: () => void
   sendTextMessage: (text: string) => Promise<void>
   onAudioStart: () => void
   onAudioEnd: () => void
@@ -42,16 +45,8 @@ export function useQuintaFeiraUI(): UseQuintaFeiraUIReturn {
   const speechStopRef = useRef<() => void>(() => {})
 
   // --- Camada WS ---
-  const { isConnected, status, messages, isLoading, sendMessage, disconnect } =
-    useQuintaFeira({
-      onMessage: useCallback((response) => {
-        // Quando o backend envia áudio, sinaliza "speaking" antes do AudioPlayer tocar
-        if (response.audio) {
-          setIsSpeaking(true)
-          setAISpeakingRef.current(true)
-        }
-      }, []),
-    })
+  const { isConnected, connectionStatus, messages, isLoading, sendMessage, disconnect, activeMedia, clearMedia } =
+    useQuintaFeira()
 
   // Manter ref de sendMessage sempre atualizada
   useEffect(() => {
@@ -145,10 +140,12 @@ export function useQuintaFeiraUI(): UseQuintaFeiraUIReturn {
     isSpeaking,
     messages,
     isConnected,
-    status,
+    status: connectionStatus,
+    activeMedia,
     toggleChat,
     toggleMute,
     endSession,
+    clearMedia,
     sendTextMessage: sendMessage,
     onAudioStart,
     onAudioEnd,
