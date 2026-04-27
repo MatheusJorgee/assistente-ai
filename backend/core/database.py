@@ -1,8 +1,8 @@
 ﻿"""
-Database canÃ´nico do Core com SQLite.
+Database canônico do Core com SQLite.
 
-MantÃ©m persistÃªncia local do projeto em backend/.runtime para respeitar
-o princÃ­pio Zero-Trace Host (nada em pastas globais do Windows hospedeiro).
+Mantém persistência local do projeto em backend/.runtime para respeitar
+o princípio Zero-Trace Host (nada em pastas globais do Windows hospedeiro).
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ class Image:
 
 
 class Database:
-    """ServiÃ§o canÃ´nico de banco SQLite do Core."""
+    """Serviço canônico de banco SQLite do Core."""
 
     def __init__(self, db_path: Optional[str] = None) -> None:
         if db_path is None:

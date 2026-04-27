@@ -1,5 +1,5 @@
 ﻿"""
-Worker autÃ´nomo em background para reagir a eventos do Event Bus.
+Worker autônomo em background para reagir a eventos do Event Bus.
 """
 
 from __future__ import annotations
@@ -21,13 +21,13 @@ logger = get_logger(__name__)
 
 class AutonomousWorker:
     """
-    Worker de decisÃµes proativas.
+    Worker de decisões proativas.
 
     Fluxo inicial:
     - assina eventos timer_tick e user_idle
-    - lÃª Ãºltimas linhas de telemetria
+    - lê últimas linhas de telemetria
     - pergunta ao Brain se deve agir
-    - publica evento autonomous_decision quando houver aÃ§Ã£o
+    - publica evento autonomous_decision quando houver ação
     """
 
     def __init__(
@@ -133,10 +133,10 @@ class AutonomousWorker:
                 "[AUTONOMOUS_LOOP_INVISIBLE_PROMPT]\n"
                 f"Evento: {event.type}\n"
                 f"Payload: {event.payload}\n"
-                "Ãšltimos eventos de auditoria do host:\n"
+                "Últimos eventos de auditoria do host:\n"
                 f"{audit_tail}\n\n"
-                "VocÃª deve decidir se existe alguma aÃ§Ã£o proativa segura. "
-                "Se nÃ£o houver aÃ§Ã£o necessÃ¡ria, responda EXATAMENTE: NADA."
+                "Você deve decidir se existe alguma ação proativa segura. "
+                "Se não houver ação necessária, responda EXATAMENTE: NADA."
             )
 
             try:
@@ -151,7 +151,7 @@ class AutonomousWorker:
                 return
 
             if not text or text.upper() == "NADA":
-                logger.info(f"[AUTONOMOUS] Evento '{event.type}' processado sem aÃ§Ã£o proativa")
+                logger.info(f"[AUTONOMOUS] Evento '{event.type}' processado sem ação proativa")
                 return
 
             await self._bus.publish(
@@ -164,7 +164,7 @@ class AutonomousWorker:
                     source="autonomous_worker",
                 )
             )
-            logger.info("[AUTONOMOUS] DecisÃ£o proativa publicada")
+            logger.info("[AUTONOMOUS] Decisão proativa publicada")
 
     def _get_audit_tail(self) -> str:
         if not self._audit_ring:
@@ -173,7 +173,7 @@ class AutonomousWorker:
 
     async def _build_memory_context(self, event: LoopEvent) -> str:
         if not self._memory_manager:
-            return "(memÃ³ria indisponÃ­vel)"
+            return "(memória indisponível)"
 
         try:
             query_tokens = [event.type]
@@ -196,12 +196,12 @@ class AutonomousWorker:
             )
 
             return (
-                "MemÃ³rias semÃ¢nticas recentes:\n"
+                "Memórias semânticas recentes:\n"
                 f"{json.dumps(semantic, ensure_ascii=False)}\n\n"
-                "MemÃ³rias relevantes para o evento atual:\n"
+                "Memórias relevantes para o evento atual:\n"
                 f"{json.dumps(searched, ensure_ascii=False)}"
             )
         except Exception as exc:
-            logger.warning(f"[AUTONOMOUS] Falha ao montar contexto de memÃ³ria: {exc}")
-            return "(erro ao consultar memÃ³ria)"
+            logger.warning(f"[AUTONOMOUS] Falha ao montar contexto de memória: {exc}")
+            return "(erro ao consultar memória)"
 

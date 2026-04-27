@@ -1,5 +1,5 @@
 ﻿"""
-BRAIN/__init__.py - Exports do MÃ³dulo CÃ³rtex
+BRAIN/__init__.py - Exports do Módulo Córtex
 =============================================
 
 Facilita imports simples:

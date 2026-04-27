@@ -52,7 +52,7 @@ logger = get_logger(__name__)
 
 
 class ConnectionManager:
-    """Gerencia mÃºltiplas conexÃµes WebSocket de observabilidade."""
+    """Gerencia múltiplas conexões WebSocket de observabilidade."""
 
     def __init__(self) -> None:
         self._connections: set[WebSocket] = set()
@@ -113,7 +113,7 @@ async def control_autonomous_loop(payload: AutonomousControlRequest, request: Re
     app_state = getattr(request.app, "state", None)
     worker = getattr(app_state, "autonomous_worker", None) if app_state else None
     if not worker:
-        raise HTTPException(status_code=503, detail="Autonomous worker indisponÃ­vel")
+        raise HTTPException(status_code=503, detail="Autonomous worker indisponível")
 
     if payload.paused:
         await worker.pause()

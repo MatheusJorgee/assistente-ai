@@ -1,11 +1,11 @@
 ﻿"""
-PowerShell Executor: execuÃ§Ã£o segura de comandos no Windows PowerShell.
+PowerShell Executor: execução segura de comandos no Windows PowerShell.
 
 Recursos:
 - timeout
 - dry-run
 - captura de stdout/stderr
-- integraÃ§Ã£o com PolicyEngine
+- integração com PolicyEngine
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ MAX_CAPTURE_CHARS = 8000
 
 @dataclass(frozen=True)
 class PowerShellCommand:
-    """Comando PowerShell e metadados de execuÃ§Ã£o."""
+    """Comando PowerShell e metadados de execução."""
 
     script: str
     timeout_seconds: float = 15.0
@@ -42,7 +42,7 @@ class PowerShellCommand:
 
 @dataclass(frozen=True)
 class CommandExecutionResult:
-    """Resultado padronizado da execuÃ§Ã£o de comando."""
+    """Resultado padronizado da execução de comando."""
 
     command: str
     return_code: int
@@ -58,7 +58,7 @@ class CommandExecutionResult:
 
 
 class PowerShellExecutor:
-    """Adapter de execuÃ§Ã£o PowerShell com validaÃ§Ã£o de policy."""
+    """Adapter de execução PowerShell com validação de policy."""
 
     def __init__(self, policy_engine: PolicyEngine) -> None:
         self._policy_engine = policy_engine
@@ -81,7 +81,7 @@ class PowerShellExecutor:
             return CommandExecutionResult(
                 command=command.script,
                 return_code=0,
-                stdout="[DRY-RUN] Comando validado, execuÃ§Ã£o nÃ£o realizada.",
+                stdout="[DRY-RUN] Comando validado, execução não realizada.",
                 stderr="",
                 duration_ms=0,
                 timed_out=False,

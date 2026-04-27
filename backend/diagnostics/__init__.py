@@ -1,7 +1,7 @@
 ﻿"""
-Factory canÃ´nica de ferramentas para Function Calling.
+Factory canônica de ferramentas para Function Calling.
 
-Centraliza criaÃ§Ã£o e registro das tools em um Ãºnico ponto de entrada.
+Centraliza criação e registro das tools em um único ponto de entrada.
 """
 
 try:
@@ -44,14 +44,14 @@ except ImportError:
 
 def inicializar_ferramentas(event_publisher=None) -> ToolRegistry:
     """
-    Factory canÃ´nica que cria e registra ferramentas disponÃ­veis para o cÃ©rebro.
+    Factory canônica que cria e registra ferramentas disponíveis para o cérebro.
     
     Returns:
         ToolRegistry com todas as ferramentas registradas
     """
     registry = ToolRegistry()
     
-    # Registrar ferramentas de alto nÃ­vel
+    # Registrar ferramentas de alto nível
     registry.register(TerminalTool())
     registry.register(MediaTool())
     registry.register(SystemTool())

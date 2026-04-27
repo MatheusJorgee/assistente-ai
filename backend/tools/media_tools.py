@@ -1,5 +1,5 @@
 """
-Ferramentas de MultimÃ­dia: Spotify, YouTube, Musica, Control
+Ferramentas de Multimídia: Spotify, YouTube, Musica, Control
 """
 
 import asyncio
@@ -42,14 +42,14 @@ except ModuleNotFoundError:
 
 class TocarMusicaSpotifyTool(Tool):
     """
-    Ferramenta para tocar mÃºsica no Spotify via API.
+    Ferramenta para tocar música no Spotify via API.
     """
     
     def __init__(self, spotify_client=None):
         super().__init__(
             metadata=ToolMetadata(
                 name="spotify_play",
-                description="Toca mÃºsica no Spotify via API (requer Premium e auth)",
+                description="Toca música no Spotify via API (requer Premium e auth)",
                 version="1.0.0",
                 tags=["media", "spotify", "music"]
             )
@@ -65,10 +65,10 @@ class TocarMusicaSpotifyTool(Tool):
         Toca musica no Spotify.
         
         Args:
-            pesquisa (str): "Artista - MÃºsica" ou termo de busca (alias 1)
+            pesquisa (str): "Artista - Música" ou termo de busca (alias 1)
             query (str): Termo de busca (alias 2 - do Gemini)
             track_query (str): Termo de busca (alias 3)
-            raciocinio (str): Contexto/razÃ£o (opcional)
+            raciocinio (str): Contexto/razão (opcional)
             
         Returns:
             str: Resultado
@@ -99,7 +99,7 @@ class TocarMusicaSpotifyTool(Tool):
             
             tracks = resultados.get('tracks', {}).get('items', [])
             if not tracks:
-                return f"[AVISO] Nenhuma mÃºsica encontrada para: {pesquisa}"
+                return f"[AVISO] Nenhuma música encontrada para: {pesquisa}"
             
             track = tracks[0]
             track_uri = track['uri']
@@ -120,7 +120,7 @@ class TocarMusicaSpotifyTool(Tool):
                     'result': 'SUCESSO'
                 })
             
-            return f"â–¶ Tocando: {artist} - {track_name}"
+            return f"▶ Tocando: {artist} - {track_name}"
             
         except Exception as e:
             return f"[ERRO Spotify] {str(e)}"
@@ -261,7 +261,7 @@ class TocarYoutubeTool(Tool):
 
 class ControlarReproducaoTool(Tool):
     """
-    Ferramenta para controlar reproduÃ§Ã£o: play, pause, skip, volume, loop.
+    Ferramenta para controlar reprodução: play, pause, skip, volume, loop.
     Suporta YouTube (via JavaScript) e Spotify (via API Spotipy).
     """
     
@@ -269,7 +269,7 @@ class ControlarReproducaoTool(Tool):
         super().__init__(
             metadata=ToolMetadata(
                 name="media_control",
-                description="Controla reproduÃ§Ã£o: play, pause, skip, volume, loop/repeat - compatÃ­vel com YouTube e Spotify",
+                description="Controla reprodução: play, pause, skip, volume, loop/repeat - compatível com YouTube e Spotify",
                 version="1.1.0",
                 tags=["media", "control", "youtube", "spotify"]
             )
@@ -281,22 +281,22 @@ class ControlarReproducaoTool(Tool):
     
     async def execute(self, **kwargs) -> str:
         """
-        Controla reproduÃ§Ã£o de mÃ­dia (YouTube ou Spotify).
+        Controla reprodução de mídia (YouTube ou Spotify).
         
         Args:
             acao (str): Comandos suportados:
-                       - 'play' / 'retomar' / 'comeÃ§ar': Inicia reproduÃ§Ã£o
-                       - 'pause' / 'pausar' / 'parar': Pausa reproduÃ§Ã£o
-                       - 'skip' / 'pular' / 'prÃ³xima': PrÃ³xima faixa
-                       - 'loop' / 'repeat' / 'repetir' / 'lupi': Ativa repetiÃ§Ã£o
+                       - 'play' / 'retomar' / 'começar': Inicia reprodução
+                       - 'pause' / 'pausar' / 'parar': Pausa reprodução
+                       - 'skip' / 'pular' / 'próxima': Próxima faixa
+                       - 'loop' / 'repeat' / 'repetir' / 'lupi': Ativa repetição
                        - 'volume' + valor: Ajusta volume (0-100)
-            valor (int): Para volume (0-100) ou outros parÃ¢metros
+            valor (int): Para volume (0-100) ou outros parâmetros
             
         Returns:
-            str: Resultado da aÃ§Ã£o ou mensagem de erro amigÃ¡vel
+            str: Resultado da ação ou mensagem de erro amigável
         """
         if not self.media_controller:
-            return "[ERRO] Media controller nÃ£o configurado"
+            return "[ERRO] Media controller não configurado"
         
         acao = kwargs.get('acao', '').strip().lower()
         valor = kwargs.get('valor', None)
@@ -325,19 +325,19 @@ class AbrirOuPesquisarTool(Tool):
     """
     FERRAMENTA EXCLUSIVA PARA INICIAR SOFTWARE LOCAL.
     
-    Esta ferramenta Ã© APENAS para abrir aplicativos instalados no computador local.
-    NÃƒO USE ESTA FERRAMENTA para responder a perguntas factuais, buscar informaÃ§Ãµes online,
-    consultar notÃ­cias, clima, estado de servidores ou qualquer conhecimento em tempo real.
+    Esta ferramenta é APENAS para abrir aplicativos instalados no computador local.
+    NÃO USE ESTA FERRAMENTA para responder a perguntas factuais, buscar informações online,
+    consultar notícias, clima, estado de servidores ou qualquer conhecimento em tempo real.
     
     Exemplos de uso CORRETO:
     - Abrir navegador, bloco de notas, calculadora
     - Iniciar Steam, Discord, VS Code
-    - Abrir aplicaÃ§Ãµes locais
+    - Abrir aplicações locais
     
-    Exemplos de uso INCORRETO (NÃƒO USE):
-    - "A AWS estÃ¡ instÃ¡vel?" -> Use pesquisar_informacao_online
-    - "Qual Ã© o clima hoje?" -> Use pesquisar_informacao_online
-    - "NotÃ­cias sobre tecnologia" -> Use pesquisar_informacao_online
+    Exemplos de uso INCORRETO (NÃO USE):
+    - "A AWS está instável?" -> Use pesquisar_informacao_online
+    - "Qual é o clima hoje?" -> Use pesquisar_informacao_online
+    - "Notícias sobre tecnologia" -> Use pesquisar_informacao_online
     """
     
     def __init__(self, ui_controller=None, oraculo_engine=None, database=None):
@@ -354,7 +354,7 @@ class AbrirOuPesquisarTool(Tool):
         self.db = database
     
     def validate_input(self, **kwargs) -> bool:
-        # Aceitar variaÃ§Ãµes de nomes: alvo, target, url, query para o alvo
+        # Aceitar variações de nomes: alvo, target, url, query para o alvo
         # acao, action, command para a acao
         tem_alvo = ('alvo' in kwargs) or ('target' in kwargs) or ('url' in kwargs) or ('query' in kwargs)
         tem_acao = ('acao' in kwargs) or ('action' in kwargs) or ('command' in kwargs)
@@ -392,7 +392,7 @@ class AbrirOuPesquisarTool(Tool):
         
         contexto = kwargs.get('contexto', 'web').strip().lower()
         
-        # Usar OrÃ¡culo para desambiguaÃ§Ã£o se necessÃ¡rio
+        # Usar Oráculo para desambiguação se necessário
         if self.oraculo and self.db and contexto != 'web':
             if self._event_bus:
                 self._event_bus.emit('cortex_thinking', {
@@ -436,31 +436,31 @@ class PesquisarInformacaoOnlineTool(Tool):
     """
     FERRAMENTA MANDATÃ"RIA E PRIORITÃRIA PARA PERGUNTAS FACTUAIS EM TEMPO REAL.
     
-    Esta Ã© a ferramenta EXCLUSIVA para responder a perguntas que requerem conhecimento
-    atual ou informaÃ§Ãµes online em tempo real. SEMPRE use esta ferramenta quando o usuÃ¡rio
+    Esta é a ferramenta EXCLUSIVA para responder a perguntas que requerem conhecimento
+    atual ou informações online em tempo real. SEMPRE use esta ferramenta quando o usuário
     perguntar sobre:
     
-    - Estado de serviÃ§os (AWS, Google, etc.)
-    - NotÃ­cias e eventos atuais
-    - Clima e condiÃ§Ãµes meteorolÃ³gicas
-    - PreÃ§os e cotaÃ§Ãµes
+    - Estado de serviços (AWS, Google, etc.)
+    - Notícias e eventos atuais
+    - Clima e condições meteorológicas
+    - Preços e cotações
     - Status de servidores ou sistemas
     - Qualquer fato que possa mudar com o tempo
     
-    NÃƒO USE para abrir navegadores ou iniciar aplicaÃ§Ãµes locais.
+    NÃO USE para abrir navegadores ou iniciar aplicações locais.
     Para abrir apps, use AbrirOuPesquisarTool.
     
     Exemplos:
-    - "A AWS estÃ¡ instÃ¡vel?"
-    - "Qual Ã© o clima em SÃ£o Paulo?"
-    - "NotÃ­cias sobre IA hoje"
+    - "A AWS está instável?"
+    - "Qual é o clima em São Paulo?"
+    - "Notícias sobre IA hoje"
     """
     
     def __init__(self):
         super().__init__(
             metadata=ToolMetadata(
                 name="pesquisar_informacao_online",
-                description="Busca informaÃ§Ãµes factuais em tempo real na web via DuckDuckGo",
+                description="Busca informações factuais em tempo real na web via DuckDuckGo",
                 version="1.0.0",
                 tags=["web", "search", "information", "real-time"]
             )
@@ -472,14 +472,14 @@ class PesquisarInformacaoOnlineTool(Tool):
     async def execute(self, **kwargs) -> str:
         """
         Realiza pesquisa online para perguntas factuais usando DuckDuckGo API + Playwright.
-        Extrai tÃ­tulo, descriÃ§Ã£o e URL de cada resultado de forma robusta.
+        Extrai título, descrição e URL de cada resultado de forma robusta.
         
         Args:
             pergunta (str): A pergunta factual a pesquisar
             query (str): Alias alternativo para pergunta
             
         Returns:
-            str: Resultados da pesquisa formatados ou erro amigÃ¡vel
+            str: Resultados da pesquisa formatados ou erro amigável
         """
         import asyncio
         
@@ -487,7 +487,7 @@ class PesquisarInformacaoOnlineTool(Tool):
         pergunta = kwargs.get('pergunta', '').strip() or kwargs.get('query', '').strip()
         
         if not pergunta:
-            return "[ERRO] Pergunta nÃ£o fornecida"
+            return "[ERRO] Pergunta não fornecida"
         
         print(f">>> [WEB SCALPEL] Extraindo dados da internet para: '{pergunta}'...")
         
@@ -532,12 +532,12 @@ class PesquisarInformacaoOnlineTool(Tool):
                                     titulo = link_elem.text_content()
                                     url_res = link_elem.get_attribute('href')
                                     
-                                    # Extrair descriÃ§Ã£o
+                                    # Extrair descrição
                                     desc_elem = result.query_selector('[data-testid="result-snippet"]')
                                     if not desc_elem:
                                         desc_elem = result.query_selector('.result__snippet')
                                     
-                                    descricao = desc_elem.text_content() if desc_elem else 'DescriÃ§Ã£o indisponÃ­vel'
+                                    descricao = desc_elem.text_content() if desc_elem else 'Descrição indisponível'
                                     
                                     resultados.append({
                                         'titulo': titulo.strip(),
@@ -553,7 +553,7 @@ class PesquisarInformacaoOnlineTool(Tool):
                 return resultados if resultados else None
                 
             except ImportError:
-                print(f">>> [AVISO] Playwright nÃ£o disponÃ­vel, tentando fallback...")
+                print(f">>> [AVISO] Playwright não disponível, tentando fallback...")
                 return None
             except Exception as e:
                 print(f">>> [ERRO Playwright] {str(e)}")
@@ -562,7 +562,7 @@ class PesquisarInformacaoOnlineTool(Tool):
         def _buscar_com_ddg_api():
             """
             Fallback: Usa DuckDuckGo API JSON (sem scraping).
-            Menos dados mas muito mais confiÃ¡vel.
+            Menos dados mas muito mais confiável.
             """
             try:
                 import requests
@@ -581,11 +581,11 @@ class PesquisarInformacaoOnlineTool(Tool):
                 data = response.json()
                 resultados = []
                 
-                # Usar Abstract se disponÃ­vel
+                # Usar Abstract se disponível
                 if data.get('Heading') or data.get('Abstract'):
                     resultados.append({
                         'titulo': data.get('Heading', 'Resultado Principal'),
-                        'descricao': data.get('Abstract', 'Sem descriÃ§Ã£o'),
+                        'descricao': data.get('Abstract', 'Sem descrição'),
                         'url': data.get('AbstractURL', '')
                     })
                 
@@ -609,19 +609,19 @@ class PesquisarInformacaoOnlineTool(Tool):
             # Tentar Playwright primeiro
             resultados = await asyncio.to_thread(_buscar_com_playwright)
             
-            # Se Playwright falhar ou nÃ£o disponÃ­vel, tentar DDG API
+            # Se Playwright falhar ou não disponível, tentar DDG API
             if not resultados:
                 print(f">>> [FALLBACK] Usando DuckDuckGo API...")
                 resultados = await asyncio.to_thread(_buscar_com_ddg_api)
             
-            # ValidaÃ§Ã£o final
+            # Validação final
             if not resultados:
-                return "AVISO: NÃ£o consegui extrair informaÃ§Ãµes neste momento. Tenta novamente ou reformula a pergunta."
+                return "AVISO: Não consegui extrair informações neste momento. Tenta novamente ou reformula a pergunta."
             
             # Construir contexto para o LLM
             contexto_extraido = "RESULTADOS DA PESQUISA ONLINE:\n"
             for i, r in enumerate(resultados, 1):
-                contexto_extraido += f"[{i}] TÃ­tulo: {r['titulo']}\nDescriÃ§Ã£o: {r['descricao']}\nURL: {r['url']}\n\n"
+                contexto_extraido += f"[{i}] Título: {r['titulo']}\nDescrição: {r['descricao']}\nURL: {r['url']}\n\n"
             
             # Emitir evento
             if self._event_bus:
@@ -636,5 +636,5 @@ class PesquisarInformacaoOnlineTool(Tool):
             
         except Exception as e:
             print(f">>> [ERRO WEB SCALPEL] {str(e)}")
-            return "ERRO DE REDE: NÃ£o consegui aceder aos motores de busca. Avisa o Matheus se o problema persistir."
+            return "ERRO DE REDE: Não consegui aceder aos motores de busca. Avisa o Matheus se o problema persistir."
 

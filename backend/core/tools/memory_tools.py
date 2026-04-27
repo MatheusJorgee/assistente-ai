@@ -1,5 +1,5 @@
 ﻿"""
-Tool de memÃ³ria de longo prazo (episÃ³dica e semÃ¢ntica).
+Tool de memória de longo prazo (episódica e semântica).
 """
 
 from __future__ import annotations
@@ -28,22 +28,22 @@ class MemoryTool(MotorTool):
             metadata=ToolMetadata(
                 name="memory_manager",
                 description=(
-                    "Salva, recupera e busca memÃ³rias de longo prazo para evitar amnÃ©sia "
-                    "entre reinicializaÃ§Ãµes do backend."
+                    "Salva, recupera e busca memórias de longo prazo para evitar amnésia "
+                    "entre reinicializações do backend."
                 ),
                 category="memory",
                 parameters=[
                     ToolParameter(
                         name="action",
                         type="string",
-                        description="AÃ§Ã£o: save_memory, retrieve_memory ou search_memory.",
+                        description="Ação: save_memory, retrieve_memory ou search_memory.",
                         required=True,
                         choices=["save_memory", "retrieve_memory", "search_memory"],
                     ),
                     ToolParameter(
                         name="memory_type",
                         type="string",
-                        description="Tipo de memÃ³ria: episodic, semantic ou all.",
+                        description="Tipo de memória: episodic, semantic ou all.",
                         required=False,
                         default="all",
                         choices=["episodic", "semantic", "all"],
@@ -51,15 +51,15 @@ class MemoryTool(MotorTool):
                     ToolParameter(
                         name="content",
                         type="string",
-                        description="ConteÃºdo da memÃ³ria para salvar.",
+                        description="Conteúdo da memória para salvar.",
                         required=False,
                     ),
                     ToolParameter(
                         name="fato",
                         type="string",
                         description=(
-                            "Fato direto a ser gravado no arquivo de memÃ³ria "
-                            "(ex: 'UsuÃ¡rio tem alergia a camarÃ£o'). Use junto com tipo_memoria."
+                            "Fato direto a ser gravado no arquivo de memória "
+                            "(ex: 'Usuário tem alergia a camarão'). Use junto com tipo_memoria."
                         ),
                         required=False,
                     ),
@@ -67,8 +67,8 @@ class MemoryTool(MotorTool):
                         name="tipo_memoria",
                         type="string",
                         description=(
-                            "'permanente' para fatos durÃ¡veis (alergias, nomes, preferÃªncias). "
-                            "'diaria' para fatos temporÃ¡rios (humor, refeiÃ§Ãµes, dores do dia)."
+                            "'permanente' para fatos duráveis (alergias, nomes, preferências). "
+                            "'diaria' para fatos temporários (humor, refeições, dores do dia)."
                         ),
                         required=False,
                         choices=["permanente", "diaria"],
@@ -76,68 +76,68 @@ class MemoryTool(MotorTool):
                     ToolParameter(
                         name="entidade",
                         type="string",
-                        description="Nome da pessoa relacionada. Use 'usuario' para o prÃ³prio usuÃ¡rio.",
+                        description="Nome da pessoa relacionada. Use 'usuario' para o próprio usuário.",
                         required=False,
                         default="usuario",
                     ),
                     ToolParameter(
                         name="query",
                         type="string",
-                        description="Consulta textual para busca de memÃ³ria.",
+                        description="Consulta textual para busca de memória.",
                         required=False,
                     ),
                     ToolParameter(
                         name="key",
                         type="string",
-                        description="Chave semÃ¢ntica opcional para facts persistentes.",
+                        description="Chave semântica opcional para facts persistentes.",
                         required=False,
                     ),
                     ToolParameter(
                         name="category",
                         type="string",
-                        description="Categoria semÃ¢ntica (ex: user, host, workflow).",
+                        description="Categoria semântica (ex: user, host, workflow).",
                         required=False,
                         default="user",
                     ),
                     ToolParameter(
                         name="event_type",
                         type="string",
-                        description="Tipo de evento episÃ³dico.",
+                        description="Tipo de evento episódico.",
                         required=False,
                         default="generic",
                     ),
                     ToolParameter(
                         name="importance",
                         type="float",
-                        description="ImportÃ¢ncia episÃ³dica entre 0.0 e 1.0.",
+                        description="Importância episódica entre 0.0 e 1.0.",
                         required=False,
                         default=0.5,
                     ),
                     ToolParameter(
                         name="confidence",
                         type="float",
-                        description="ConfianÃ§a semÃ¢ntica entre 0.0 e 1.0.",
+                        description="Confiança semântica entre 0.0 e 1.0.",
                         required=False,
                         default=0.85,
                     ),
                     ToolParameter(
                         name="source",
                         type="string",
-                        description="Fonte da memÃ³ria (ex: tool, user, autonomous_worker).",
+                        description="Fonte da memória (ex: tool, user, autonomous_worker).",
                         required=False,
                         default="tool",
                     ),
                     ToolParameter(
                         name="session_id",
                         type="string",
-                        description="SessÃ£o opcional para memÃ³ria episÃ³dica.",
+                        description="Sessão opcional para memória episódica.",
                         required=False,
                         default="",
                     ),
                     ToolParameter(
                         name="tags",
                         type="list",
-                        description="Lista de tags para memÃ³ria episÃ³dica.",
+                        description="Lista de tags para memória episódica.",
                         required=False,
                         default=[],
                     ),
@@ -227,7 +227,7 @@ class MemoryTool(MotorTool):
             )
             return json.dumps(result, ensure_ascii=False)
 
-        return json.dumps({"ok": False, "error": "action invÃ¡lida"}, ensure_ascii=False)
+        return json.dumps({"ok": False, "error": "action inválida"}, ensure_ascii=False)
 
 
 VAULT_PATH = "./.vault/Memorias"

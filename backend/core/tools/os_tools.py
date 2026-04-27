@@ -1,10 +1,10 @@
 ﻿"""
-OS Tools (v2): thin tools que conectam o cÃ©rebro aos adapters de host.
+OS Tools (v2): thin tools que conectam o cérebro aos adapters de host.
 
-Estas ferramentas foram desenhadas para function calling semÃ¢ntico:
-- descriÃ§Ãµes claras para o LLM decidir quando usar
-- parÃ¢metros explÃ­citos e previsÃ­veis
-- retorno amigÃ¡vel em caso de bloqueio por policy
+Estas ferramentas foram desenhadas para function calling semântico:
+- descrições claras para o LLM decidir quando usar
+- parâmetros explícitos e previsíveis
+- retorno amigável em caso de bloqueio por policy
 """
 
 from __future__ import annotations
@@ -45,15 +45,15 @@ logger = get_logger(__name__)
 
 class OSCommandTool(MotorTool):
     """
-    Executa comandos PowerShell no host Windows com seguranÃ§a e auditoria.
+    Executa comandos PowerShell no host Windows com segurança e auditoria.
 
     Quando usar:
     - consultar estado do sistema via cmdlets (ex: Get-Process, Get-Service)
-    - operaÃ§Ãµes administrativas permitidas pela policy
+    - operações administrativas permitidas pela policy
 
-    Quando NÃƒO usar:
-    - aÃ§Ãµes destrutivas, shutdown/restart, deleÃ§Ã£o recursiva forÃ§ada
-    - comandos fora da polÃ­tica vigente
+    Quando NÃO usar:
+    - ações destrutivas, shutdown/restart, deleção recursiva forçada
+    - comandos fora da política vigente
     """
 
     def __init__(self, executor: PowerShellExecutor, telemetry: Optional[ToolCallTelemetry] = None):
@@ -64,8 +64,8 @@ class OSCommandTool(MotorTool):
                 name="v2_os_command",
                 description=(
                     "Executa script PowerShell no host Windows com controle de timeout, "
-                    "modo de simulaÃ§Ã£o (dry-run) e enforcement de polÃ­ticas de seguranÃ§a. "
-                    "Retorna stdout e stderr de forma segura para tomada de decisÃ£o do agente."
+                    "modo de simulação (dry-run) e enforcement de políticas de segurança. "
+                    "Retorna stdout e stderr de forma segura para tomada de decisão do agente."
                 ),
                 category="os",
                 parameters=[
@@ -73,7 +73,7 @@ class OSCommandTool(MotorTool):
                         name="script",
                         type="string",
                         description=(
-                            "Script PowerShell a executar. Use comandos explÃ­citos e curtos, "
+                            "Script PowerShell a executar. Use comandos explícitos e curtos, "
                             "por exemplo: Get-Process | Select-Object -First 5"
                         ),
                         required=True,
@@ -81,7 +81,7 @@ class OSCommandTool(MotorTool):
                     ToolParameter(
                         name="timeout_seconds",
                         type="int",
-                        description="Tempo limite em segundos para execuÃ§Ã£o do comando.",
+                        description="Tempo limite em segundos para execução do comando.",
                         required=False,
                         default=15,
                     ),
@@ -132,7 +132,7 @@ class OSCommandTool(MotorTool):
                 duration_ms=_duration_ms(started),
                 message=str(e),
             )
-            return f"[POLICY_BLOCKED] AÃ§Ã£o bloqueada pela polÃ­tica de seguranÃ§a: {e}"
+            return f"[POLICY_BLOCKED] Ação bloqueada pela política de segurança: {e}"
         except Exception as e:
             self._emit_telemetry(
                 kwargs=kwargs,
@@ -157,7 +157,7 @@ class OSCommandTool(MotorTool):
             decision="ALLOW",
             success=result.success,
             duration_ms=result.duration_ms,
-            message="OK" if result.success else "ExecuÃ§Ã£o com falha",
+            message="OK" if result.success else "Execução com falha",
         )
         return str(payload)
 
@@ -186,13 +186,13 @@ class ProcessControlTool(MotorTool):
     """
     Controla e inspeciona processos do host via ProcessAdapter.
 
-    AÃ§Ãµes disponÃ­veis:
-    - list: lista processos (opcionalmente ordenando por memÃ³ria)
+    Ações disponíveis:
+    - list: lista processos (opcionalmente ordenando por memória)
     - start: inicia um processo
     - stop: finaliza processo por PID
 
-    ObservaÃ§Ã£o para o LLM:
-    - Para diagnÃ³stico de consumo de RAM, use action='list' com sort_by='memory'.
+    Observação para o LLM:
+    - Para diagnóstico de consumo de RAM, use action='list' com sort_by='memory'.
     """
 
     def __init__(
@@ -209,7 +209,7 @@ class ProcessControlTool(MotorTool):
                 name="v2_process_control",
                 description=(
                     "Lista, inicia e finaliza processos no host de forma segura. "
-                    "Ideal para diagnÃ³stico de consumo de memÃ³ria/CPU e orquestraÃ§Ã£o "
+                    "Ideal para diagnóstico de consumo de memória/CPU e orquestração "
                     "de processos auxiliares do agente."
                 ),
                 category="os",
@@ -217,21 +217,21 @@ class ProcessControlTool(MotorTool):
                     ToolParameter(
                         name="action",
                         type="string",
-                        description="AÃ§Ã£o desejada: list, start ou stop.",
+                        description="Ação desejada: list, start ou stop.",
                         required=True,
                         choices=["list", "start", "stop"],
                     ),
                     ToolParameter(
                         name="limit",
                         type="int",
-                        description="Quantidade mÃ¡xima de processos no resultado de list.",
+                        description="Quantidade máxima de processos no resultado de list.",
                         required=False,
                         default=20,
                     ),
                     ToolParameter(
                         name="sort_by",
                         type="string",
-                        description="CritÃ©rio de ordenaÃ§Ã£o para list: memory ou name.",
+                        description="Critério de ordenação para list: memory ou name.",
                         required=False,
                         default="memory",
                         choices=["memory", "name"],
@@ -239,7 +239,7 @@ class ProcessControlTool(MotorTool):
                     ToolParameter(
                         name="executable",
                         type="string",
-                        description="ExecutÃ¡vel para action=start (ex: notepad.exe).",
+                        description="Executável para action=start (ex: notepad.exe).",
                         required=False,
                     ),
                     ToolParameter(
@@ -258,7 +258,7 @@ class ProcessControlTool(MotorTool):
                     ToolParameter(
                         name="force",
                         type="bool",
-                        description="Se true, encerra processo com forÃ§a em action=stop.",
+                        description="Se true, encerra processo com força em action=stop.",
                         required=False,
                         default=True,
                     ),
@@ -303,11 +303,11 @@ class ProcessControlTool(MotorTool):
                 result = self._execute_stop(kwargs, context)
                 self._emit_telemetry(kwargs=kwargs, decision="ALLOW", success=True, duration_ms=_duration_ms(started), message="OK")
                 return result
-            self._emit_telemetry(kwargs=kwargs, decision="ALLOW", success=False, duration_ms=_duration_ms(started), message="action invÃ¡lida")
-            return "[TOOL_ERROR] action invÃ¡lida. Use list, start ou stop."
+            self._emit_telemetry(kwargs=kwargs, decision="ALLOW", success=False, duration_ms=_duration_ms(started), message="action inválida")
+            return "[TOOL_ERROR] action inválida. Use list, start ou stop."
         except PermissionError as e:
             self._emit_telemetry(kwargs=kwargs, decision="DENY", success=False, duration_ms=_duration_ms(started), message=str(e))
-            return f"[POLICY_BLOCKED] AÃ§Ã£o de processo bloqueada pela polÃ­tica: {e}"
+            return f"[POLICY_BLOCKED] Ação de processo bloqueada pela política: {e}"
         except Exception as e:
             self._emit_telemetry(kwargs=kwargs, decision="ALLOW", success=False, duration_ms=_duration_ms(started), message=f"{type(e).__name__}: {e}")
             return f"[TOOL_ERROR] Falha em process control: {type(e).__name__}: {e}"

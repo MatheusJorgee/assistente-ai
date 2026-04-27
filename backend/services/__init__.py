@@ -1,5 +1,5 @@
 ﻿"""
-Services - ExposiÃ§Ã£o de database, voz e outras dependÃªncias.
+Services - Exposição de database, voz e outras dependências.
 """
 
 try:

@@ -1,13 +1,13 @@
 ﻿"""
-Config.py: CentralizaÃ§Ã£o de VariÃ¡veis de Ambiente e ConfiguraÃ§Ãµes
+Config.py: Centralização de Variáveis de Ambiente e Configurações
 ============================================================
 
-PadrÃ£o: Singleton + Factory
+Padrão: Singleton + Factory
 
 Responsabilidade:
 - Carregar .env com fallback para path absoluto
-- Fornecer interface Ãºnica e type-safe para todas as configs
-- Validar secrets obrigatÃ³rios na inicializaÃ§Ã£o
+- Fornecer interface única e type-safe para todas as configs
+- Validar secrets obrigatórios na inicialização
 
 Uso:
     from .config import Config
@@ -23,13 +23,13 @@ from dotenv import load_dotenv
 
 class Config:
     """
-    ConfiguraÃ§Ã£o centralizada do sistema (Singleton Pattern).
+    Configuração centralizada do sistema (Singleton Pattern).
     
-    Carrega .env com estratÃ©gia de fallback:
-    1. Procura .env no diretÃ³rio do arquivo (backend/)
+    Carrega .env com estratégia de fallback:
+    1. Procura .env no diretório do arquivo (backend/)
     2. Procura em ../
     3. Procura em ../../
-    4. Carrega de variÃ¡veis de ambiente do sistema
+    4. Carrega de variáveis de ambiente do sistema
     
     Isso garante que funcione:
     - python backend/main.py (cwd = root)
@@ -56,10 +56,10 @@ class Config:
     
     def _load_env(self) -> None:
         """Carrega .env com fallback para path absoluto."""
-        # EstratÃ©gia: comeÃ§ar do __file__ (backend/core/config.py)
+        # Estratégia: começar do __file__ (backend/core/config.py)
         current = Path(__file__).parent.parent  # backend/
         
-        # Tentar 3 nÃ­veis acima
+        # Tentar 3 níveis acima
         for _ in range(3):
             env_path = current / ".env"
             if env_path.exists():
@@ -68,7 +68,7 @@ class Config:
             current = current.parent
     
     def _initialize_values(self) -> None:
-        """Inicializa atributos de configuraÃ§Ã£o."""
+        """Inicializa atributos de configuração."""
         # ===== LLM =====
         self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
         self.GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -87,12 +87,12 @@ class Config:
         # ===== YOUTUBE =====
         self.YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
         
-        # ===== SEGURANÃ‡A / TERMINAL =====
+        # ===== SEGURANÇA / TERMINAL =====
         self.SECURITY_PROFILE = os.getenv("SECURITY_PROFILE", "trusted-local")  # trusted-local | strict
         self.ALLOW_TERMINAL_COMMANDS = os.getenv("ALLOW_TERMINAL_COMMANDS", "true").lower() == "true"
         self.TERMINAL_TIMEOUT_SECONDS = int(os.getenv("TERMINAL_TIMEOUT_SECONDS", "30"))
         
-        # ===== VISÃƒO / CAPTURA DE TELA =====
+        # ===== VISÃO / CAPTURA DE TELA =====
         self.VISION_ENABLED = os.getenv("VISION_ENABLED", "true").lower() == "true"
         self.VISION_COMPRESSION_QUALITY = int(os.getenv("VISION_COMPRESSION_QUALITY", "70"))
         self.VISION_MAX_DIMENSION = int(os.getenv("VISION_MAX_DIMENSION", "1280"))
@@ -114,7 +114,7 @@ class Config:
         self.TEMP_DIR = os.getenv("TEMP_DIR", "backend/temp_vision")
     
     def _validate_required(self) -> None:
-        """Valida que secrets obrigatÃ³rios estÃ£o presentes."""
+        """Valida que secrets obrigatórios estão presentes."""
         required = {
             "GEMINI_API_KEY": self.GEMINI_API_KEY,
         }
@@ -123,12 +123,12 @@ class Config:
         
         if missing:
             raise EnvironmentError(
-                f"VariÃ¡veis de ambiente obrigatÃ³rias ausentes: {', '.join(missing)}\n"
-                f"Confirme que .env estÃ¡ carregado corretamente."
+                f"Variáveis de ambiente obrigatórias ausentes: {', '.join(missing)}\n"
+                f"Confirme que .env está carregado corretamente."
             )
     
     def to_dict(self) -> dict:
-        """Exporta configuraÃ§Ã£o como dicionÃ¡rio (Ãºtil para logging seguro)."""
+        """Exporta configuração como dicionário (útil para logging seguro)."""
         return {
             "GEMINI_MODEL": self.GEMINI_MODEL,
             "SECURITY_PROFILE": self.SECURITY_PROFILE,
@@ -143,6 +143,6 @@ class Config:
 
 # Factory function (preferido para imports simples)
 def get_config() -> Config:
-    """Retorna instÃ¢ncia singleton de Config."""
+    """Retorna instância singleton de Config."""
     return Config()
 

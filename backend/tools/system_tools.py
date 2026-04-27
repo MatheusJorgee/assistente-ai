@@ -41,13 +41,13 @@ class SystemPowerControlTool(Tool):
         
         Args:
             acao (str): 'shutdown' (desligar), 'restart' (reiniciar), 'sleep' (suspender)
-            delay (int): Segundos para aguardar antes de executar (opcional, padrÃ£o: 10)
+            delay (int): Segundos para aguardar antes de executar (opcional, padrão: 10)
             
         Returns:
-            str: Resultado da aÃ§Ã£o
+            str: Resultado da ação
         """
         if not self.power_controller:
-            # Fallback: usar funÃ§Ã£o nativa se nÃ£o houver controller externo
+            # Fallback: usar função nativa se não houver controller externo
             return await self._executar_nativo(**kwargs)
         
         try:
@@ -75,7 +75,7 @@ class SystemPowerControlTool(Tool):
         acao = kwargs.get('acao', 'shutdown').strip().lower()
         delay = kwargs.get('delay', 10)
         
-        # Normalizar aÃ§Ã£o
+        # Normalizar ação
         if acao in ['desligar', 'shutdown']:
             acao_normalizada = 'shutdown'
         elif acao in ['reiniciar', 'restart']:
@@ -83,7 +83,7 @@ class SystemPowerControlTool(Tool):
         elif acao in ['dormir', 'suspender', 'sleep']:
             acao_normalizada = 'sleep'
         else:
-            return f"AÃ§Ã£o desconhecida: {acao}. Use: shutdown, restart, ou sleep."
+            return f"Ação desconhecida: {acao}. Use: shutdown, restart, ou sleep."
         
         try:
             # Detectar SO
@@ -92,24 +92,24 @@ class SystemPowerControlTool(Tool):
             if sistema == 'nt':  # Windows
                 if acao_normalizada == 'shutdown':
                     cmd = f'shutdown /s /t {delay}'
-                    msg = f"Computador serÃ¡ desligado em {delay} segundos."
+                    msg = f"Computador será desligado em {delay} segundos."
                 elif acao_normalizada == 'restart':
                     cmd = f'shutdown /r /t {delay}'
-                    msg = f"Computador serÃ¡ reiniciado em {delay} segundos."
+                    msg = f"Computador será reiniciado em {delay} segundos."
                 else:  # sleep
                     cmd = 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0'
-                    msg = "Computador entrando em modo de suspensÃ£o."
+                    msg = "Computador entrando em modo de suspensão."
             
             else:  # Linux/Mac
                 if acao_normalizada == 'shutdown':
                     cmd = f'shutdown -h +{delay // 60}'
-                    msg = f"Computador serÃ¡ desligado em {delay} segundos."
+                    msg = f"Computador será desligado em {delay} segundos."
                 elif acao_normalizada == 'restart':
                     cmd = f'shutdown -r +{delay // 60}'
-                    msg = f"Computador serÃ¡ reiniciado em {delay} segundos."
+                    msg = f"Computador será reiniciado em {delay} segundos."
                 else:  # sleep
                     cmd = 'systemctl suspend'
-                    msg = "Computador entrando em modo de suspensÃ£o."
+                    msg = "Computador entrando em modo de suspensão."
             
             # Executar comando
             await asyncio.to_thread(

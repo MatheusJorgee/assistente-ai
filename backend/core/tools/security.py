@@ -1,8 +1,8 @@
 ﻿"""
-Terminal Security Validator - ValidaÃ§Ã£o de comandos antes de executar.
+Terminal Security Validator - Validação de comandos antes de executar.
 
-SeguranÃ§a em mÃºltiplas camadas:
-1. Bloqueio de padrÃµes perigosos (regex)
+Segurança em múltiplas camadas:
+1. Bloqueio de padrões perigosos (regex)
 2. Whitelist de comandos permitidos
 3. Logging de tentativas suspeitas
 """
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 class SecurityAction(Enum):
-    """Action apÃ³s anÃ¡lise de seguranÃ§a."""
+    """Action após análise de segurança."""
     ALLOW = "allow"
     DENY = "deny"
     PROMPT = "prompt"
@@ -29,7 +29,7 @@ class SecurityAction(Enum):
 
 @dataclass
 class SecurityCheckResult:
-    """Resultado de uma verificaÃ§Ã£o de seguranÃ§a."""
+    """Resultado de uma verificação de segurança."""
     allowed: bool
     action: SecurityAction
     reason: str
@@ -38,14 +38,14 @@ class SecurityCheckResult:
 
 class TerminalSecurityValidator:
     """
-    Validador de seguranÃ§a para comandos terminais.
+    Validador de segurança para comandos terminais.
     
-    EstratÃ©gia: Lista negra de padrÃµes perigosos + Lista branca de permitidos.
+    Estratégia: Lista negra de padrões perigosos + Lista branca de permitidos.
     """
     
-    # PadrÃµes CRÃTICOS - absolutamente bloqueados
+    # Padrões CRÃTICOS - absolutamente bloqueados
     CRITICAL_PATTERNS = [
-        # DestruiÃ§Ã£o de dados
+        # Destruição de dados
         r"(?i)^del\s+/s\s+/f",          # del /s /f C:\
         r"(?i)^rm\s+-rf\s+/",           # rm -rf /
         r"(?i)format\s+\w:",            # format C:
@@ -56,12 +56,12 @@ class TerminalSecurityValidator:
         r"(?i)\|.*shutdown",
         r"(?i)\|.*restart",
         
-        # EscalaÃ§Ã£o de privilÃ©gio
+        # Escalação de privilégio
         r"(?i)runas",
         r"(?i)psexec",
         r"(?i)sudo\s+",
         
-        # AlteraÃ§Ã£o de registros perigosos
+        # Alteração de registros perigosos
         r"(?i)reg\s+add.*\bdisable",
         r"(?i)reg\s+add.*\bfirewall",
         
@@ -74,21 +74,21 @@ class TerminalSecurityValidator:
         r"(?i)wevtutil\s+clear",
     ]
     
-    # PadrÃµes MÃ‰DIOS - requerem confirmaÃ§Ã£o
+    # Padrões MÉDIOS - requerem confirmação
     MEDIUM_PATTERNS = [
-        # OperaÃ§Ãµes em lote
+        # Operações em lote
         r"(?i)del\s+/s",
         r"(?i)rmdir\s+/s",
         
-        # AlteraÃ§Ã£o de permissÃµes
+        # Alteração de permissões
         r"(?i)icacls",
         r"(?i)chmod\s+777",
         
-        # InstalaÃ§Ã£o de serviÃ§os
+        # Instalação de serviços
         r"(?i)sc\s+create",
         r"(?i)sc\s+start",
         
-        # ModificaÃ§Ã£o de firewall
+        # Modificação de firewall
         r"(?i)netsh\s+advfirewall",
         
         # Network operations perigosas
@@ -118,7 +118,7 @@ class TerminalSecurityValidator:
         Inicializa validador.
         
         Args:
-            mode: "strict" (produÃ§Ã£o) ou "trusted-local" (dev)
+            mode: "strict" (produção) ou "trusted-local" (dev)
         """
         self.mode = mode
         self._violation_count = {}
@@ -127,7 +127,7 @@ class TerminalSecurityValidator:
         """
         Valida um comando antes de executar.
         
-        Retorna SecurityCheckResult com decisÃ£o e motivo.
+        Retorna SecurityCheckResult com decisão e motivo.
         """
         command = command.strip()
         
@@ -139,7 +139,7 @@ class TerminalSecurityValidator:
                 risk_level="low"
             )
         
-        # 1. Verificar whitelist (permissÃ£o rÃ¡pida)
+        # 1. Verificar whitelist (permissão rápida)
         for pattern in self.WHITELIST:
             if re.match(pattern, command):
                 logger.debug(f"[SECURITY] âœ" Whitelist: {command[:50]}")
@@ -150,10 +150,10 @@ class TerminalSecurityValidator:
                     risk_level="low"
                 )
         
-        # 2. Verificar padrÃµes CRÃTICOS
+        # 2. Verificar padrões CRÃTICOS
         for pattern in self.CRITICAL_PATTERNS:
             if re.search(pattern, command):
-                risk_reason = f"PadrÃ£o crÃ­tico detectado: {pattern}"
+                risk_reason = f"Padrão crítico detectado: {pattern}"
                 logger.warning(f"[SECURITY] âŒ CRÃTICO: {command[:50]} | {risk_reason}")
                 self._increment_violation(command)
                 
@@ -164,12 +164,12 @@ class TerminalSecurityValidator:
                     risk_level="critical"
                 )
         
-        # 3. Verificar padrÃµes MÃ‰DIOS
+        # 3. Verificar padrões MÉDIOS
         for pattern in self.MEDIUM_PATTERNS:
             if re.search(pattern, command):
                 if self.mode == "strict":
-                    reason = f"PadrÃ£o mÃ©dio detectado (strict mode): {pattern}"
-                    logger.warning(f"[SECURITY] âš ï¸  MÃ‰DIO (bloqueado): {command[:50]}")
+                    reason = f"Padrão médio detectado (strict mode): {pattern}"
+                    logger.warning(f"[SECURITY] ⚠ï¸  MÉDIO (bloqueado): {command[:50]}")
                     self._increment_violation(command)
                     
                     return SecurityCheckResult(
@@ -179,36 +179,36 @@ class TerminalSecurityValidator:
                         risk_level="medium"
                     )
                 else:
-                    reason = f"PadrÃ£o mÃ©dio detectado (requer confirmaÃ§Ã£o): {pattern}"
-                    logger.warning(f"[SECURITY] âš ï¸  MÃ‰DIO (prompt): {command[:50]}")
+                    reason = f"Padrão médio detectado (requer confirmação): {pattern}"
+                    logger.warning(f"[SECURITY] ⚠ï¸  MÉDIO (prompt): {command[:50]}")
                     
                     return SecurityCheckResult(
-                        allowed=True,  # Ã‰ permitido, mas com prompt
+                        allowed=True,  # É permitido, mas com prompt
                         action=SecurityAction.PROMPT,
                         reason=reason,
                         risk_level="medium"
                     )
         
-        # 4. Se passou em todas as verificaÃ§Ãµes
+        # 4. Se passou em todas as verificações
         logger.debug(f"[SECURITY] âœ" Comando ok: {command[:50]}")
         return SecurityCheckResult(
             allowed=True,
             action=SecurityAction.ALLOW,
-            reason="Comando passou em todas as verificaÃ§Ãµes",
+            reason="Comando passou em todas as verificações",
             risk_level="low"
         )
     
     def _increment_violation(self, command: str) -> None:
-        """Incrementa contador de violaÃ§Ãµes para rate-limiting."""
+        """Incrementa contador de violações para rate-limiting."""
         prefix = command.split()[0] if command else "unknown"
         self._violation_count[prefix] = self._violation_count.get(prefix, 0) + 1
     
     def get_violation_stats(self) -> Dict[str, int]:
-        """Retorna estatÃ­sticas de violaÃ§Ãµes detectadas."""
+        """Retorna estatísticas de violações detectadas."""
         return self._violation_count.copy()
     
     def reset_violations(self) -> None:
-        """Reseta contador de violaÃ§Ãµes."""
+        """Reseta contador de violações."""
         self._violation_count.clear()
 
 
@@ -216,7 +216,7 @@ class TerminalSecurityValidator:
 _validator = None
 
 def get_security_validator(mode: str = "strict") -> TerminalSecurityValidator:
-    """Factory para obter validador de seguranÃ§a."""
+    """Factory para obter validador de segurança."""
     global _validator
     if _validator is None:
         _validator = TerminalSecurityValidator(mode=mode)

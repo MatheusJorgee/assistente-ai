@@ -1,5 +1,5 @@
 ﻿"""
-System Tool - InformaÃ§Ãµes e controle do sistema (processos, serviÃ§os, arquivos).
+System Tool - Informações e controle do sistema (processos, serviços, arquivos).
 """
 
 import asyncio
@@ -24,20 +24,20 @@ class SystemTool(MotorTool):
         super().__init__(
             metadata=ToolMetadata(
                 name="sistema",
-                description="Consulta informaÃ§Ãµes do sistema (processos, serviÃ§os, arquivos)",
+                description="Consulta informações do sistema (processos, serviços, arquivos)",
                 category="system",
                 parameters=[
                     ToolParameter(
                         name="acao",
                         type="string",
-                        description="AÃ§Ã£o: listar_processos, listar_servicos, info_arquivo, listar_arquivos",
+                        description="Ação: listar_processos, listar_servicos, info_arquivo, listar_arquivos",
                         required=True,
                         choices=["listar_processos", "listar_servicos", "info_arquivo", "listar_arquivos", "info_sistema"]
                     ),
                     ToolParameter(
                         name="filtro",
                         type="string",
-                        description="Filtro opcional (nome de processo, serviÃ§o ou caminho)",
+                        description="Filtro opcional (nome de processo, serviço ou caminho)",
                         required=False,
                         default=None
                     ),
@@ -56,12 +56,12 @@ class SystemTool(MotorTool):
                     "acao=info_sistema"
                 ],
                 security_level=SecurityLevel.LOW,
-                tags=["system", "processo", "informaÃ§Ã£o"]
+                tags=["system", "processo", "informação"]
             )
         )
     
     def validate_input(self, **kwargs) -> bool:
-        """Valida se aÃ§Ã£o foi fornecida."""
+        """Valida se ação foi fornecida."""
         acao = kwargs.get("acao", "").lower()
         valid_acoes = [
             "listar_processos", "listar_servicos", "info_arquivo",
@@ -70,7 +70,7 @@ class SystemTool(MotorTool):
         return acao in valid_acoes
     
     async def execute(self, **kwargs) -> str:
-        """Executa aÃ§Ã£o do sistema."""
+        """Executa ação do sistema."""
         acao = kwargs.get("acao", "").lower()
         filtro = kwargs.get("filtro", None)
         caminho = kwargs.get("caminho", None)
@@ -82,7 +82,7 @@ class SystemTool(MotorTool):
                 return await self._listar_servicos(filtro)
             elif acao == "info_arquivo":
                 if not caminho:
-                    raise ValueError("caminho Ã© obrigatÃ³rio para info_arquivo")
+                    raise ValueError("caminho é obrigatório para info_arquivo")
                 return await self._info_arquivo(caminho)
             elif acao == "listar_arquivos":
                 if not caminho:
@@ -91,20 +91,20 @@ class SystemTool(MotorTool):
             elif acao == "info_sistema":
                 return await self._info_sistema()
             else:
-                raise ValueError(f"AÃ§Ã£o desconhecida: {acao}")
+                raise ValueError(f"Ação desconhecida: {acao}")
         
         except Exception as e:
-            raise RuntimeError(f"Erro ao executar aÃ§Ã£o de sistema: {str(e)}")
+            raise RuntimeError(f"Erro ao executar ação de sistema: {str(e)}")
     
     async def _listar_processos(self, filtro: Optional[str] = None) -> str:
-        """Lista processos em execuÃ§Ã£o."""
+        """Lista processos em execução."""
         try:
             if sys.platform == "win32":
                 cmd = "Get-Process | Select-Object Name, Id, PrivateMemorySize | ConvertTo-Json"
             else:
                 cmd = "ps aux"
             
-            # SimulaÃ§Ã£o para teste (nÃ£o executar de verdade)
+            # Simulação para teste (não executar de verdade)
             logger.info(f"[SYSTEM] Listando processos (filtro: {filtro})")
             
             # Mock data
@@ -117,38 +117,38 @@ class SystemTool(MotorTool):
             raise RuntimeError(f"Erro ao listar processos: {str(e)}")
     
     async def _listar_servicos(self, filtro: Optional[str] = None) -> str:
-        """Lista serviÃ§os do sistema."""
+        """Lista serviços do sistema."""
         try:
             if sys.platform == "win32":
                 cmd = "Get-Service | Select-Object Name, Status | ConvertTo-Json"
             else:
                 cmd = "systemctl list-units --type=service"
             
-            logger.info(f"[SYSTEM] Listando serviÃ§os (filtro: {filtro})")
+            logger.info(f"[SYSTEM] Listando serviços (filtro: {filtro})")
             
             if filtro:
-                return f"âœ" ServiÃ§os contendo '{filtro}':\n  - {filtro}Service (Running)"
+                return f"âœ" Serviços contendo '{filtro}':\n  - {filtro}Service (Running)"
             else:
-                return "âœ" Alguns serviÃ§os:\n  - wuauserv (Running)\n  - WinDefend (Running)\n  - AudioSrv (Running)"
+                return "âœ" Alguns serviços:\n  - wuauserv (Running)\n  - WinDefend (Running)\n  - AudioSrv (Running)"
         
         except Exception as e:
-            raise RuntimeError(f"Erro ao listar serviÃ§os: {str(e)}")
+            raise RuntimeError(f"Erro ao listar serviços: {str(e)}")
     
     async def _info_arquivo(self, caminho: str) -> str:
-        """ObtÃ©m informaÃ§Ãµes de arquivo."""
+        """Obtém informações de arquivo."""
         try:
             import os
             from pathlib import Path
             
-            logger.info(f"[SYSTEM] InformaÃ§Ãµes de arquivo: {caminho}")
+            logger.info(f"[SYSTEM] Informações de arquivo: {caminho}")
             
             path = Path(caminho)
             if not path.exists():
-                raise ValueError(f"Caminho nÃ£o encontrado: {caminho}")
+                raise ValueError(f"Caminho não encontrado: {caminho}")
             
             info = {
                 "caminho": str(path.absolute()),
-                "tipo": "diretÃ³rio" if path.is_dir() else "arquivo",
+                "tipo": "diretório" if path.is_dir() else "arquivo",
                 "tamanho_bytes": path.stat().st_size if path.is_file() else "N/A",
                 "modificado": str(path.stat().st_mtime)
             }
@@ -156,10 +156,10 @@ class SystemTool(MotorTool):
             return json.dumps(info, indent=2, ensure_ascii=False)
         
         except Exception as e:
-            raise RuntimeError(f"Erro ao obter informaÃ§Ãµes: {str(e)}")
+            raise RuntimeError(f"Erro ao obter informações: {str(e)}")
     
     async def _listar_arquivos(self, caminho: str = ".") -> str:
-        """Lista arquivos em diretÃ³rio."""
+        """Lista arquivos em diretório."""
         try:
             from pathlib import Path
             
@@ -167,7 +167,7 @@ class SystemTool(MotorTool):
             
             path = Path(caminho)
             if not path.is_dir():
-                raise ValueError(f"NÃ£o Ã© um diretÃ³rio: {caminho}")
+                raise ValueError(f"Não é um diretório: {caminho}")
             
             files = []
             for item in list(path.iterdir())[:10]:  # Limitar a 10 arquivos
@@ -183,11 +183,11 @@ class SystemTool(MotorTool):
             raise RuntimeError(f"Erro ao listar arquivos: {str(e)}")
     
     async def _info_sistema(self) -> str:
-        """ObtÃ©m informaÃ§Ãµes do sistema."""
+        """Obtém informações do sistema."""
         try:
             import platform
             
-            logger.info("[SYSTEM] Obtendo informaÃ§Ãµes do sistema")
+            logger.info("[SYSTEM] Obtendo informações do sistema")
             
             info = {
                 "so": platform.system(),
@@ -200,5 +200,5 @@ class SystemTool(MotorTool):
             return json.dumps(info, indent=2, ensure_ascii=False)
         
         except Exception as e:
-            raise RuntimeError(f"Erro ao obter informaÃ§Ãµes: {str(e)}")
+            raise RuntimeError(f"Erro ao obter informações: {str(e)}")
 

@@ -1,5 +1,5 @@
 ﻿"""
-Ferramentas de VisÃ£o: Captura de tela com compressÃ£o e detecÃ§Ã£o de monitor.
+Ferramentas de Visão: Captura de tela com compressão e detecção de monitor.
 """
 
 import asyncio
@@ -17,20 +17,20 @@ except ModuleNotFoundError:
 
 class CapturarVisaoTool(Tool):
     """
-    Ferramenta para capturar tela com compressÃ£o e detecÃ§Ã£o de monitor ativo.
+    Ferramenta para capturar tela com compressão e detecção de monitor ativo.
     
-    OtimizaÃ§Ãµes:
-    - CompressÃ£o de imagem (WebP qualidade ajustÃ¡vel)
-    - DetecÃ§Ã£o de qual monitor Ã© o "foco" (onde o mouse estÃ¡)
-    - Caching do screenshot para reutilizaÃ§Ã£o na mesma request
-    - Base64 para transmissÃ£o
+    Otimizações:
+    - Compressão de imagem (WebP qualidade ajustável)
+    - Detecção de qual monitor é o "foco" (onde o mouse está)
+    - Caching do screenshot para reutilização na mesma request
+    - Base64 para transmissão
     """
     
     def __init__(self):
         super().__init__(
             metadata=ToolMetadata(
                 name="capture_vision",
-                description="Captura tela com compressÃ£o, detecta monitor foco, retorna Base64",
+                description="Captura tela com compressão, detecta monitor foco, retorna Base64",
                 version="2.0.0",
                 tags=["vision", "screenshot", "optimization"]
             )
@@ -42,12 +42,12 @@ class CapturarVisaoTool(Tool):
         self._cache_ttl_seconds = 0.5  # Cache por 500ms
     
     def validate_input(self, **kwargs) -> bool:
-        # Captura de visÃ£o nÃ£o requer argumentos (ou pode aceitar opcionais)
+        # Captura de visão não requer argumentos (ou pode aceitar opcionais)
         return True
     
     def _detectar_monitor_foco(self) -> Dict[str, Any]:
         """
-        Detecta qual monitor estÃ¡ em foco (onde o mouse estÃ¡).
+        Detecta qual monitor está em foco (onde o mouse está).
         
         Returns:
             {
@@ -59,13 +59,13 @@ class CapturarVisaoTool(Tool):
         try:
             import pyautogui
             
-            # PosiÃ§Ã£o atual do mouse
+            # Posição atual do mouse
             mouse_x, mouse_y = pyautogui.position()
             
-            # Em sistemas com mÃºltiplos monitores, a biblioteca
-            # pode fornecer informaÃ§Ãµes, mas nÃ£o de forma direta.
-            # Fallback: assumir monitor primÃ¡rio em ~1920x1080
-            # Uma soluÃ§Ã£o real usaria mss ou screeninfo
+            # Em sistemas com múltiplos monitores, a biblioteca
+            # pode fornecer informações, mas não de forma direta.
+            # Fallback: assumir monitor primário em ~1920x1080
+            # Uma solução real usaria mss ou screeninfo
             
             try:
                 # Tentativa com screeninfo (se instalado)
@@ -83,7 +83,7 @@ class CapturarVisaoTool(Tool):
             except ImportError:
                 pass
             
-            # Fallback: usar PILImageGrab (pega monitor primÃ¡rio)
+            # Fallback: usar PILImageGrab (pega monitor primário)
             screen_width, screen_height = ImageGrab.grab().size
             return {
                 'monitor_index': 0,
@@ -104,11 +104,11 @@ class CapturarVisaoTool(Tool):
     
     def _comprimir_imagem(self, imagem: Image.Image, max_dim: int, quality: int) -> Tuple[Image.Image, Dict[str, Any]]:
         """
-        Comprime imagem via redimensionamento e conversÃ£o para WebP.
+        Comprime imagem via redimensionamento e conversão para WebP.
         
         Args:
             imagem: PIL Image object
-            max_dim: DimensÃ£o mÃ¡xima para redimensionar
+            max_dim: Dimensão máxima para redimensionar
             quality: Qualidade WebP (1-100)
             
         Returns:
@@ -134,7 +134,7 @@ class CapturarVisaoTool(Tool):
         
         Args:
             use_cache (bool): Usar cache? (default True)
-            compress_quality (int): Qualidade de compressÃ£o (override)
+            compress_quality (int): Qualidade de compressão (override)
             
         Returns:
             str: Base64 da imagem ou JSON de erro
@@ -212,7 +212,7 @@ class CapturarVisaoTool(Tool):
             return base64_str
             
         except Exception as e:
-            error_msg = f"[ERRO VisÃ£o] {str(e)}"
+            error_msg = f"[ERRO Visão] {str(e)}"
             if self._event_bus:
                 self._event_bus.emit('vision_captured', {
                     'error': str(e),
@@ -224,7 +224,7 @@ class CapturarVisaoTool(Tool):
 class AnalisarVisaoComGeminiTool(Tool):
     """
     Ferramenta para analisar screenshot com Gemini (economia de tokens).
-    Envia imagem comprimida + prompt especÃ­fico.
+    Envia imagem comprimida + prompt específico.
     """
     
     def __init__(self, gemini_client=None):
@@ -244,17 +244,17 @@ class AnalisarVisaoComGeminiTool(Tool):
     
     async def execute(self, **kwargs) -> str:
         """
-        Analisa visÃ£o com Gemini.
+        Analisa visão com Gemini.
         
         Args:
             prompt (str): Prompt customizado (opcional)
             context (str): Contexto adicional
             
         Returns:
-            str: AnÃ¡lise de texto
+            str: Análise de texto
         """
         if not self.gemini_client:
-            return "[ERRO] Gemini nÃ£o configurado"
+            return "[ERRO] Gemini não configurado"
         
         prompt_custom = kwargs.get('prompt', '')
         context = kwargs.get('context', '')
@@ -268,8 +268,8 @@ class AnalisarVisaoComGeminiTool(Tool):
         # Prompt otimizado
         prompt_final = prompt_custom or f"""
         Analise esta captura de tela e descreva sucintamente ET CONTEXTO: {context}.
-        Foque em: elementos visuais principais, texto legÃ­vel, janelas abertas, status do sistema.
-        Seja conciso (mÃ¡x 200 palavras).
+        Foque em: elementos visuais principais, texto legível, janelas abertas, status do sistema.
+        Seja conciso (máx 200 palavras).
         """
         
         if self._event_bus:
@@ -303,5 +303,5 @@ class AnalisarVisaoComGeminiTool(Tool):
             return result
             
         except Exception as e:
-            return f"[ERRO AnÃ¡lise Gemini] {str(e)}"
+            return f"[ERRO Análise Gemini] {str(e)}"
 

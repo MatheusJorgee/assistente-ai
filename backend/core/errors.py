@@ -1,11 +1,11 @@
 ﻿"""
-Errors.py: ExceÃ§Ãµes Customizadas do Backend
+Errors.py: Exceções Customizadas do Backend
 =============================================
 
-PadrÃ£o: Hierarchy de ExceÃ§Ãµes + String representation clara
+Padrão: Hierarchy de Exceções + String representation clara
 
 Responsabilidade:
-- Definir exceÃ§Ãµes especÃ­ficas do domÃ­nio (IA, Motor, PersistÃªncia)
+- Definir exceções específicas do domínio (IA, Motor, Persistência)
 - Permitir tratamento diferenciado de erros
 - Facilitar debug com mensagens clara e contexto
 
@@ -16,7 +16,7 @@ Uso:
         result = registry.execute("meu_tool")
     except ToolExecutionError as e:
         logger.error(f"Tool error: {e}")
-        # Avisar frontend de forma amigÃ¡vel
+        # Avisar frontend de forma amigável
 """
 
 from typing import Optional, Any, Dict
@@ -24,10 +24,10 @@ from typing import Optional, Any, Dict
 
 class QuintaFeirError(Exception):
     """
-    ExceÃ§Ã£o base de toda a Quinta-Feira.
+    Exceção base de toda a Quinta-Feira.
     
     Todos os erros do sistema herdam desta classe.
-    Permite catch genÃ©rico vs tratamento especÃ­fico.
+    Permite catch genérico vs tratamento específico.
     """
     
     def __init__(
@@ -42,7 +42,7 @@ class QuintaFeirError(Exception):
         super().__init__(self.message)
     
     def to_dict(self) -> Dict[str, Any]:
-        """Exporta erro para JSON (Ãºtil para respostas HTTP/WebSocket)."""
+        """Exporta erro para JSON (útil para respostas HTTP/WebSocket)."""
         return {
             "error": self.__class__.__name__,
             "message": self.message,
@@ -54,10 +54,10 @@ class QuintaFeirError(Exception):
         return f"[{self.error_code}] {self.message}"
 
 
-# ===== ERROS DE CONFIGURAÃ‡ÃƒO =====
+# ===== ERROS DE CONFIGURAÇÃO =====
 
 class ConfigurationError(QuintaFeirError):
-    """Falha ao carregar ou validar configuraÃ§Ã£o."""
+    """Falha ao carregar ou validar configuração."""
     
     def __init__(self, message: str, details: Optional[Dict] = None):
         super().__init__(
@@ -70,7 +70,7 @@ class ConfigurationError(QuintaFeirError):
 # ===== ERROS DE FERRAMENTAS (Tool Registry) =====
 
 class ToolError(QuintaFeirError):
-    """Erro genÃ©rico ao executar ferramenta."""
+    """Erro genérico ao executar ferramenta."""
     
     def __init__(self, tool_name: str, message: str, details: Optional[Dict] = None):
         super().__init__(
@@ -81,19 +81,19 @@ class ToolError(QuintaFeirError):
 
 
 class ToolNotFoundError(ToolError):
-    """Ferramenta solicitada nÃ£o existe no registry."""
+    """Ferramenta solicitada não existe no registry."""
     
     def __init__(self, tool_name: str):
         super().__init__(
             tool_name=tool_name,
-            message=f"Tool nÃ£o registrada",
+            message=f"Tool não registrada",
             details={"error_type": "not_found"}
         )
         self.error_code = "TOOL_NOT_FOUND"
 
 
 class ToolExecutionError(ToolError):
-    """Falha na execuÃ§Ã£o de uma ferramenta."""
+    """Falha na execução de uma ferramenta."""
     
     def __init__(self, tool_name: str, original_error: Exception):
         super().__init__(
@@ -106,18 +106,18 @@ class ToolExecutionError(ToolError):
 
 
 class ToolValidationError(ToolError):
-    """ParÃ¢metros de ferramenta invÃ¡lidos."""
+    """Parâmetros de ferramenta inválidos."""
     
     def __init__(self, tool_name: str, reason: str):
         super().__init__(
             tool_name=tool_name,
-            message=f"ValidaÃ§Ã£o falhou: {reason}",
+            message=f"Validação falhou: {reason}",
             details={"error_type": "validation"}
         )
         self.error_code = "TOOL_VALIDATION_ERROR"
 
 
-# ===== ERROS DE TERMINAL / AUTOMAÃ‡ÃƒO =====
+# ===== ERROS DE TERMINAL / AUTOMAÇÃO =====
 
 class TerminalError(QuintaFeirError):
     """Erro ao executar comando no terminal."""
@@ -131,7 +131,7 @@ class TerminalError(QuintaFeirError):
 
 
 class TerminalSecurityError(TerminalError):
-    """Comando bloqueado por razÃµes de seguranÃ§a."""
+    """Comando bloqueado por razões de segurança."""
     
     def __init__(self, command: str, reason: str):
         super().__init__(
@@ -147,7 +147,7 @@ class TerminalTimeoutError(TerminalError):
     
     def __init__(self, command: str, timeout_seconds: int):
         super().__init__(
-            message=f"Timeout apÃ³s {timeout_seconds}s",
+            message=f"Timeout após {timeout_seconds}s",
             command=command,
             details={"error_type": "timeout", "timeout_seconds": timeout_seconds}
         )
@@ -168,9 +168,9 @@ class LLMError(QuintaFeirError):
 
 
 class LLMAuthenticationError(LLMError):
-    """Erro de autenticaÃ§Ã£o com LLM (ex: API key invÃ¡lida)."""
+    """Erro de autenticação com LLM (ex: API key inválida)."""
     
-    def __init__(self, model: str, reason: str = "API key invÃ¡lida ou expirada"):
+    def __init__(self, model: str, reason: str = "API key inválida ou expirada"):
         super().__init__(
             message=reason,
             model=model,
@@ -184,14 +184,14 @@ class LLMTimeoutError(LLMError):
     
     def __init__(self, model: str, timeout_seconds: int):
         super().__init__(
-            message=f"Timeout apÃ³s {timeout_seconds}s",
+            message=f"Timeout após {timeout_seconds}s",
             model=model,
             details={"error_type": "timeout", "timeout_seconds": timeout_seconds}
         )
         self.error_code = "LLM_TIMEOUT_ERROR"
 
 
-# ===== ERROS DE PERSISTÃŠNCIA =====
+# ===== ERROS DE PERSISTÊNCIA =====
 
 class PersistenceError(QuintaFeirError):
     """Erro ao acessar banco de dados."""
@@ -215,10 +215,10 @@ class DatabaseConnectionError(PersistenceError):
         self.error_code = "DB_CONNECTION_ERROR"
 
 
-# ===== ERROS DE VISÃƒO =====
+# ===== ERROS DE VISÃO =====
 
 class VisionError(QuintaFeirError):
-    """Erro ao processar visÃ£o/imagens."""
+    """Erro ao processar visão/imagens."""
     
     def __init__(self, message: str, details: Optional[Dict] = None):
         super().__init__(
@@ -253,7 +253,7 @@ class VoiceError(QuintaFeirError):
 
 
 class ElevenLabsError(VoiceError):
-    """Erro especÃ­fico do ElevenLabs."""
+    """Erro específico do ElevenLabs."""
     
     def __init__(self, message: str, reason: Optional[str] = None):
         super().__init__(

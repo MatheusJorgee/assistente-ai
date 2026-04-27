@@ -1,5 +1,5 @@
 ﻿"""
-v2_file_ops: thin tool para operaÃ§Ãµes de arquivo em sandbox controlado.
+v2_file_ops: thin tool para operações de arquivo em sandbox controlado.
 """
 
 from __future__ import annotations
@@ -22,18 +22,18 @@ except ImportError:
 
 class FileOpsTool(MotorTool):
     """
-    Opera arquivos e diretÃ³rios dentro de uma sandbox aprovada por policy.
+    Opera arquivos e diretórios dentro de uma sandbox aprovada por policy.
 
-    AÃ§Ãµes:
-    - read_file: lÃª conteÃºdo UTF-8 de arquivo permitido
-    - write_file: escreve conteÃºdo UTF-8 em arquivo permitido
-    - list_dir: lista conteÃºdo de diretÃ³rio permitido
-    - delete: remove arquivo/diretÃ³rio permitido
+    Ações:
+    - read_file: lê conteúdo UTF-8 de arquivo permitido
+    - write_file: escreve conteúdo UTF-8 em arquivo permitido
+    - list_dir: lista conteúdo de diretório permitido
+    - delete: remove arquivo/diretório permitido
 
     Regras para paths:
     - Preferir caminhos absolutos em Windows (ex: C:\\Users\\...)
-    - Caminhos relativos tambÃ©m sÃ£o aceitos, mas resolvidos no host
-    - Toda operaÃ§Ã£o Ã© validada pela sandbox do PolicyEngine
+    - Caminhos relativos também são aceitos, mas resolvidos no host
+    - Toda operação é validada pela sandbox do PolicyEngine
     """
 
     def __init__(self, fs_adapter: FileSystemAdapter, telemetry: Optional[ToolCallTelemetry] = None):
@@ -43,16 +43,16 @@ class FileOpsTool(MotorTool):
             metadata=ToolMetadata(
                 name="v2_file_ops",
                 description=(
-                    "Executa operaÃ§Ãµes de leitura, escrita, listagem e deleÃ§Ã£o de arquivos "
-                    "em diretÃ³rios sandbox aprovados pela polÃ­tica. Use para persistÃªncia "
-                    "controlada e manipulaÃ§Ã£o de dados do agente sem acesso global ao disco."
+                    "Executa operações de leitura, escrita, listagem e deleção de arquivos "
+                    "em diretórios sandbox aprovados pela política. Use para persistência "
+                    "controlada e manipulação de dados do agente sem acesso global ao disco."
                 ),
                 category="os",
                 parameters=[
                     ToolParameter(
                         name="action",
                         type="string",
-                        description="AÃ§Ã£o: read_file, write_file, list_dir ou delete.",
+                        description="Ação: read_file, write_file, list_dir ou delete.",
                         required=True,
                         choices=["read_file", "write_file", "list_dir", "delete"],
                     ),
@@ -60,7 +60,7 @@ class FileOpsTool(MotorTool):
                         name="path",
                         type="string",
                         description=(
-                            "Caminho do arquivo/diretÃ³rio no Windows. Exemplo absoluto: "
+                            "Caminho do arquivo/diretório no Windows. Exemplo absoluto: "
                             "C:\\Users\\mathe\\Documents\\assistente-ai\\.runtime\\sandbox\\nota.txt"
                         ),
                         required=True,
@@ -68,33 +68,33 @@ class FileOpsTool(MotorTool):
                     ToolParameter(
                         name="content",
                         type="string",
-                        description="ConteÃºdo para write_file (UTF-8).",
+                        description="Conteúdo para write_file (UTF-8).",
                         required=False,
                     ),
                     ToolParameter(
                         name="overwrite",
                         type="bool",
-                        description="Para write_file: sobrescreve se jÃ¡ existir.",
+                        description="Para write_file: sobrescreve se já existir.",
                         required=False,
                         default=True,
                     ),
                     ToolParameter(
                         name="limit",
                         type="int",
-                        description="Para list_dir: mÃ¡ximo de itens no retorno.",
+                        description="Para list_dir: máximo de itens no retorno.",
                         required=False,
                         default=100,
                     ),
                     ToolParameter(
                         name="recursive",
                         type="bool",
-                        description="Para delete: remove diretÃ³rios com conteÃºdo.",
+                        description="Para delete: remove diretórios com conteúdo.",
                         required=False,
                         default=False,
                     ),
                 ],
                 examples=[
-                    "action='write_file', path='C:\\Users\\mathe\\Documents\\assistente-ai\\.runtime\\sandbox\\teste.txt', content='OlÃ¡ Quinta-Feira'",
+                    "action='write_file', path='C:\\Users\\mathe\\Documents\\assistente-ai\\.runtime\\sandbox\\teste.txt', content='Olá Quinta-Feira'",
                     "action='read_file', path='C:\\Users\\mathe\\Documents\\assistente-ai\\.runtime\\sandbox\\teste.txt'",
                     "action='list_dir', path='C:\\Users\\mathe\\Documents\\assistente-ai\\.runtime\\sandbox', limit=20",
                     "action='delete', path='C:\\Users\\mathe\\Documents\\assistente-ai\\.runtime\\sandbox\\teste.txt'",
@@ -152,12 +152,12 @@ class FileOpsTool(MotorTool):
                 self._emit(kwargs=kwargs, decision="ALLOW", success=True, duration_ms=_duration_ms(started), message="OK")
                 return str(asdict(result))
 
-            self._emit(kwargs=kwargs, decision="ALLOW", success=False, duration_ms=_duration_ms(started), message="action invÃ¡lida")
-            return "[TOOL_ERROR] action invÃ¡lida para v2_file_ops"
+            self._emit(kwargs=kwargs, decision="ALLOW", success=False, duration_ms=_duration_ms(started), message="action inválida")
+            return "[TOOL_ERROR] action inválida para v2_file_ops"
 
         except PermissionError as e:
             self._emit(kwargs=kwargs, decision="DENY", success=False, duration_ms=_duration_ms(started), message=str(e))
-            return f"[POLICY_BLOCKED] OperaÃ§Ã£o de arquivo bloqueada pela policy sandbox: {e}"
+            return f"[POLICY_BLOCKED] Operação de arquivo bloqueada pela policy sandbox: {e}"
         except Exception as e:
             self._emit(kwargs=kwargs, decision="ALLOW", success=False, duration_ms=_duration_ms(started), message=f"{type(e).__name__}: {e}")
             return f"[TOOL_ERROR] File ops falhou: {type(e).__name__}: {e}"

@@ -1,10 +1,10 @@
 ﻿"""
-Voice Provider - SÃ­ntese de voz com ElevenLabs + fallback pyttsx3.
+Voice Provider - Síntese de voz com ElevenLabs + fallback pyttsx3.
 
-EstratÃ©gia:
-- ElevenLabs (IA, qualidade premium) como primÃ¡rio
+Estratégia:
+- ElevenLabs (IA, qualidade premium) como primário
 - pyttsx3 (local, sem internet) como fallback
-- Cache de audio jÃ¡ sintetizado
+- Cache de audio já sintetizado
 - Async nativo
 """
 
@@ -35,7 +35,7 @@ class VoiceProvider(ABC):
     @abstractmethod
     async def synthesize(self, text: str) -> bytes:
         """
-        Sintetiza texto em Ã¡udio.
+        Sintetiza texto em áudio.
         
         Args:
             text: Texto a sintetizar
@@ -62,17 +62,17 @@ class ElevenLabsProvider(VoiceProvider):
             api_key: Chave da API (default: env ELEVENLABS_API_KEY)
         """
         self.api_key = api_key or self._get_api_key()
-        self.voice_id = "21m00Tcm4TlvDq8ikWAM"  # Rachel (voz padrÃ£o)
+        self.voice_id = "21m00Tcm4TlvDq8ikWAM"  # Rachel (voz padrão)
         self.base_url = "https://api.elevenlabs.io/v1"
         self._cache = {}  # Cache de audio sintetizado
     
     def _get_api_key(self) -> str:
-        """ObtÃ©m chave da API de variÃ¡veis de ambiente."""
+        """Obtém chave da API de variáveis de ambiente."""
         import os
         key = os.getenv("ELEVENLABS_API_KEY", "")
         
         if not key:
-            logger.warning("[VOICE] ElevenLabs API key nÃ£o encontrada, usando fallback")
+            logger.warning("[VOICE] ElevenLabs API key não encontrada, usando fallback")
             return ""
         
         return key
@@ -81,16 +81,16 @@ class ElevenLabsProvider(VoiceProvider):
         """Sintetiza usando ElevenLabs API."""
         
         if not HAS_AIOHTTP:
-            raise RuntimeError("aiohttp nÃ£o estÃ¡ instalado. Instale com: pip install aiohttp. Usando fallback pyttsx3.")
+            raise RuntimeError("aiohttp não está instalado. Instale com: pip install aiohttp. Usando fallback pyttsx3.")
         
         # Verificar cache
         cache_key = hash(text)
         if cache_key in self._cache:
-            logger.debug("[VOICE] Retornando Ã¡udio do cache")
+            logger.debug("[VOICE] Retornando áudio do cache")
             return self._cache[cache_key]
         
         if not self.api_key:
-            raise RuntimeError("ElevenLabs API key nÃ£o configurada")
+            raise RuntimeError("ElevenLabs API key não configurada")
         
         try:
             logger.info(f"[VOICE] Sintetizando com ElevenLabs ({len(text)} chars)...")
@@ -122,7 +122,7 @@ class ElevenLabsProvider(VoiceProvider):
             # Cachear resultado
             self._cache[cache_key] = audio_bytes
             
-            logger.info(f"[VOICE] SÃ­ntese completa ({len(audio_bytes)} bytes)")
+            logger.info(f"[VOICE] Síntese completa ({len(audio_bytes)} bytes)")
             return audio_bytes
         
         except Exception as e:
@@ -160,14 +160,14 @@ class PyTTSX3Provider(VoiceProvider):
             logger.info("[VOICE] pyttsx3 inicializado")
         
         except ImportError:
-            logger.warning("[VOICE] pyttsx3 nÃ£o estÃ¡ instalado, sÃ­ntese desabilitada")
+            logger.warning("[VOICE] pyttsx3 não está instalado, síntese desabilitada")
             self.engine = None
     
     async def synthesize(self, text: str) -> bytes:
         """Sintetiza usando pyttsx3 (local)."""
         
         if not self.engine:
-            raise RuntimeError("pyttsx3 nÃ£o disponÃ­vel")
+            raise RuntimeError("pyttsx3 não disponível")
         
         try:
             logger.info(f"[VOICE] Sintetizando com pyttsx3 ({len(text)} chars)...")
@@ -175,7 +175,7 @@ class PyTTSX3Provider(VoiceProvider):
             # Salvar temporariamente em arquivo
             output_path = Path("/tmp/quinta_feira_audio.mp3")
             
-            # pyttsx3 Ã© sÃ­ncrono, entÃ£o rodamos em thread
+            # pyttsx3 é síncrono, então rodamos em thread
             def generate():
                 self.engine.save_to_file(text, str(output_path))
                 self.engine.runAndWait()
@@ -187,10 +187,10 @@ class PyTTSX3Provider(VoiceProvider):
                 audio_bytes = output_path.read_bytes()
                 output_path.unlink()  # Deletar temp
                 
-                logger.info(f"[VOICE] SÃ­ntese pyttsx3 completa ({len(audio_bytes)} bytes)")
+                logger.info(f"[VOICE] Síntese pyttsx3 completa ({len(audio_bytes)} bytes)")
                 return audio_bytes
             else:
-                raise RuntimeError("Falha ao gerar Ã¡udio com pyttsx3")
+                raise RuntimeError("Falha ao gerar áudio com pyttsx3")
         
         except Exception as e:
             logger.error(f"[VOICE] Erro ao sintetizar: {str(e)}")
@@ -201,7 +201,7 @@ class PyTTSX3Provider(VoiceProvider):
 
 
 class VoiceManager:
-    """Gerenciador de voz com fallback automÃ¡tico."""
+    """Gerenciador de voz com fallback automático."""
     
     def __init__(self):
         """Inicializa manager com ElevenLabs + fallback pyttsx3."""
@@ -213,38 +213,38 @@ class VoiceManager:
             api_key = os.getenv("ELEVENLABS_API_KEY")
             if api_key:
                 self.primary = ElevenLabsProvider(api_key)
-                logger.info("[VOICE] Usando ElevenLabs como provider primÃ¡rio")
+                logger.info("[VOICE] Usando ElevenLabs como provider primário")
         except Exception as e:
-            logger.warning(f"[VOICE] NÃ£o foi possÃ­vel usar ElevenLabs: {e}")
+            logger.warning(f"[VOICE] Não foi possível usar ElevenLabs: {e}")
         
         # Sempre ter fallback
         try:
             self.fallback = PyTTSX3Provider()
-            logger.info("[VOICE] Fallback pyttsx3 disponÃ­vel")
+            logger.info("[VOICE] Fallback pyttsx3 disponível")
         except Exception as e:
-            logger.warning(f"[VOICE] pyttsx3 nÃ£o disponÃ­vel: {e}")
+            logger.warning(f"[VOICE] pyttsx3 não disponível: {e}")
     
     async def synthesize(self, text: str) -> bytes:
         """
-        Sintetiza com fallback automÃ¡tico.
+        Sintetiza com fallback automático.
         
         Tenta ElevenLabs primeiro, cai para pyttsx3 se falhar.
         """
         
-        # Tentar provider primÃ¡rio
+        # Tentar provider primário
         if self.primary:
             try:
                 return await self.primary.synthesize(text)
             except Exception as e:
-                logger.warning(f"[VOICE] Erro no provider primÃ¡rio, tentando fallback: {e}")
+                logger.warning(f"[VOICE] Erro no provider primário, tentando fallback: {e}")
         
         # Fallback para pyttsx3
         if self.fallback:
             try:
                 return await self.fallback.synthesize(text)
             except Exception as e:
-                logger.error(f"[VOICE] Erro no fallback tambÃ©m: {e}")
-                raise RuntimeError("Nenhum provider de voz disponÃ­vel")
+                logger.error(f"[VOICE] Erro no fallback também: {e}")
+                raise RuntimeError("Nenhum provider de voz disponível")
         
         raise RuntimeError("Nenhum provider de voz configurado")
     
@@ -268,6 +268,6 @@ async def get_voice_manager() -> VoiceManager:
     return _voice_manager
 
 
-# Import necessÃ¡rio
+# Import necessário
 import os
 

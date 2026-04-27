@@ -1,5 +1,5 @@
 ﻿"""
-Terminal Tool - Executar comandos PowerShell/Bash com seguranÃ§a.
+Terminal Tool - Executar comandos PowerShell/Bash com segurança.
 """
 
 import asyncio
@@ -46,7 +46,7 @@ class TerminalTool(MotorTool):
                     "Get-Process",
                     "dir c:\\users",
                     "ls -la /tmp",
-                    "echo 'OlÃ¡, Mundo!'"
+                    "echo 'Olá, Mundo!'"
                 ],
                 security_level=SecurityLevel.CRITICAL,
                 tags=["automation", "ejecute", "shell"]
@@ -59,18 +59,18 @@ class TerminalTool(MotorTool):
         return "comando" in kwargs and isinstance(kwargs["comando"], str)
     
     async def execute(self, **kwargs) -> str:
-        """Executa comando com validaÃ§Ã£o de seguranÃ§a."""
+        """Executa comando com validação de segurança."""
         comando = kwargs["comando"].strip()
         timeout = kwargs.get("timeout", 30)
         
         if not comando:
-            raise ValueError("Comando nÃ£o pode estar vazio")
+            raise ValueError("Comando não pode estar vazio")
         
-        # 1. ValidaÃ§Ã£o de seguranÃ§a
+        # 1. Validação de segurança
         security_check = self.security.validate(comando)
         
         if not security_check.allowed and security_check.action.value == "deny":
-            return f"[POLICY_BLOCKED] Comando bloqueado por seguranÃ§a: {security_check.reason}"
+            return f"[POLICY_BLOCKED] Comando bloqueado por segurança: {security_check.reason}"
         
         # 2. Selecionar shell baseado no SO
         if sys.platform == "win32":
@@ -99,7 +99,7 @@ class TerminalTool(MotorTool):
                     stderr=asyncio.subprocess.PIPE
                 )
             
-            # Aguardar conclusÃ£o
+            # Aguardar conclusão
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
                 timeout=timeout
@@ -111,10 +111,10 @@ class TerminalTool(MotorTool):
             if error_output:
                 return f"STDOUT:\n{output}\n\nSTDERR:\n{error_output}"
             
-            return output if output else "(sem saÃ­da)"
+            return output if output else "(sem saída)"
         
         except asyncio.TimeoutError:
-            raise RuntimeError(f"Timeout apÃ³s {timeout}s: {comando}")
+            raise RuntimeError(f"Timeout após {timeout}s: {comando}")
         except Exception as e:
             raise RuntimeError(f"Erro ao executar: {str(e)}")
 

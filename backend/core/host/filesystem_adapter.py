@@ -1,5 +1,5 @@
 ﻿"""
-FileSystem Adapter: operaÃ§Ãµes de arquivos com sandbox por policy.
+FileSystem Adapter: operações de arquivos com sandbox por policy.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ class DirectoryEntry:
 
 
 class FileSystemAdapter:
-    """Porta de filesystem com validaÃ§Ã£o de policy por path."""
+    """Porta de filesystem com validação de policy por path."""
 
     def __init__(self, policy_engine: PolicyEngine) -> None:
         self._policy_engine = policy_engine
@@ -59,7 +59,7 @@ class FileSystemAdapter:
         self._policy_engine.assert_allowed(OSAction.FILE_READ, path=str(resolved), context=context)
 
         if not resolved.exists() or not resolved.is_file():
-            raise FileNotFoundError(f"Arquivo nÃ£o encontrado: {resolved}")
+            raise FileNotFoundError(f"Arquivo não encontrado: {resolved}")
 
         content = resolved.read_text(encoding="utf-8")
         return FileReadResult(path=str(resolved), content=content, size_bytes=len(content.encode("utf-8")))
@@ -77,7 +77,7 @@ class FileSystemAdapter:
 
         existed = resolved.exists()
         if existed and not overwrite:
-            raise FileExistsError(f"Arquivo jÃ¡ existe e overwrite=False: {resolved}")
+            raise FileExistsError(f"Arquivo já existe e overwrite=False: {resolved}")
 
         resolved.parent.mkdir(parents=True, exist_ok=True)
         data = content.encode("utf-8")
@@ -95,7 +95,7 @@ class FileSystemAdapter:
         self._policy_engine.assert_allowed(OSAction.FILE_LIST, path=str(resolved), context=context)
 
         if not resolved.exists() or not resolved.is_dir():
-            raise NotADirectoryError(f"DiretÃ³rio invÃ¡lido: {resolved}")
+            raise NotADirectoryError(f"Diretório inválido: {resolved}")
 
         entries: list[DirectoryEntry] = []
         for item in sorted(resolved.iterdir(), key=lambda p: p.name.lower())[: max(1, min(limit, 500))]:

@@ -1,23 +1,23 @@
 ﻿"""
-QUINTA_FEIRA_BRAIN.PY - CÃ³rtex Frontal (Orquestrador de IA)
+QUINTA_FEIRA_BRAIN.PY - Córtex Frontal (Orquestrador de IA)
 ============================================================
 
 RESPONSABILIDADES:
 - Recebe mensagem de texto/imagem do Gateway
-- Gerencia histÃ³rico de conversa (buffer de contexto)
-- Gerencia buffer de visÃ£o (imagens recentes)
-- Injeta o LLMProvider (genÃ©rico)
-- Injeta ToolRegistry (ferramentas disponÃ­veis)
-- Orquestra Function Calling automÃ¡tico
-- Retorna JSON rÃ­gido: {"text": "...", "audio": "", "mode": "..."}
+- Gerencia histórico de conversa (buffer de contexto)
+- Gerencia buffer de visão (imagens recentes)
+- Injeta o LLMProvider (genérico)
+- Injeta ToolRegistry (ferramentas disponíveis)
+- Orquestra Function Calling automático
+- Retorna JSON rígido: {"text": "...", "audio": "", "mode": "..."}
 
-NÃƒO FAZ:
-- NÃ£o faz automaÃ§Ã£o (motor/)
-- NÃ£o faz persistÃªncia (persistence/)
-- NÃ£o faz captura de tela (motor/vision)
-- NÃ£o faz sÃ­ntese de voz (voice/)
+NÃO FAZ:
+- Não faz automação (motor/)
+- Não faz persistência (persistence/)
+- Não faz captura de tela (motor/vision)
+- Não faz síntese de voz (voice/)
 
-PADRÃƒO: Facade + Dependency Injection
+PADRÃO: Facade + Dependency Injection
 """
 
 import logging
@@ -30,9 +30,9 @@ import re
 import asyncio
 import inspect
 
-# ===== IMPORTAÃ‡Ã•ES RESILIENTES (funciona de qualquer cwd) =====
+# ===== IMPORTAÇÕES RESILIENTES (funciona de qualquer cwd) =====
 try:
-    # Tentar importaÃ§Ã£o absoluta (uvicorn backend.main:app do pai)
+    # Tentar importação absoluta (uvicorn backend.main:app do pai)
     from core import get_config, get_logger
     from core.llm_provider import (
         LLMProvider,
@@ -44,7 +44,7 @@ try:
     from core.gemini_provider import GeminiAdapter
     from core.memory.sliding_window_context import ConversationMemory, LLMCompressionStrategy
 except ImportError:
-    # Fallback: importaÃ§Ã£o relativa (uvicorn main:app do backend/)
+    # Fallback: importação relativa (uvicorn main:app do backend/)
     from core import get_config, get_logger
     from core.llm_provider import (
         LLMProvider,
@@ -62,7 +62,7 @@ logger = get_logger(__name__)
 @dataclass
 class BrainResponse:
     """
-    Resposta rÃ­gida do Brain para o Gateway.
+    Resposta rígida do Brain para o Gateway.
     
     Sempre retorna neste formato (contrato entre Brain e Gateway):
     {
@@ -95,13 +95,13 @@ class VisionBuffer:
     """
     Gerencia buffer de imagens recentes.
     
-    Usa LRU (Least Recently Used): mantÃ©m as Ãºltimas N imagens.
+    Usa LRU (Least Recently Used): mantém as últimas N imagens.
     
-    Por quÃª?
-    - UsuÃ¡rio manda screenshot
-    - Pergunta "o que tem aÃ­?"
-    - Brain precisa saber qual screenshot Ã© "aÃ­"
-    - Mantemos Ãºltimas 5 imagens para contexto
+    Por quê?
+    - Usuário manda screenshot
+    - Pergunta "o que tem aí?"
+    - Brain precisa saber qual screenshot é "aí"
+    - Mantemos últimas 5 imagens para contexto
     """
     
     def __init__(self, max_images: int = 5):
@@ -133,7 +133,7 @@ class VisionBuffer:
         self.images.clear()
     
     def has_images(self) -> bool:
-        """Retorna True se hÃ¡ imagens no buffer."""
+        """Retorna True se há imagens no buffer."""
         return len(self.images) > 0
     
     def get_latest(self) -> Optional[Dict[str, Any]]:
@@ -143,9 +143,9 @@ class VisionBuffer:
 
 class MessageHistory:
     """
-    Gerencia histÃ³rico de mensagens (contexto conversacional).
+    Gerencia histórico de mensagens (contexto conversacional).
     
-    Usa sliding window: mantÃ©m Ãºltimas N mensagens para nÃ£o explodir
+    Usa sliding window: mantém últimas N mensagens para não explodir
     encoding de tokens do LLM.
     """
     
@@ -154,7 +154,7 @@ class MessageHistory:
         self.messages: List[Message] = []
     
     def add(self, role: str, content: Optional[str] = None, **kwargs) -> None:
-        """Adiciona mensagem ao histÃ³rico."""
+        """Adiciona mensagem ao histórico."""
         msg = Message(role=role, content=content, **kwargs)
         self.messages.append(msg)
         
@@ -163,11 +163,11 @@ class MessageHistory:
             self.messages = self.messages[-self.max_messages:]
     
     def get_messages(self) -> List[Message]:
-        """Retorna histÃ³rico completo."""
+        """Retorna histórico completo."""
         return self.messages.copy()
     
     def clear(self) -> None:
-        """Limpa histÃ³rico."""
+        """Limpa histórico."""
         self.messages.clear()
     
     def __len__(self) -> int:
@@ -176,24 +176,24 @@ class MessageHistory:
 
 class QuintaFeiraBrain:
     """
-    CÃ³rtex Frontal: Orquestrador de IA.
+    Córtex Frontal: Orquestrador de IA.
     
     FLUXO PRINCIPAL:
     
-    Gateway envia: {"message": "OlÃ¡", "image_data": null}
+    Gateway envia: {"message": "Olá", "image_data": null}
            â"‚
            â"œâ"€ brain.ask(message, image_data)
            â"‚
            â"œâ"€ Processar imagem (se houver)
            â"‚
-           â"œâ"€ Adicionar ao histÃ³rico
+           â"œâ"€ Adicionar ao histórico
            â"‚
            â"œâ"€ Injetar tools do ToolRegistry
            â"‚
            â"œâ"€ Chamar LLMProvider.generate()
            â"‚  (pode ser Gemini, Ollama, etc)
            â"‚
-           â"œâ"€ Se funÃ§Ã£o calling, orquestrar
+           â"œâ"€ Se função calling, orquestrar
            â"‚
            â""â"€ Retornar BrainResponse
                    â"‚
@@ -207,10 +207,10 @@ class QuintaFeiraBrain:
     ):
         """
         Args:
-            llm_provider: ImplementaÃ§Ã£o de LLM (ex: GeminiAdapter)
+            llm_provider: Implementação de LLM (ex: GeminiAdapter)
                          Se None, usa default Gemini
             tool_registry: Registry de ferramentas (ex: ToolRegistry)
-                          Opcional, serÃ¡ injetado depois
+                          Opcional, será injetado depois
         """
         self.config = get_config()
         self.logger = get_logger(__name__)
@@ -247,63 +247,63 @@ class QuintaFeiraBrain:
         self.logger.info(f"[BRAIN] Tools support: {self.llm_provider.supports_tools()}")
     
     def _build_system_prompt(self) -> str:
-        """ConstrÃ³i system prompt com personalidade da Quinta-Feira."""
+        """Constrói system prompt com personalidade da Quinta-Feira."""
         return """[DIRETRIZ DE SISTEMA CRÃTICA]
-VocÃª TEM UMA FERRAMENTA chamada `memorizar_informacao`.
-Ã‰ ESTRITAMENTE PROIBIDO responder ao usuÃ¡rio dizendo "Anotei" ou "Guardei"
+Você TEM UMA FERRAMENTA chamada `memorizar_informacao`.
+É ESTRITAMENTE PROIBIDO responder ao usuário dizendo "Anotei" ou "Guardei"
 sem antes ter efetivamente executado a ferramenta `memorizar_informacao`.
-Se o usuÃ¡rio relatar um fato novo (preferÃªncia, dor, evento do dia), PARE,
-chame a ferramenta de memÃ³ria e SÃ" DEPOIS gere sua resposta em texto.
+Se o usuário relatar um fato novo (preferência, dor, evento do dia), PARE,
+chame a ferramenta de memória e SÃ" DEPOIS gere sua resposta em texto.
 [FIM DA DIRETRIZ CRÃTICA]
 
-VocÃª Ã© o Sistema Operativo Quinta-Feira, uma IA operacional criada por Matheus.
+Você é o Sistema Operativo Quinta-Feira, uma IA operacional criada por Matheus.
 
-CaracterÃ­sticas:
-- Brilhante e pragmÃ¡tica, com humor seco
-- Direta ao ponto, sem robÃ³tica ("Como uma IA...")
-- Sem emojis, sem frase de rodapÃ©
+Características:
+- Brilhante e pragmática, com humor seco
+- Direta ao ponto, sem robótica ("Como uma IA...")
+- Sem emojis, sem frase de rodapé
 - Focada em resolver problemas de engenharia
-    - VocÃª NÃƒO Ã© um chatbot passivo: vocÃª executa aÃ§Ãµes reais por ferramentas
+    - Você NÃO é um chatbot passivo: você executa ações reais por ferramentas
 
 Contexto:
-- VocÃª tem acesso a ferramentas (terminal, aplicativos, busca)
+- Você tem acesso a ferramentas (terminal, aplicativos, busca)
 - Pode processar imagens (prints de tela)
-- Pode controlar mÃºsica (Spotify, YouTube)
-- MantÃ©m contexto da conversa
-- VocÃª possui memÃ³ria de longo prazo via ferramenta `memory_manager`
+- Pode controlar música (Spotify, YouTube)
+- Mantém contexto da conversa
+- Você possui memória de longo prazo via ferramenta `memory_manager`
 
-Uso esperado de memÃ³ria:
-- Use `memory_manager` com action=save_memory para salvar fatos estÃ¡veis do usuÃ¡rio/host
-- Prefira memory_type=semantic para preferÃªncias persistentes (ex: pasta padrÃ£o, linguagem)
-- Use memory_type=episodic para eventos relevantes de execuÃ§Ã£o/falhas/decisÃµes
-- Antes de assumir contexto antigo, consulte retrieve_memory/search_memory quando necessÃ¡rio
+Uso esperado de memória:
+- Use `memory_manager` com action=save_memory para salvar fatos estáveis do usuário/host
+- Prefira memory_type=semantic para preferências persistentes (ex: pasta padrão, linguagem)
+- Use memory_type=episodic para eventos relevantes de execução/falhas/decisões
+- Antes de assumir contexto antigo, consulte retrieve_memory/search_memory quando necessário
 
 ============================================================
 DIRETRIZ DE MEMÃ"RIA OBRIGATÃ"RIA (LEIA E CUMPRA SEMPRE):
 ============================================================
-VocÃª possui ferramentas de memÃ³ria (ex: `salvar_memoria_obsidian`, `memory_manager`, `anotar_memoria`).
-TODA VEZ que o usuÃ¡rio compartilhar uma informaÃ§Ã£o nova (um fato sobre si mesmo, um estado
-de humor, um evento do dia, uma preferÃªncia ou um plano), VOCÃŠ DEVE OBRIGATORIAMENTE
-chamar a ferramenta de memÃ³ria apropriada para registrar esse fato ANTES de responder.
+Você possui ferramentas de memória (ex: `salvar_memoria_obsidian`, `memory_manager`, `anotar_memoria`).
+TODA VEZ que o usuário compartilhar uma informação nova (um fato sobre si mesmo, um estado
+de humor, um evento do dia, uma preferência ou um plano), VOCÊ DEVE OBRIGATORIAMENTE
+chamar a ferramenta de memória apropriada para registrar esse fato ANTES de responder.
 
 REGRAS CRÃTICAS:
-- Fatos imutÃ¡veis/permanentes (alergias, vÃ­nculos, preferÃªncias fixas): use `salvar_memoria_obsidian`.
-- Fatos volÃ¡teis/do dia (dores, humor, refeiÃ§Ãµes, eventos temporÃ¡rios): use a ferramenta de memÃ³ria diÃ¡ria/curto prazo.
-- Nunca confie apenas no contexto da conversa. Se o usuÃ¡rio disser "hoje estou com dor", GRAVE.
-  Se disser "gosto de azul", GRAVE. Se disser "comi pizza no almoÃ§o", GRAVE.
-- GRAVE PRIMEIRO, RESPONDA DEPOIS. NÃƒO pergunte se pode gravar â€" simplesmente grave.
+- Fatos imutáveis/permanentes (alergias, vínculos, preferências fixas): use `salvar_memoria_obsidian`.
+- Fatos voláteis/do dia (dores, humor, refeições, eventos temporários): use a ferramenta de memória diária/curto prazo.
+- Nunca confie apenas no contexto da conversa. Se o usuário disser "hoje estou com dor", GRAVE.
+  Se disser "gosto de azul", GRAVE. Se disser "comi pizza no almoço", GRAVE.
+- GRAVE PRIMEIRO, RESPONDA DEPOIS. NÃO pergunte se pode gravar â€" simplesmente grave.
 ============================================================
 
-Regras obrigatÃ³rias de execuÃ§Ã£o:
-- Nunca digas ao utilizador que nÃ£o consegues fazer algo ou que precisas que ele abra um programa manualmente,
-  a menos que nÃ£o exista ferramenta disponÃ­vel para a aÃ§Ã£o solicitada.
-- Se o pedido for para tocar mÃºsica, usa IMEDIATAMENTE a ferramenta `tocar_youtube_invisivel`.
+Regras obrigatórias de execução:
+- Nunca digas ao utilizador que não consegues fazer algo ou que precisas que ele abra um programa manualmente,
+  a menos que não exista ferramenta disponível para a ação solicitada.
+- Se o pedido for para tocar música, usa IMEDIATAMENTE a ferramenta `tocar_youtube_invisivel`.
 - Ao usar ferramenta, executa primeiro e depois responde de forma objetiva com resultado real.
 
-Quando nÃ£o souber:
-- Diga "nÃ£o sei" e por quÃª
-- Sugira prÃ³ximos passos
-- NÃ£o invente informaÃ§Ãµes
+Quando não souber:
+- Diga "não sei" e por quê
+- Sugira próximos passos
+- Não invente informações
 
 ============================================================
 DIRETRIZ VIP (CONTATOS FIXADOS NO WHATSAPP):
@@ -334,18 +334,18 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
         hidden_context: Optional[str] = None,
     ) -> BrainResponse:
         """
-        Processa pergunta do usuÃ¡rio e retorna resposta.
+        Processa pergunta do usuário e retorna resposta.
         
         Args:
             message: Texto da pergunta
-            image_data: Imagem (bytes) se usuÃ¡rio enviou
-            include_vision: Se True, inclui buffer de visÃ£o no contexto
+            image_data: Imagem (bytes) se usuário enviou
+            include_vision: Se True, inclui buffer de visão no contexto
             
         Returns:
             BrainResponse ({"text": "...", "mode": "..."})
         """
         try:
-            # Roteamento determinÃ­stico para mÃ­dia: evita degradaÃ§Ã£o de persona/chatbot.
+            # Roteamento determinístico para mídia: evita degradação de persona/chatbot.
             if self._is_music_request(message):
                 pesquisa = self._extract_music_query(message)
                 tool_call = {
@@ -368,11 +368,11 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
                 self.vision_buffer.add_image(image_data)
                 self.logger.info(f"[BRAIN] Imagem adicionada ao buffer (total: {len(self.vision_buffer.images)})")
             
-            # 2. Adicionar mensagem do usuÃ¡rio ao histÃ³rico
+            # 2. Adicionar mensagem do usuário ao histórico
             self.message_history.add("user", content=message)
             
             # 3. Preparar lista de mensagens para LLM
-            # Sempre comeÃ§ar com system prompt (inclui long-term summary se houver)
+            # Sempre começar com system prompt (inclui long-term summary se houver)
             system_prompt = self.message_history.build_system_prompt(self.system_prompt)
             if hidden_context:
                 system_prompt = (
@@ -387,22 +387,22 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
             ]
             llm_messages.extend(self.message_history.get_messages())
             
-            # 4. Se incluir visÃ£o, adicionar imagens recentes ao contexto
+            # 4. Se incluir visão, adicionar imagens recentes ao contexto
             if include_vision and self.vision_buffer.has_images():
-                vision_context = f"\n[CONTEXTO VISUAL: HÃ¡ {len(self.vision_buffer.images)} screenshot(s) recente(s) disponÃ­vel(is) para anÃ¡lise]"
+                vision_context = f"\n[CONTEXTO VISUAL: Há {len(self.vision_buffer.images)} screenshot(s) recente(s) disponível(is) para análise]"
                 if llm_messages:
                     llm_messages[-1].content = (llm_messages[-1].content or "") + vision_context
-                self.logger.info(f"[BRAIN] IncluÃ­do contexto visual no prompt")
+                self.logger.info(f"[BRAIN] Incluído contexto visual no prompt")
             
-            # 5. Obter ferramentas disponÃ­veis (se houver registry)
+            # 5. Obter ferramentas disponíveis (se houver registry)
             tools = None
             if self.tool_registry and self.llm_provider.supports_tools():
                 tools = self._get_tools_for_llm()
             elif self.llm_provider.supports_tools():
-                # Mesmo sem registry, expÃµe a tool de mÃ­dia nativa da OSAutomation.
+                # Mesmo sem registry, expõe a tool de mídia nativa da OSAutomation.
                 tools = [self._build_tocar_youtube_tool_definition()]
             
-            # 6. Processar com Function Calling automÃ¡tico
+            # 6. Processar com Function Calling automático
             self.logger.info(f"[BRAIN] Enviando para LLM ({self.llm_provider.name()})...")
             
             response = await self._process_with_tool_calls(
@@ -411,15 +411,15 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
                 temperature=self.config.LLM_TEMPERATURE
             )
             
-            # 7. Adicionar resposta ao histÃ³rico
+            # 7. Adicionar resposta ao histórico
             self.message_history.add(
                 "assistant",
                 content=response.text,
                 tool_calls=response.tool_calls
             )
             
-            # 8. Gerar Ã¡udio (futura integraÃ§Ã£o com voice/)
-            audio = ""  # SerÃ¡ preenchido quando voice/ estiver pronto
+            # 8. Gerar áudio (futura integração com voice/)
+            audio = ""  # Será preenchido quando voice/ estiver pronto
             
             # 9. Retornar resposta
             self.logger.info(f"[BRAIN] Resposta gerada: {len(response.text)} chars")
@@ -439,9 +439,9 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
     
     def _get_tools_for_llm(self) -> List[ToolDefinition]:
         """
-        ObtÃ©m lista de ferramentas disponÃ­veis do registry.
+        Obtém lista de ferramentas disponíveis do registry.
         
-        Converte ferramenta do nosso domÃ­nio (Tool) para formato genÃ©rico (ToolDefinition).
+        Converte ferramenta do nosso domínio (Tool) para formato genérico (ToolDefinition).
         """
         tools_defs = []
         
@@ -461,7 +461,7 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
                 )
                 tools_defs.append(tool_def)
 
-            # Tool explÃ­cita e obrigatÃ³ria para mÃ­dia nativa (Function Calling robusto).
+            # Tool explícita e obrigatória para mídia nativa (Function Calling robusto).
             if not any(t.name == "tocar_youtube_invisivel" for t in tools_defs):
                 tools_defs.append(self._build_tocar_youtube_tool_definition())
         
@@ -472,16 +472,16 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
 
     def _build_tocar_youtube_tool_definition(self) -> ToolDefinition:
         """
-        Schema canÃ´nico para tool de mÃ­dia nativa.
+        Schema canônico para tool de mídia nativa.
 
-        ParÃ¢metro obrigatÃ³rio:
+        Parâmetro obrigatório:
             - pesquisa (string)
         """
         return ToolDefinition(
             name="tocar_youtube_invisivel",
             description=(
-                "Toca mÃºsica/vÃ­deo no YouTube via automaÃ§Ã£o nativa do sistema. "
-                "Use imediatamente quando o usuÃ¡rio pedir para tocar mÃºsica."
+                "Toca música/vídeo no YouTube via automação nativa do sistema. "
+                "Use imediatamente quando o usuário pedir para tocar música."
             ),
             parameters={
                 "type": "object",
@@ -517,7 +517,7 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
         tools: Optional[List[ToolDefinition]],
         temperature: float,
     ) -> Response:
-        """Loop robusto de function calling com execuÃ§Ã£o real de ferramentas."""
+        """Loop robusto de function calling com execução real de ferramentas."""
         max_iterations = 6
         iteration = 0
 
@@ -539,7 +539,7 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
             if not response.tool_calls:
                 return response
 
-            # Registrar intenÃ§Ã£o de chamada do LLM antes de executar tools.
+            # Registrar intenção de chamada do LLM antes de executar tools.
             messages.append(
                 Message(
                     role="assistant",
@@ -559,7 +559,7 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
                 )
 
         return Response(
-            text="Limite de iteraÃ§Ãµes de ferramentas atingido. ExecuÃ§Ã£o interrompida com seguranÃ§a.",
+            text="Limite de iterações de ferramentas atingido. Execução interrompida com segurança.",
             tool_calls=None,
             stop_reason="max_iterations",
         )
@@ -642,7 +642,7 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
             return f"[ERRO ao executar {tool_name}] {type(exc).__name__}: {exc}"
 
     def _get_automation(self):
-        """Lazy load da OSAutomation para evitar custo de startup desnecessÃ¡rio."""
+        """Lazy load da OSAutomation para evitar custo de startup desnecessário."""
         if self._automation is not None:
             return self._automation
 
@@ -667,13 +667,13 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
             r"\bplay\b",
         ]
         has_action = any(re.search(p, text_norm) for p in patterns)
-        has_music = any(word in text_norm for word in ["mÃºsica", "musica", "song", "youtube", "spotify"])
+        has_music = any(word in text_norm for word in ["música", "musica", "song", "youtube", "spotify"])
         return has_action and has_music
 
     def _extract_music_query(self, text: str) -> str:
-        """Extrai consulta de mÃºsica de comandos em linguagem natural."""
+        """Extrai consulta de música de comandos em linguagem natural."""
         if not text:
-            return "mÃºsica relaxante"
+            return "música relaxante"
 
         query = text.strip()
         query = re.sub(
@@ -682,7 +682,7 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
             query,
             flags=re.IGNORECASE,
         )
-        query = re.sub(r"^(uma\s+)?(mÃºsica|musica)\s+(de\s+)?", "", query, flags=re.IGNORECASE)
+        query = re.sub(r"^(uma\s+)?(música|musica)\s+(de\s+)?", "", query, flags=re.IGNORECASE)
         query = query.strip(" .,!;:-")
         return query or text
     
@@ -693,13 +693,13 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
         self.logger.info(f"[BRAIN] Tool Registry injetado ({len(tool_registry.get_all_tools())} tools)")
     
     def clear_history(self) -> None:
-        """Limpa histÃ³rico de conversa."""
+        """Limpa histórico de conversa."""
         self.message_history.clear()
         self.vision_buffer.clear()
-        self.logger.info("[BRAIN] HistÃ³rico limpo")
+        self.logger.info("[BRAIN] Histórico limpo")
     
     def get_stats(self) -> Dict[str, Any]:
-        """Retorna estatÃ­sticas do Brain."""
+        """Retorna estatísticas do Brain."""
         return {
             "llm_provider": self.llm_provider.name(),
             "message_count": len(self.message_history),

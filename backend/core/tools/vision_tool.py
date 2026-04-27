@@ -1,5 +1,5 @@
 ﻿"""
-Vision Tool - Captura e anÃ¡lise de tela (screenshot).
+Vision Tool - Captura e análise de tela (screenshot).
 """
 
 import asyncio
@@ -25,13 +25,13 @@ class VisionTool(MotorTool):
         super().__init__(
             metadata=ToolMetadata(
                 name="capturar_tela",
-                description="Captura e processa screenshots (com compressÃ£o automÃ¡tica)",
+                description="Captura e processa screenshots (com compressão automática)",
                 category="vision",
                 parameters=[
                     ToolParameter(
                         name="acao",
                         type="string",
-                        description="AÃ§Ã£o: capturar, capturar_area, analisar",
+                        description="Ação: capturar, capturar_area, analisar",
                         required=True,
                         choices=["capturar", "capturar_area", "analisar"]
                     ),
@@ -69,19 +69,19 @@ class VisionTool(MotorTool):
                     "acao=capturar_area, x=0, y=0, largura=800, altura=600"
                 ],
                 security_level=SecurityLevel.LOW,
-                tags=["vision", "screenshot", "visÃ£o-artificial"]
+                tags=["vision", "screenshot", "visão-artificial"]
             )
         )
         self._last_screenshot_base64 = None
     
     def validate_input(self, **kwargs) -> bool:
-        """Valida se aÃ§Ã£o foi fornecida."""
+        """Valida se ação foi fornecida."""
         acao = kwargs.get("acao", "").lower()
         valid_acoes = ["capturar", "capturar_area", "analisar"]
         return acao in valid_acoes
     
     async def execute(self, **kwargs) -> str:
-        """Executa aÃ§Ã£o de visÃ£o."""
+        """Executa ação de visão."""
         acao = kwargs.get("acao", "").lower()
         
         try:
@@ -96,17 +96,17 @@ class VisionTool(MotorTool):
             elif acao == "analisar":
                 return await self._analisar_screenshot()
             else:
-                raise ValueError(f"AÃ§Ã£o desconhecida: {acao}")
+                raise ValueError(f"Ação desconhecida: {acao}")
         
         except Exception as e:
             raise RuntimeError(f"Erro ao capturar tela: {str(e)}")
     
     async def _capturar_tela(self) -> str:
-        """Captura tela inteira com compressÃ£o automÃ¡tica."""
+        """Captura tela inteira com compressão automática."""
         try:
             logger.info("[VISION] Capturando tela inteira...")
             
-            # SimulaÃ§Ã£o: criar imagem dummy comprimida
+            # Simulação: criar imagem dummy comprimida
             screenshot_data = await self._criar_screenshot_dummy()
             
             # Converter para base64 (JSON-safe)
@@ -120,36 +120,36 @@ class VisionTool(MotorTool):
             raise RuntimeError(f"Erro ao capturar tela: {str(e)}")
     
     async def _capturar_area(self, x: int, y: int, largura: int, altura: int) -> str:
-        """Captura Ã¡rea especÃ­fica da tela."""
+        """Captura área específica da tela."""
         try:
-            logger.info(f"[VISION] Capturando Ã¡rea: ({x}, {y}, {largura}x{altura})")
+            logger.info(f"[VISION] Capturando área: ({x}, {y}, {largura}x{altura})")
             
             if largura <= 0 or altura <= 0:
                 raise ValueError("Largura e altura devem ser positivas")
             
-            # SimulaÃ§Ã£o
+            # Simulação
             screenshot_data = await self._criar_screenshot_dummy(largura, altura)
             self._last_screenshot_base64 = base64.b64encode(screenshot_data).decode('utf-8')
             
             return f"âœ" Ãrea capturada ({largura}x{altura})\n  - Tamanho: {len(screenshot_data)} bytes"
         
         except Exception as e:
-            raise RuntimeError(f"Erro ao capturar Ã¡rea: {str(e)}")
+            raise RuntimeError(f"Erro ao capturar área: {str(e)}")
     
     async def _analisar_screenshot(self) -> str:
-        """Analisa Ãºltimo screenshot capturado."""
+        """Analisa último screenshot capturado."""
         try:
             if not self._last_screenshot_base64:
                 raise ValueError("Nenhuma tela capturada ainda. Execute capturar primeiro.")
             
             logger.info("[VISION] Analisando screenshot...")
             
-            # SimulaÃ§Ã£o: retornar anÃ¡lise fake
-            return """âœ" AnÃ¡lise de screenshot:
+            # Simulação: retornar análise fake
+            return """âœ" Análise de screenshot:
   - Texto detectado: "Quinta-Feira", "Assistente IA"
-  - Elementos UI: 3 botÃµes, 1 textbox
+  - Elementos UI: 3 botões, 1 textbox
   - Cores dominantes: Azul (#0078D4), Branco
-  - OCR confianÃ§a: 94%"""
+  - OCR confiança: 94%"""
         
         except Exception as e:
             raise RuntimeError(f"Erro ao analisar: {str(e)}")
@@ -160,8 +160,8 @@ class VisionTool(MotorTool):
         
         Retorna bytes que parecem uma imagem comprimida.
         """
-        # Criar PNG mÃ­nimo (8x8) com header vÃ¡lido
-        # PNG signature + IHDR chunk (informaÃ§Ãµes bÃ¡sicas)
+        # Criar PNG mínimo (8x8) com header válido
+        # PNG signature + IHDR chunk (informações básicas)
         png_header = b"\x89PNG\r\n\x1a\n"
         
         # IHDR chunk: 13 bytes data + 12 bytes chunk overhead

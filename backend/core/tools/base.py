@@ -1,9 +1,9 @@
 ﻿"""
 Motor Base Classes - Interface abstrata para ferramentas do Motor.
 
-PadrÃµes:
-- Strategy Pattern: Cada ferramenta Ã© intercambiÃ¡vel
-- Registry Pattern: Descoberta dinÃ¢mica de ferramentas
+Padrões:
+- Strategy Pattern: Cada ferramenta é intercambiável
+- Registry Pattern: Descoberta dinâmica de ferramentas
 - Template Method: Tool.safe_execute() valida antes de executar
 """
 
@@ -54,15 +54,15 @@ def _contains_dangerous_content(kwargs: Dict[str, Any]) -> bool:
 
 
 class SecurityLevel(Enum):
-    """NÃ­veis de seguranÃ§a de uma ferramenta."""
+    """Níveis de segurança de uma ferramenta."""
     LOW = "low"              # Apenas logging
-    MEDIUM = "medium"        # Requer confirmaÃ§Ã£o
-    CRITICAL = "critical"    # Bloqueado por padrÃ£o
+    MEDIUM = "medium"        # Requer confirmação
+    CRITICAL = "critical"    # Bloqueado por padrão
 
 
 @dataclass
 class ToolParameter:
-    """DefiniÃ§Ã£o de um parÃ¢metro de ferramenta."""
+    """Definição de um parâmetro de ferramenta."""
     name: str
     type: str                  # "string", "int", "bool", "list"
     description: str
@@ -154,34 +154,34 @@ class MotorTool(ABC):
         Executa a ferramenta com os kwargs fornecidos.
         
         Args:
-            **kwargs: Argumentos especÃ­ficos da ferramenta
+            **kwargs: Argumentos específicos da ferramenta
         
         Returns:
-            str: Resultado da execuÃ§Ã£o
+            str: Resultado da execução
         
         Raises:
-            ValueError: Se os argumentos forem invÃ¡lidos
-            RuntimeError: Se a execuÃ§Ã£o falhar
+            ValueError: Se os argumentos forem inválidos
+            RuntimeError: Se a execução falhar
         """
         pass
     
     @abstractmethod
     def validate_input(self, **kwargs) -> bool:
         """
-        Valida os parÃ¢metros antes de executar.
+        Valida os parâmetros antes de executar.
         
         Returns:
-            bool: True se os parÃ¢metros sÃ£o vÃ¡lidos
+            bool: True se os parâmetros são válidos
         """
         pass
     
     async def safe_execute(self, **kwargs) -> ToolResult:
         """
-        Executa a ferramenta com validaÃ§Ã£o e tratamento de erros.
+        Executa a ferramenta com validação e tratamento de erros.
         
         Template Method que:
         1. Valida entrada
-        2. Registra inÃ­cio
+        2. Registra início
         3. Executa
         4. Registra resultado
         """
@@ -196,13 +196,13 @@ class MotorTool(ABC):
             )
         
         try:
-            # 2. Registrar inÃ­cio
+            # 2. Registrar início
             logger.info(f"[{self.metadata.category}] Iniciando: {self.metadata.name}")
             
             # 3. Executar
             output = await self.execute(**kwargs)
             
-            # 4. Calcular duraÃ§Ã£o
+            # 4. Calcular duração
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             self._execution_count += 1
             
@@ -229,7 +229,7 @@ class MotorTool(ABC):
             )
     
     def get_info(self) -> Dict[str, Any]:
-        """Retorna informaÃ§Ãµes pÃºblicas sobre a ferramenta."""
+        """Retorna informações públicas sobre a ferramenta."""
         return {
             "name": self.metadata.name,
             "description": self.metadata.description,
@@ -252,9 +252,9 @@ class MotorTool(ABC):
 
     def get_parameters(self) -> Dict[str, Any]:
         """
-        Converte metadados de parÃ¢metros para JSON Schema.
+        Converte metadados de parâmetros para JSON Schema.
 
-        Usado pelo adapter de LLM (Gemini) para function calling semÃ¢ntico.
+        Usado pelo adapter de LLM (Gemini) para function calling semântico.
         """
         type_map = {
             "string": "string",
@@ -308,7 +308,7 @@ class MotorTool(ABC):
 
 
 class ToolRegistry:
-    """Registro dinÃ¢mico e descoberta de ferramentas."""
+    """Registro dinâmico e descoberta de ferramentas."""
 
     def __init__(self):
         self._tools: Dict[str, MotorTool] = {}
@@ -327,13 +327,13 @@ class ToolRegistry:
         Registra uma ferramenta no registry.
         
         Args:
-            tool: InstÃ¢ncia de MotorTool
+            tool: Instância de MotorTool
             aliases: Nomes alternativos para a ferramenta
         """
         tool_name = tool.metadata.name
         
         if tool_name in self._tools:
-            logger.warning(f"Ferramenta '{tool_name}' jÃ¡ estÃ¡ registrada, sobrescrevendo...")
+            logger.warning(f"Ferramenta '{tool_name}' já está registrada, sobrescrevendo...")
         
         self._tools[tool_name] = tool
         logger.info(f"Registrada ferramenta: {tool_name} ({tool.metadata.category})")
@@ -377,7 +377,7 @@ class ToolRegistry:
         return [tool.get_info() for tool in self._tools.values()]
     
     def get_tool_info(self, tool_name: str) -> Optional[Dict[str, Any]]:
-        """Retorna informaÃ§Ãµes de uma ferramenta especÃ­fica."""
+        """Retorna informações de uma ferramenta específica."""
         real_name = self._aliases.get(tool_name, tool_name)
         
         if real_name in self._tools:
@@ -386,7 +386,7 @@ class ToolRegistry:
         return None
     
     def has_tool(self, tool_name: str) -> bool:
-        """Verifica se uma ferramenta estÃ¡ registrada."""
+        """Verifica se uma ferramenta está registrada."""
         real_name = self._aliases.get(tool_name, tool_name)
         return real_name in self._tools
 

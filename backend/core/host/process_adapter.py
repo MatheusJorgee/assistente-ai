@@ -1,5 +1,5 @@
 ﻿"""
-Process Adapter: abstraÃ§Ã£o para operaÃ§Ãµes de processo no host.
+Process Adapter: abstração para operações de processo no host.
 
 Fornece um contrato tipado para listar/iniciar/finalizar processos no Windows,
 respeitando PolicyEngine.
@@ -56,7 +56,7 @@ class ProcessStopResult:
 
 
 class ProcessAdapter:
-    """Porta de processos (contrato de baixo nÃ­vel para OS host)."""
+    """Porta de processos (contrato de baixo nível para OS host)."""
 
     def __init__(self, policy_engine: PolicyEngine) -> None:
         self._policy_engine = policy_engine

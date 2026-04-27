@@ -1,18 +1,18 @@
 ﻿"""
-MAIN.PY - Tronco EncefÃ¡lico (Gateway FastAPI)
+MAIN.PY - Tronco Encefálico (Gateway FastAPI)
 ==============================================
 
-Responsabilidade ÃšNICA:
+Responsabilidade ÚNICA:
 - Roteador HTTP/WebSocket
-- NÃ£o contÃ©m lÃ³gica de IA, visÃ£o ou automaÃ§Ã£o
-- Interface entre Frontend (Next.js) e CÃ©rebro (brain/)
+- Não contém lógica de IA, visão ou automação
+- Interface entre Frontend (Next.js) e Cérebro (brain/)
 
-PadrÃ£o: Facade (simplifica comunicaÃ§Ã£o)
+Padrão: Facade (simplifica comunicação)
 
-NÃƒO IMPORTA:
+NÃO IMPORTA:
 - brain.py / LLM adapters
-- automaÃ§Ã£o / tools
-- visÃ£o / processamento de imagens
+- automação / tools
+- visão / processamento de imagens
 - bancos de dados
 
 IMPORTA APENAS:
@@ -41,9 +41,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-# ===== IMPORTAÃ‡Ã•ES RESILIENTES (funciona de qualquer cwd) =====
+# ===== IMPORTAÇÕES RESILIENTES (funciona de qualquer cwd) =====
 try:
-    # Tentar importaÃ§Ã£o absoluta (uvicorn backend.main:app do pai)
+    # Tentar importação absoluta (uvicorn backend.main:app do pai)
     from core import (
         ActionOrchestrator,
         AudioAdapter,
@@ -64,7 +64,7 @@ try:
     from core.tools import inicializar_ferramentas
     from services import get_database, get_voice_manager
 except ImportError:
-    # Fallback: importaÃ§Ã£o relativa (uvicorn main:app do backend/)
+    # Fallback: importação relativa (uvicorn main:app do backend/)
     from core import (
         ActionOrchestrator,
         AudioAdapter,
@@ -94,13 +94,13 @@ logger.info(f"[GATEWAY] Iniciando Quinta-Feira Gateway v1.0")
 logger.info(f"[GATEWAY] Modo: {config.SECURITY_PROFILE}")
 
 
-# ===== DEPENDÃŠNCIAS GLOBAIS =====
+# ===== DEPENDÊNCIAS GLOBAIS =====
 """
-Singletons que serÃ£o inicializados na startup:
+Singletons que serão inicializados na startup:
 - brain: QuintaFeiraBrain (LLM + funcionalidades)
-- motor: ToolRegistry (automaÃ§Ã£o)
-- database: PersistÃªncia
-- voice_manager: SÃ­ntese de voz
+- motor: ToolRegistry (automação)
+- database: Persistência
+- voice_manager: Síntese de voz
 """
 brain = None
 motor = None
@@ -120,16 +120,16 @@ voice_command_orchestrator = None
 """
 Nota sobre State Management em FastAPI + Async:
 
-O FastAPI roda em uvicorn com mÃºltiplos workers (por padrÃ£o 4).
-Cada worker tem seu prÃ³prio event loop e estado Python separado.
+O FastAPI roda em uvicorn com múltiplos workers (por padrão 4).
+Cada worker tem seu próprio event loop e estado Python separado.
 
-Para rastrear sessÃµes WebSocket, usamos:
+Para rastrear sessões WebSocket, usamos:
 1. active_sessions: Dict[session_id] â†' WebSocket connection
-2. Lock assÃ­ncrono: para operaÃ§Ãµes thread-safe
+2. Lock assíncrono: para operações thread-safe
 
-Em produÃ§Ã£o com mÃºltiplos workers, considerarÃ­amos:
-- Redis para sessÃµes compartilhadas
-- Ou um Ãºnico worker mode (--workers 1) para desenvolvimento
+Em produção com múltiplos workers, consideraríamos:
+- Redis para sessões compartilhadas
+- Ou um único worker mode (--workers 1) para desenvolvimento
 
 Para agora (desenvolvimento local), usamos Dict simples com async Lock.
 """
@@ -138,18 +138,18 @@ active_sessions: Dict[str, WebSocket] = {}  # session_id â†' WebSocket
 sessions_lock = asyncio.Lock()  # Protege acesso a active_sessions
 
 
-# ===== APLICAÃ‡ÃƒO FASTAPI =====
+# ===== APLICAÇÃO FASTAPI =====
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Gerencia ciclo de vida da aplicaÃ§Ã£o (startup/shutdown).
+    Gerencia ciclo de vida da aplicação (startup/shutdown).
     
-    Context Manager assÃ­ncrono:
+    Context Manager assíncrono:
     - yield: tudo antes roda na startup
     - tudo depois roda na shutdown
     
-    BenefÃ­cio: Garantido executar cleanup mesmo com exceÃ§Ãµes
+    Benefício: Garantido executar cleanup mesmo com exceções
     """
     global brain, motor, database, voice_manager, memory_manager, autonomous_event_bus, autonomous_worker, action_orchestrator, manual_command_handler, audio_adapter, wake_word_listener, voice_command_orchestrator
     
@@ -181,7 +181,7 @@ async def lifespan(app: FastAPI):
                     )
                 )
 
-        # 2. Inicializar Motor (automaÃ§Ã£o)
+        # 2. Inicializar Motor (automação)
         logger.info("[STARTUP] Inicializando Motor...")
         motor = inicializar_ferramentas(event_publisher=publish_runtime_event)
         # Bridge: ferramentas podem publicar diretamente no AsyncEventBus
@@ -228,7 +228,7 @@ async def lifespan(app: FastAPI):
         )
         await manual_command_handler.start()
 
-        # 6. Inicializar runtime autÃ´nomo
+        # 6. Inicializar runtime autônomo
         logger.info("[STARTUP] Inicializando EventBus + AutonomousWorker...")
         autonomous_worker = AutonomousWorker(
             event_bus=autonomous_event_bus,
@@ -248,7 +248,7 @@ async def lifespan(app: FastAPI):
         )
         await action_orchestrator.start()
 
-        # 7. Inicializar stack de Ã¡udio (wake word + voz)
+        # 7. Inicializar stack de áudio (wake word + voz)
         logger.info("[STARTUP] Inicializando Audio Adapter + Wake Word...")
         audio_adapter = AudioAdapter()
         wake_word_listener = WakeWordListener(
@@ -266,7 +266,7 @@ async def lifespan(app: FastAPI):
         app.state.audio_adapter = audio_adapter
         app.state.wake_word_listener = wake_word_listener
         app.state.voice_command_orchestrator = voice_command_orchestrator
-        logger.info("[STARTUP] Runtime autÃ´nomo ativo")
+        logger.info("[STARTUP] Runtime autônomo ativo")
         
         logger.info("[STARTUP] âœ" Gateway PRONTO (Fase 3-6 integrada!)")
     
@@ -274,7 +274,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"[STARTUP] Erro: {e}", exc_info=True)
         raise
     
-    yield  # AplicaÃ§Ã£o roda aqui
+    yield  # Aplicação roda aqui
     
     # ===== SHUTDOWN =====
     logger.info("[SHUTDOWN] Encerrando Gateway...")
@@ -288,7 +288,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[SHUTDOWN] Erro ao fechar ConnectionManager: {e}")
 
-    # Parar runtime autÃ´nomo primeiro (graceful shutdown)
+    # Parar runtime autônomo primeiro (graceful shutdown)
     if autonomous_worker:
         try:
             await autonomous_worker.stop()
@@ -326,7 +326,7 @@ async def lifespan(app: FastAPI):
             logger.warning(f"[SHUTDOWN] Erro ao parar event bus: {e}")
     
     async with sessions_lock:
-        # Fechar todas as sessÃµes WebSocket abertas
+        # Fechar todas as sessões WebSocket abertas
         closed = 0
         for session_id, websocket in active_sessions.items():
             try:
@@ -336,7 +336,7 @@ async def lifespan(app: FastAPI):
                 logger.warning(f"[SHUTDOWN] Erro ao fechar {session_id}: {e}")
         
         active_sessions.clear()
-        logger.info(f"[SHUTDOWN] {closed} sessÃµes fechadas")
+        logger.info(f"[SHUTDOWN] {closed} sessões fechadas")
     
     logger.info("[SHUTDOWN] âœ" Gateway encerrado")
 
@@ -367,11 +367,11 @@ CORS (Cross-Origin Resource Sharing):
 Permite que frontend em localhost:3000 acesse backend em localhost:8000.
 
 Sem CORS:
-> Navegador bloqueia requisiÃ§Ã£o (SOP - Same Origin Policy)
+> Navegador bloqueia requisição (SOP - Same Origin Policy)
 > TypeError: Failed to fetch
 
 Com CORS:
-> Servidor autoriza requisiÃ§Ã£o
+> Servidor autoriza requisição
 > Funciona normalmente
 """
 
@@ -394,11 +394,11 @@ app.add_middleware(
 @app.get("/health", tags=["Health"])
 async def health_check() -> Dict[str, Any]:
     """
-    Health Check: Frontend faz ping aqui para verificar se backend estÃ¡ online.
+    Health Check: Frontend faz ping aqui para verificar se backend está online.
     
     Status Codes:
     - 200 OK: Gateway pronto
-    - 503 Service Unavailable: CÃ©rebro ainda nÃ£o inicializado
+    - 503 Service Unavailable: Cérebro ainda não inicializado
     
     Resposta:
     {
@@ -449,7 +449,7 @@ async def status_detail() -> Dict[str, Any]:
     """
     Status detalhado do Gateway e componentes integrados.
     
-    Quando o CÃ©rebro estiver pronto, vai reportar:
+    Quando o Cérebro estiver pronto, vai reportar:
     - Tools registradas
     - LLM adapter
     - Memory persistida
@@ -657,57 +657,57 @@ async def get_logs() -> Dict[str, Any]:
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     """
-    WebSocket Endpoint: ConduÃ­te Neural entre Frontend e Brain.
+    WebSocket Endpoint: Conduíte Neural entre Frontend e Brain.
     
     FLUXO:
-    1. Cliente conecta â†' Registra sessÃ£o
+    1. Cliente conecta â†' Registra sessão
     2. Cliente envia JSON â†' Gateway parseia
     3. Gateway encaminha para Brain (ainda mock)
     4. Brain responde â†' Gateway retorna JSON ao cliente
-    5. Cliente desconecta â†' Limpa sessÃ£o
+    5. Cliente desconecta â†' Limpa sessão
     
-    TRATAMENTO DE CONCORRÃŠNCIA:
+    TRATAMENTO DE CONCORRÊNCIA:
     
-    Problema: MÃºltiplas conexÃµes WebSocket simultÃ¢neas podem:
-    - Corromper dicionÃ¡rio active_sessions (race condition)
+    Problema: Múltiplas conexões WebSocket simultâneas podem:
+    - Corromper dicionário active_sessions (race condition)
     - Enviar mensagens fora de ordem
-    - Deixar sessÃ£o "zumbando" sem cleanup
+    - Deixar sessão "zumbando" sem cleanup
     
-    SoluÃ§Ã£o: Usar asyncio.Lock
-    - Lock Ã© adquirido ANTES de modificar active_sessions
+    Solução: Usar asyncio.Lock
+    - Lock é adquirido ANTES de modificar active_sessions
     - Liberar IMEDIATAMENTE depois
-    - Receber/Enviar SEM lock (nÃ£o Ã© crÃ­tico)
+    - Receber/Enviar SEM lock (não é crítico)
     
     Exemplo de race condition SEM lock:
-    > Thread A lÃª: len(active_sessions) = 5
-    > Thread B lÃª: len(active_sessions) = 5
+    > Thread A lê: len(active_sessions) = 5
+    > Thread B lê: len(active_sessions) = 5
     > Thread A escreve: active_sessions[id] = ws â†' agora 6
-    > Thread B nÃ£o viu a alteraÃ§Ã£o de A
+    > Thread B não viu a alteração de A
     > Estado inconsistente!
     
     Com lock:
     > Thread A adquire: lock.acquire()
-    > Thread A lÃª/escreve atomicamente
+    > Thread A lê/escreve atomicamente
     > Thread A libera: lock.release()
-    > Thread B espera lock ficar disponÃ­vel
-    > OrdenaÃ§Ã£o garantida
+    > Thread B espera lock ficar disponível
+    > Ordenação garantida
     """
     
     await websocket.accept()
     
-    # Registrar sessÃ£o
+    # Registrar sessão
     async with sessions_lock:
         active_sessions[session_id] = websocket
     
     logger.info(f"[WS] Conectado: {session_id} (total: {len(active_sessions)})")
     
     try:
-        # Enviar confirmaÃ§Ã£o de conexÃ£o
+        # Enviar confirmação de conexão
         await websocket.send_json({
             "type": "connection",
             "status": "connected",
             "session_id": session_id,
-            "message": "Gateway ativo. Aguardando cÃ©rebro...",
+            "message": "Gateway ativo. Aguardando cérebro...",
             "timestamp": datetime.utcnow().isoformat() + "Z",
         })
         
@@ -785,7 +785,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 
                 # ===== CHAMAR BRAIN REAL =====
                 if not brain:
-                    raise RuntimeError("Brain nÃ£o inicializado")
+                    raise RuntimeError("Brain não inicializado")
                 
                 # Persistir mensagem em database
                 logger.debug(f"[WS] Persistindo mensagem em DB...")
@@ -830,10 +830,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 logger.debug(f"[WS] Resposta persistida")
                 
-                # Sintetizar voz se disponÃ­vel
+                # Sintetizar voz se disponível
                 response_audio = ""
                 if brain_response.audio:
-                    logger.debug(f"[WS] Brain retornou Ã¡udio")
+                    logger.debug(f"[WS] Brain retornou áudio")
                     response_audio = brain_response.audio
                 elif voice_manager:
                     try:
@@ -845,7 +845,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     except Exception as e:
                         logger.warning(f"[WS] Erro ao sintetizar voz: {e}")
                 else:
-                    logger.debug(f"[WS] Sem voice_manager, pulando sÃ­ntese")
+                    logger.debug(f"[WS] Sem voice_manager, pulando síntese")
                 
                 # Enviar resposta do Brain
                 logger.info(f"[WS] Enviando resposta para {session_id}...")
@@ -892,13 +892,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     })
     
     except WebSocketDisconnect:
-        logger.info(f"[WS] DesconexÃ£o normal: {session_id}")
+        logger.info(f"[WS] Desconexão normal: {session_id}")
     
     except Exception as e:
         logger.error(f"[WS] Erro fatal: {session_id}: {type(e).__name__}: {e}")
     
     finally:
-        # ===== CLEANUP: ZERAR SESSÃƒO =====
+        # ===== CLEANUP: ZERAR SESSÃO =====
         async with sessions_lock:
             if session_id in active_sessions:
                 del active_sessions[session_id]
@@ -910,11 +910,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_chat_endpoint(websocket: WebSocket, session_id: str):
     """
-    Alias do WebSocket endpoint: redireciona `/ws/chat/{session_id}` para a implementaÃ§Ã£o principal.
+    Alias do WebSocket endpoint: redireciona `/ws/chat/{session_id}` para a implementação principal.
     
-    MOTIVO: O frontend prÃ³ximo espera este path, mantemos compatibilidade.
+    MOTIVO: O frontend próximo espera este path, mantemos compatibilidade.
     """
-    # Delegar para a implementaÃ§Ã£o principal
+    # Delegar para a implementação principal
     return await websocket_endpoint(websocket, session_id)
 
 
@@ -923,9 +923,9 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str):
 @app.exception_handler(QuintaFeirError)
 async def quintafeira_exception_handler(request, exc: QuintaFeirError):
     """
-    Catch de exceÃ§Ãµes do domÃ­nio (ToolNotFoundError, TerminalSecurityError, etc).
+    Catch de exceções do domínio (ToolNotFoundError, TerminalSecurityError, etc).
     
-    Converte para resposta JSON amigÃ¡vel.
+    Converte para resposta JSON amigável.
     """
     logger.error(f"[ERROR] {exc}")
     return JSONResponse(
@@ -937,11 +937,11 @@ async def quintafeira_exception_handler(request, exc: QuintaFeirError):
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc: Exception):
     """
-    Catch global de exceÃ§Ãµes inesperadas.
+    Catch global de exceções inesperadas.
     
-    Em produÃ§Ã£o, logging e monitoramento aqui.
+    Em produção, logging e monitoramento aqui.
     """
-    logger.error(f"[CRITICAL] ExceÃ§Ã£o inesperada: {type(exc).__name__}: {exc}")
+    logger.error(f"[CRITICAL] Exceção inesperada: {type(exc).__name__}: {exc}")
     return JSONResponse(
         status_code=500,
         content={

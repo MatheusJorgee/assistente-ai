@@ -1,7 +1,7 @@
 ﻿"""
-Memory Manager (Long-Term Memory): episÃ³dica + semÃ¢ntica.
+Memory Manager (Long-Term Memory): episódica + semântica.
 
-PersistÃªncia usa o SQLite canÃ´nico do Core.
+Persistência usa o SQLite canônico do Core.
 """
 
 from __future__ import annotations
@@ -104,7 +104,7 @@ logger = get_logger(__name__)
 
 
 class MemoryManager:
-    """Gerenciador de memÃ³ria de longo prazo."""
+    """Gerenciador de memória de longo prazo."""
 
     def __init__(self) -> None:
         self._initialized = False
@@ -215,7 +215,7 @@ class MemoryManager:
             )
             return {"ok": True, "memory_type": "semantic", "id": row_id, "updated": False}
 
-        return {"ok": False, "error": "memory_type invÃ¡lido. Use 'episodic' ou 'semantic'."}
+        return {"ok": False, "error": "memory_type inválido. Use 'episodic' ou 'semantic'."}
 
     async def retrieve_memory(self, *, memory_type: str = "all", limit: int = 10) -> Dict[str, Any]:
         await self.initialize()

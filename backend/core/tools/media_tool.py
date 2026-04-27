@@ -1,5 +1,5 @@
 ﻿"""
-Media Tool - Controle de Ã¡udio (Spotify, YouTube, Volume, Play/Pause).
+Media Tool - Controle de áudio (Spotify, YouTube, Volume, Play/Pause).
 """
 
 import asyncio
@@ -17,19 +17,19 @@ logger = get_logger(__name__)
 
 
 class MediaTool(MotorTool):
-    """Ferramenta para controlar mÃ­dia (Spotify, YouTube, Ã¡udio)."""
+    """Ferramenta para controlar mídia (Spotify, YouTube, áudio)."""
     
     def __init__(self):
         super().__init__(
             metadata=ToolMetadata(
                 name="controlar_midia",
-                description="Controla reproduÃ§Ã£o de mÃ­dia (Spotify, YouTube, Volume)",
+                description="Controla reprodução de mídia (Spotify, YouTube, Volume)",
                 category="media",
                 parameters=[
                     ToolParameter(
                         name="acao",
                         type="string",
-                        description="AÃ§Ã£o: play, pause, next, previous, volume_up, volume_down, volume_set",
+                        description="Ação: play, pause, next, previous, volume_up, volume_down, volume_set",
                         required=True,
                         choices=["play", "pause", "next", "previous", "volume_up", "volume_down", "volume_set", "abrir_spotify", "abrir_youtube"]
                     ),
@@ -53,7 +53,7 @@ class MediaTool(MotorTool):
         )
     
     def validate_input(self, **kwargs) -> bool:
-        """Valida se aÃ§Ã£o foi fornecida."""
+        """Valida se ação foi fornecida."""
         acao = kwargs.get("acao", "").lower()
         valid_acoes = [
             "play", "pause", "next", "previous",
@@ -63,7 +63,7 @@ class MediaTool(MotorTool):
         return acao in valid_acoes
     
     async def execute(self, **kwargs) -> str:
-        """Executa aÃ§Ã£o de mÃ­dia."""
+        """Executa ação de mídia."""
         acao = kwargs.get("acao", "").lower()
         valor = kwargs.get("valor", None)
         
@@ -89,15 +89,15 @@ class MediaTool(MotorTool):
             elif acao == "abrir_youtube":
                 return await self._abrir_app("youtube")
             else:
-                raise ValueError(f"AÃ§Ã£o desconhecida: {acao}")
+                raise ValueError(f"Ação desconhecida: {acao}")
         
         except Exception as e:
-            raise RuntimeError(f"Erro ao controlar mÃ­dia: {str(e)}")
+            raise RuntimeError(f"Erro ao controlar mídia: {str(e)}")
     
     async def _controlar_reproducao(self, acao: str) -> str:
         """Controla play/pause/next/previous."""
         if sys.platform == "win32":
-            # Windows: usar teclas de mÃ­dia
+            # Windows: usar teclas de mídia
             commands = {
                 "play": "powershell -Command \"[System.Windows.Forms.SendKeys]::SendWait('%{179}')\"; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(' ')\"",
                 "pause": "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys([char]32)",
@@ -106,15 +106,15 @@ class MediaTool(MotorTool):
             }
             
             if acao not in commands:
-                raise ValueError(f"AÃ§Ã£o desconhecida: {acao}")
+                raise ValueError(f"Ação desconhecida: {acao}")
             
-            # SimulaÃ§Ã£o (nÃ£o executar de verdade no teste)
-            logger.info(f"[MEDIA] AÃ§Ã£o: {acao}")
-            return f"âœ" ReproduÃ§Ã£o: {acao}"
+            # Simulação (não executar de verdade no teste)
+            logger.info(f"[MEDIA] Ação: {acao}")
+            return f"âœ" Reprodução: {acao}"
         else:
             # Linux/macOS: usar comandos alternativos
-            logger.info(f"[MEDIA] AÃ§Ã£o: {acao} (Linux/macOS)")
-            return f"âœ" ReproduÃ§Ã£o: {acao}"
+            logger.info(f"[MEDIA] Ação: {acao} (Linux/macOS)")
+            return f"âœ" Reprodução: {acao}"
     
     async def _controlar_volume(self, acao: str, valor: Optional[int] = None) -> str:
         """Controla volume do sistema."""

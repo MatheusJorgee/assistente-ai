@@ -1,5 +1,5 @@
 ﻿"""
-Ferramentas de MemÃ³ria e Aprendizado.
+Ferramentas de Memória e Aprendizado.
 """
 
 import asyncio
@@ -13,14 +13,14 @@ except ModuleNotFoundError:
 
 class GuardarMemoriaTool(Tool):
     """
-    Ferramenta para guardar informaÃ§Ãµes na memÃ³ria longa de forma estruturada.
+    Ferramenta para guardar informações na memória longa de forma estruturada.
     """
     
     def __init__(self, database=None):
         super().__init__(
             metadata=ToolMetadata(
                 name="save_memory",
-                description="Guarda informaÃ§Ãµes na memÃ³ria de longo prazo com categorizaÃ§Ã£o",
+                description="Guarda informações na memória de longo prazo com categorização",
                 version="1.0.0",
                 tags=["memory", "learning", "persistence"]
             )
@@ -32,17 +32,17 @@ class GuardarMemoriaTool(Tool):
     
     async def execute(self, **kwargs) -> str:
         """
-        Guarda informaÃ§Ã£o na memÃ³ria.
+        Guarda informação na memória.
         
         Args:
             informacao (str): O que guardar
             categoria (str): Categoria (ex: "resolucao_contextual", "skill", "fato")
             
         Returns:
-            str: ConfirmaÃ§Ã£o
+            str: Confirmação
         """
         if not self.db:
-            return "[AVISO] Database nÃ£o configurado - memÃ³ria temporÃ¡ria apenas"
+            return "[AVISO] Database não configurado - memória temporária apenas"
         
         informacao = kwargs.get('informacao', '').strip()
         categoria = kwargs.get('categoria', 'general').strip()
@@ -64,19 +64,19 @@ class GuardarMemoriaTool(Tool):
             return resultado
             
         except Exception as e:
-            return f"[ERRO MemÃ³ria] {str(e)}"
+            return f"[ERRO Memória] {str(e)}"
 
 
 class BuscarMemoriaTool(Tool):
     """
-    Ferramenta para buscar informaÃ§Ãµes na memÃ³ria.
+    Ferramenta para buscar informações na memória.
     """
     
     def __init__(self, database=None):
         super().__init__(
             metadata=ToolMetadata(
                 name="search_memory",
-                description="Busca informaÃ§Ãµes na memÃ³ria de longo prazo",
+                description="Busca informações na memória de longo prazo",
                 version="1.0.0",
                 tags=["memory", "search"]
             )
@@ -88,7 +88,7 @@ class BuscarMemoriaTool(Tool):
     
     async def execute(self, **kwargs) -> str:
         """
-        Busca na memÃ³ria.
+        Busca na memória.
         
         Args:
             categoria (str): Filtrar por categoria (opcional)
@@ -98,13 +98,13 @@ class BuscarMemoriaTool(Tool):
             str: Resultados encontrados
         """
         if not self.db:
-            return "[AVISO] Database nÃ£o configurado"
+            return "[AVISO] Database não configurado"
         
         categoria = kwargs.get('categoria', '').strip()
         termos = kwargs.get('termos', '').strip()
         
         try:
-            # Dependendo da implementaÃ§Ã£o do DB
+            # Dependendo da implementação do DB
             if categoria:
                 resultados = await asyncio.to_thread(
                     self.db.buscar_memoria_por_categoria,
@@ -126,19 +126,19 @@ class BuscarMemoriaTool(Tool):
             return str(resultados)
             
         except Exception as e:
-            return f"[ERRO Busca MemÃ³ria] {str(e)}"
+            return f"[ERRO Busca Memória] {str(e)}"
 
 
 class ResolverAlvoComAprendizadoTool(Tool):
     """
-    Ferramenta inteligente para resolver termos ambÃ­guos usando OrÃ¡culo + cache.
+    Ferramenta inteligente para resolver termos ambíguos usando Oráculo + cache.
     """
     
     def __init__(self, oraculo_engine=None, database=None):
         super().__init__(
             metadata=ToolMetadata(
                 name="resolve_target",
-                description="Resolve termos ambÃ­guos com OrÃ¡culo e cache de aprendizado",
+                description="Resolve termos ambíguos com Oráculo e cache de aprendizado",
                 version="2.0.0",
                 tags=["resolving", "learning", "disambiguation"]
             )
@@ -151,14 +151,14 @@ class ResolverAlvoComAprendizadoTool(Tool):
     
     async def execute(self, **kwargs) -> str:
         """
-        Resolve termo com OrÃ¡culo + cache.
+        Resolve termo com Oráculo + cache.
         
         Args:
-            termo (str): Termo ambÃ­guo
+            termo (str): Termo ambíguo
             contexto (str): Contexto (twitch, youtube, web, etc)
             
         Returns:
-            str: Resultado JSON com alvo canonico, confianÃ§a, etc
+            str: Resultado JSON com alvo canonico, confiança, etc
         """
         termo = kwargs.get('termo', '').strip()
         contexto = kwargs.get('contexto', 'web').strip().lower()
@@ -185,9 +185,9 @@ class ResolverAlvoComAprendizadoTool(Tool):
             except:
                 pass
         
-        # Consultar OrÃ¡culo
+        # Consultar Oráculo
         if not self.oraculo:
-            return f'{{"erro": "OrÃ¡culo nÃ£o disponÃ­vel"}}'
+            return f'{{"erro": "Oráculo não disponível"}}'
         
         if self._event_bus:
             self._event_bus.emit('cortex_thinking', {

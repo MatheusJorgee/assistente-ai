@@ -1,5 +1,5 @@
 """
-Tool de gravaÃ§Ã£o de MemÃ³ria Nuclear no Obsidian Vault.
+Tool de gravação de Memória Nuclear no Obsidian Vault.
 """
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ VAULT_MEMORIAS_PATH = "./.vault/Memorias"
 
 def salvar_memoria_obsidian(nome_entidade: str, categoria: str, fato: str) -> str:
     """
-    Grava um fato permanente no Obsidian (MemÃ³ria Nuclear).
-    Use isto QUANDO o usuÃ¡rio pedir para anotar uma preferÃªncia, alergia, vÃ­nculo ou dado imutÃ¡vel.
+    Grava um fato permanente no Obsidian (Memória Nuclear).
+    Use isto QUANDO o usuário pedir para anotar uma preferência, alergia, vínculo ou dado imutável.
 
     Args:
-        nome_entidade: O nome do arquivo (ex: 'paulo', 'preferencias_comida'). Use minÃºsculas e underscores.
+        nome_entidade: O nome do arquivo (ex: 'paulo', 'preferencias_comida'). Use minúsculas e underscores.
         categoria: A categoria para o metadado (ex: 'pessoa', 'comida', 'sistema').
         fato: O fato direto e conciso a ser gravado (ex: 'Tem alergia a amendoim').
     """
@@ -42,18 +42,18 @@ tags: [memoria_nuclear, {categoria}, {nome_entidade}]
 
 # {nome_entidade.replace('_', ' ').title()}
 
-## 🛡️ NÃºcleo Duro (Core Facts)
+## 🛡️ Núcleo Duro (Core Facts)
 - {fato}
 
 """
         with open(caminho_arquivo, "w", encoding="utf-8") as f:
             f.write(conteudo_inicial)
-        return f"Novo arquivo criado e memÃ³ria salva em {caminho_arquivo}"
+        return f"Novo arquivo criado e memória salva em {caminho_arquivo}"
 
     else:
         with open(caminho_arquivo, "a", encoding="utf-8") as f:
             f.write(f"- {fato}\n")
-        return f"MemÃ³ria adicionada ao arquivo existente {caminho_arquivo}"
+        return f"Memória adicionada ao arquivo existente {caminho_arquivo}"
 
 
 class ObsidianMemoryTool(MotorTool):
@@ -62,9 +62,9 @@ class ObsidianMemoryTool(MotorTool):
             metadata=ToolMetadata(
                 name="salvar_memoria_obsidian",
                 description=(
-                    "Grava um fato permanente no Obsidian (MemÃ³ria Nuclear). "
-                    "Use QUANDO o usuÃ¡rio pedir para anotar uma preferÃªncia, alergia, "
-                    "vÃ­nculo ou dado imutÃ¡vel."
+                    "Grava um fato permanente no Obsidian (Memória Nuclear). "
+                    "Use QUANDO o usuário pedir para anotar uma preferência, alergia, "
+                    "vínculo ou dado imutável."
                 ),
                 category="memory",
                 parameters=[
@@ -73,7 +73,7 @@ class ObsidianMemoryTool(MotorTool):
                         type="string",
                         description=(
                             "Nome do arquivo (ex: 'paulo', 'preferencias_comida'). "
-                            "Use minÃºsculas e underscores."
+                            "Use minúsculas e underscores."
                         ),
                         required=True,
                     ),
@@ -116,10 +116,10 @@ class AnotarMemoriaDiariaTool(MotorTool):
             metadata=ToolMetadata(
                 name="anotar_memoria",
                 description=(
-                    "Usa esta ferramenta para anotar fatos do dia-a-dia do usuÃ¡rio, "
-                    "como dores, humor, refeiÃ§Ãµes, eventos temporÃ¡rios ou qualquer "
-                    "acontecimento volÃ¡til do dia. Grava no arquivo de memÃ³ria "
-                    "de curto prazo (contexto efÃªmero) do dia atual."
+                    "Usa esta ferramenta para anotar fatos do dia-a-dia do usuário, "
+                    "como dores, humor, refeições, eventos temporários ou qualquer "
+                    "acontecimento volátil do dia. Grava no arquivo de memória "
+                    "de curto prazo (contexto efêmero) do dia atual."
                 ),
                 category="memory",
                 parameters=[
@@ -128,7 +128,7 @@ class AnotarMemoriaDiariaTool(MotorTool):
                         type="string",
                         description=(
                             "Fato direto e conciso do dia a ser anotado "
-                            "(ex: 'UsuÃ¡rio relatou dor de cabeÃ§a Ã s 14h')."
+                            "(ex: 'Usuário relatou dor de cabeça Ã s 14h')."
                         ),
                         required=True,
                     ),

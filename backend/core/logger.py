@@ -2,13 +2,13 @@
 Logger.py: Setup Centralizado de Logging
 ==========================================
 
-PadrÃ£o: Singleton + Factory
+Padrão: Singleton + Factory
 
 Responsabilidade:
 - Configurar logging unificado para todo o backend
 - Silenciar bibliotecas ruidosas (google.genai, urllib3, etc)
-- Apenas INFO+ para cÃ³digo prÃ³prio, WARNING+ para libs externas
-- Formato consistente com timestamps e nÃ­veis
+- Apenas INFO+ para código próprio, WARNING+ para libs externas
+- Formato consistente com timestamps e níveis
 
 Uso:
     from .logger import get_logger
@@ -22,7 +22,7 @@ from typing import Optional
 
 
 class LoggerFactory:
-    """Factory para criar loggers com configuraÃ§Ã£o consistente."""
+    """Factory para criar loggers com configuração consistente."""
     
     _configured = False
     
@@ -33,7 +33,7 @@ class LoggerFactory:
         log_format: str = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
     ) -> None:
         """
-        Configura root logger uma Ãºnica vez (Singleton).
+        Configura root logger uma única vez (Singleton).
         
         Args:
             log_level: DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -56,7 +56,7 @@ class LoggerFactory:
         root.addHandler(handler)
         
         # ===== SILENCIAR LIBS RUIDOSAS =====
-        # Estas libs emitem WARNING+ mesmo quando nÃ£o Ã© erro
+        # Estas libs emitem WARNING+ mesmo quando não é erro
         silent_libs = [
             'httpx',
             'google.genai',
@@ -75,13 +75,13 @@ class LoggerFactory:
     @classmethod
     def get_logger(cls, name: str) -> logging.Logger:
         """
-        ObtÃ©m logger para um mÃ³dulo especÃ­fico.
+        Obtém logger para um módulo específico.
         
         Args:
-            name: Tipicamente __name__ do mÃ³dulo
+            name: Tipicamente __name__ do módulo
             
         Returns:
-            InstÃ¢ncia de logging.Logger
+            Instância de logging.Logger
         """
         # Garantir que root foi configurado
         if not cls._configured:
@@ -90,7 +90,7 @@ class LoggerFactory:
         return logging.getLogger(name)
 
 
-# ===== INTERFACE PÃšBLICA =====
+# ===== INTERFACE PÚBLICA =====
 
 def configure_logging(
     log_level: str = "INFO",
@@ -114,7 +114,7 @@ def configure_logging(
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
     """
-    ObtÃ©m logger para uso em mÃ³dulo.
+    Obtém logger para uso em módulo.
     
     Args:
         name: Tipicamente __name__ (se None, usa "quintafeira.unnamed")

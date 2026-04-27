@@ -1,8 +1,8 @@
 ﻿"""
-Backend Core: FundaÃ§Ã£o do Sistema
+Backend Core: Fundação do Sistema
 ==================================
 
-Exporte as abstraÃ§Ãµes e utilitÃ¡rios fundamentais que todo mÃ³dulo usa.
+Exporte as abstrações e utilitários fundamentais que todo módulo usa.
 
 Uso (exemplos):
     from . import get_config, get_logger
@@ -14,7 +14,7 @@ Uso (exemplos):
     adapter = GeminiAdapter()
 """
 
-# ===== CONFIGURAÃ‡ÃƒO =====
+# ===== CONFIGURAÇÃO =====
 from .config import Config, get_config
 
 # ===== LOGGING =====
