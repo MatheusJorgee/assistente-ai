@@ -114,7 +114,7 @@ class VisionTool(MotorTool):
             
             logger.info(f"[VISION] Captura pronta ({len(screenshot_data)} bytes)")
             
-            return f"âœ“ Tela capturada\n  - Tamanho: {len(screenshot_data)} bytes\n  - Formato: WebP (comprimido 95%)\n  - Base64: {self._last_screenshot_base64[:50]}..."
+            return f"âœ" Tela capturada\n  - Tamanho: {len(screenshot_data)} bytes\n  - Formato: WebP (comprimido 95%)\n  - Base64: {self._last_screenshot_base64[:50]}..."
         
         except Exception as e:
             raise RuntimeError(f"Erro ao capturar tela: {str(e)}")
@@ -131,7 +131,7 @@ class VisionTool(MotorTool):
             screenshot_data = await self._criar_screenshot_dummy(largura, altura)
             self._last_screenshot_base64 = base64.b64encode(screenshot_data).decode('utf-8')
             
-            return f"âœ“ Ãrea capturada ({largura}x{altura})\n  - Tamanho: {len(screenshot_data)} bytes"
+            return f"âœ" Ãrea capturada ({largura}x{altura})\n  - Tamanho: {len(screenshot_data)} bytes"
         
         except Exception as e:
             raise RuntimeError(f"Erro ao capturar Ã¡rea: {str(e)}")
@@ -145,7 +145,7 @@ class VisionTool(MotorTool):
             logger.info("[VISION] Analisando screenshot...")
             
             # SimulaÃ§Ã£o: retornar anÃ¡lise fake
-            return """âœ“ AnÃ¡lise de screenshot:
+            return """âœ" AnÃ¡lise de screenshot:
   - Texto detectado: "Quinta-Feira", "Assistente IA"
   - Elementos UI: 3 botÃµes, 1 textbox
   - Cores dominantes: Azul (#0078D4), Branco

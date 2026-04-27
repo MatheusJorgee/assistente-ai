@@ -142,7 +142,7 @@ class TerminalSecurityValidator:
         # 1. Verificar whitelist (permissÃ£o rÃ¡pida)
         for pattern in self.WHITELIST:
             if re.match(pattern, command):
-                logger.debug(f"[SECURITY] âœ“ Whitelist: {command[:50]}")
+                logger.debug(f"[SECURITY] âœ" Whitelist: {command[:50]}")
                 return SecurityCheckResult(
                     allowed=True,
                     action=SecurityAction.ALLOW,
@@ -190,7 +190,7 @@ class TerminalSecurityValidator:
                     )
         
         # 4. Se passou em todas as verificaÃ§Ãµes
-        logger.debug(f"[SECURITY] âœ“ Comando ok: {command[:50]}")
+        logger.debug(f"[SECURITY] âœ" Comando ok: {command[:50]}")
         return SecurityCheckResult(
             allowed=True,
             action=SecurityAction.ALLOW,

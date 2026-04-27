@@ -346,7 +346,7 @@ class ToolRegistry:
         if aliases:
             for alias in aliases:
                 self._aliases[alias] = tool_name
-                logger.debug(f"  â””â”€ Alias: {alias} â†’ {tool_name}")
+                logger.debug(f"  â""â"€ Alias: {alias} â†' {tool_name}")
     
     async def execute(self, tool_name: str, **kwargs) -> ToolResult:
         """Executa uma ferramenta com middleware de segurança e proteção total do event loop."""

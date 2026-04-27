@@ -1,7 +1,7 @@
 ﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SCRIPT DE DIAGNÃ“STICO COMPLETO - Quinta-Feira v2.1
+SCRIPT DE DIAGNÃ"STICO COMPLETO - Quinta-Feira v2.1
 
 Uso:
   python diagnose_system.py
@@ -143,7 +143,7 @@ def main():
     report.add_check(
         "Gemini API Key",
         api_key_ok,
-        "âœ“ Configurada" if api_key_ok else "âœ— NÃ£o encontrada",
+        "âœ" Configurada" if api_key_ok else "âœ— NÃ£o encontrada",
         "Adicione GEMINI_API_KEY ao .env"
     )
     
@@ -159,7 +159,7 @@ def main():
     # Google GenAI
     try:
         from google import genai
-        report.add_check("Google GenAI", True, "Instalado âœ“", "")
+        report.add_check("Google GenAI", True, "Instalado âœ"", "")
     except ImportError:
         report.add_check("Google GenAI", False, "NÃ£o instalado", "pip install google-genai")
     
@@ -173,7 +173,7 @@ def main():
     # PIL/Pillow
     try:
         from PIL import Image
-        report.add_check("Pillow", True, "Instalado âœ“", "")
+        report.add_check("Pillow", True, "Instalado âœ"", "")
     except ImportError:
         report.add_check("Pillow", False, "NÃ£o instalado", "pip install pillow")
     
@@ -186,7 +186,7 @@ def main():
         report.add_check(
             "QuintaFeiraBrain v2",
             True,
-            "ImportaÃ§Ã£o OK âœ“",
+            "ImportaÃ§Ã£o OK âœ"",
             ""
         )
     except Exception as e:
@@ -206,7 +206,7 @@ def main():
         report.add_check(
             "Database Module",
             True,
-            "services.database importÃ¡vel âœ“",
+            "services.database importÃ¡vel âœ"",
             ""
         )
     except Exception as e:
@@ -223,7 +223,7 @@ def main():
         report.add_check(
             "Oracle Module",
             True,
-            "OraculoEngine importÃ¡vel âœ“",
+            "OraculoEngine importÃ¡vel âœ"",
             ""
         )
     except Exception as e:
@@ -240,7 +240,7 @@ def main():
         report.add_check(
             "Core Modules",
             True,
-            "tool_registry, EventBus, DIContainer âœ“",
+            "tool_registry, EventBus, DIContainer âœ"",
             ""
         )
     except Exception as e:
@@ -261,7 +261,7 @@ def main():
         "Arquivo FastAPI principal"
     )
     
-    # ========== PRÃ“XIMOS PASSOS ==========
+    # ========== PRÃ"XIMOS PASSOS ==========
     print(f"\n{Colors.CYAN}{Colors.BOLD}[NEXT] PROXIMOS PASSOS{Colors.END}\n")
     
     if report.errors:

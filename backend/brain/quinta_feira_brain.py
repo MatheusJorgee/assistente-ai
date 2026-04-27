@@ -181,23 +181,23 @@ class QuintaFeiraBrain:
     FLUXO PRINCIPAL:
     
     Gateway envia: {"message": "OlÃ¡", "image_data": null}
-           â”‚
-           â”œâ”€ brain.ask(message, image_data)
-           â”‚
-           â”œâ”€ Processar imagem (se houver)
-           â”‚
-           â”œâ”€ Adicionar ao histÃ³rico
-           â”‚
-           â”œâ”€ Injetar tools do ToolRegistry
-           â”‚
-           â”œâ”€ Chamar LLMProvider.generate()
-           â”‚  (pode ser Gemini, Ollama, etc)
-           â”‚
-           â”œâ”€ Se funÃ§Ã£o calling, orquestrar
-           â”‚
-           â””â”€ Retornar BrainResponse
-                   â”‚
-                   â””â”€ Gateway formata em JSON
+           â"‚
+           â"œâ"€ brain.ask(message, image_data)
+           â"‚
+           â"œâ"€ Processar imagem (se houver)
+           â"‚
+           â"œâ"€ Adicionar ao histÃ³rico
+           â"‚
+           â"œâ"€ Injetar tools do ToolRegistry
+           â"‚
+           â"œâ"€ Chamar LLMProvider.generate()
+           â"‚  (pode ser Gemini, Ollama, etc)
+           â"‚
+           â"œâ"€ Se funÃ§Ã£o calling, orquestrar
+           â"‚
+           â""â"€ Retornar BrainResponse
+                   â"‚
+                   â""â"€ Gateway formata em JSON
     """
     
     def __init__(
@@ -253,7 +253,7 @@ VocÃª TEM UMA FERRAMENTA chamada `memorizar_informacao`.
 Ã‰ ESTRITAMENTE PROIBIDO responder ao usuÃ¡rio dizendo "Anotei" ou "Guardei"
 sem antes ter efetivamente executado a ferramenta `memorizar_informacao`.
 Se o usuÃ¡rio relatar um fato novo (preferÃªncia, dor, evento do dia), PARE,
-chame a ferramenta de memÃ³ria e SÃ“ DEPOIS gere sua resposta em texto.
+chame a ferramenta de memÃ³ria e SÃ" DEPOIS gere sua resposta em texto.
 [FIM DA DIRETRIZ CRÃTICA]
 
 VocÃª Ã© o Sistema Operativo Quinta-Feira, uma IA operacional criada por Matheus.
@@ -279,7 +279,7 @@ Uso esperado de memÃ³ria:
 - Antes de assumir contexto antigo, consulte retrieve_memory/search_memory quando necessÃ¡rio
 
 ============================================================
-DIRETRIZ DE MEMÃ“RIA OBRIGATÃ“RIA (LEIA E CUMPRA SEMPRE):
+DIRETRIZ DE MEMÃ"RIA OBRIGATÃ"RIA (LEIA E CUMPRA SEMPRE):
 ============================================================
 VocÃª possui ferramentas de memÃ³ria (ex: `salvar_memoria_obsidian`, `memory_manager`, `anotar_memoria`).
 TODA VEZ que o usuÃ¡rio compartilhar uma informaÃ§Ã£o nova (um fato sobre si mesmo, um estado
@@ -291,7 +291,7 @@ REGRAS CRÃTICAS:
 - Fatos volÃ¡teis/do dia (dores, humor, refeiÃ§Ãµes, eventos temporÃ¡rios): use a ferramenta de memÃ³ria diÃ¡ria/curto prazo.
 - Nunca confie apenas no contexto da conversa. Se o usuÃ¡rio disser "hoje estou com dor", GRAVE.
   Se disser "gosto de azul", GRAVE. Se disser "comi pizza no almoÃ§o", GRAVE.
-- GRAVE PRIMEIRO, RESPONDA DEPOIS. NÃƒO pergunte se pode gravar â€” simplesmente grave.
+- GRAVE PRIMEIRO, RESPONDA DEPOIS. NÃƒO pergunte se pode gravar â€" simplesmente grave.
 ============================================================
 
 Regras obrigatÃ³rias de execuÃ§Ã£o:
@@ -319,12 +319,12 @@ NUNCA ignore um contato fixado no resumo, mesmo que nao tenha mensagens novas.
 """
     
     async def initialize(self) -> None:
-        “””Inicializa componentes na startup.”””
+        """ Inicializa componentes na startup."""
         await self.llm_provider.initialize()
         self.message_history.inject_strategy(
             LLMCompressionStrategy(self.llm_provider)
         )
-        self.logger.info(“[BRAIN] âœ” Inicializado com sucesso”)
+        self.logger.info("[BRAIN] ✔ Inicializado com sucesso")
     
     async def ask(
         self,

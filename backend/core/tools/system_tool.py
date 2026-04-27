@@ -109,9 +109,9 @@ class SystemTool(MotorTool):
             
             # Mock data
             if filtro:
-                return f"âœ“ Processos contendo '{filtro}':\n  - python.exe (PID: 1234)\n  - python.exe (PID: 5678)"
+                return f"âœ" Processos contendo '{filtro}':\n  - python.exe (PID: 1234)\n  - python.exe (PID: 5678)"
             else:
-                return "âœ“ Processos do sistema:\n  - System (PID: 4)\n  - explorer.exe (PID: 2048)\n  - python.exe (PID: 1234)"
+                return "âœ" Processos do sistema:\n  - System (PID: 4)\n  - explorer.exe (PID: 2048)\n  - python.exe (PID: 1234)"
         
         except Exception as e:
             raise RuntimeError(f"Erro ao listar processos: {str(e)}")
@@ -127,9 +127,9 @@ class SystemTool(MotorTool):
             logger.info(f"[SYSTEM] Listando serviÃ§os (filtro: {filtro})")
             
             if filtro:
-                return f"âœ“ ServiÃ§os contendo '{filtro}':\n  - {filtro}Service (Running)"
+                return f"âœ" ServiÃ§os contendo '{filtro}':\n  - {filtro}Service (Running)"
             else:
-                return "âœ“ Alguns serviÃ§os:\n  - wuauserv (Running)\n  - WinDefend (Running)\n  - AudioSrv (Running)"
+                return "âœ" Alguns serviÃ§os:\n  - wuauserv (Running)\n  - WinDefend (Running)\n  - AudioSrv (Running)"
         
         except Exception as e:
             raise RuntimeError(f"Erro ao listar serviÃ§os: {str(e)}")
@@ -173,7 +173,7 @@ class SystemTool(MotorTool):
             for item in list(path.iterdir())[:10]:  # Limitar a 10 arquivos
                 files.append({
                     "nome": item.name,
-                    "tipo": "ðŸ“ dir" if item.is_dir() else "ðŸ“„ arquivo",
+                    "tipo": "ðŸ" dir" if item.is_dir() else "ðŸ"„ arquivo",
                     "tamanho": str(item.stat().st_size) if item.is_file() else "N/A"
                 })
             

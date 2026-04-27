@@ -434,7 +434,7 @@ class AbrirOuPesquisarTool(Tool):
 
 class PesquisarInformacaoOnlineTool(Tool):
     """
-    FERRAMENTA MANDATÃ“RIA E PRIORITÃRIA PARA PERGUNTAS FACTUAIS EM TEMPO REAL.
+    FERRAMENTA MANDATÃ"RIA E PRIORITÃRIA PARA PERGUNTAS FACTUAIS EM TEMPO REAL.
     
     Esta Ã© a ferramenta EXCLUSIVA para responder a perguntas que requerem conhecimento
     atual ou informaÃ§Ãµes online em tempo real. SEMPRE use esta ferramenta quando o usuÃ¡rio

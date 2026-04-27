@@ -110,23 +110,23 @@ class MediaTool(MotorTool):
             
             # SimulaÃ§Ã£o (nÃ£o executar de verdade no teste)
             logger.info(f"[MEDIA] AÃ§Ã£o: {acao}")
-            return f"âœ“ ReproduÃ§Ã£o: {acao}"
+            return f"âœ" ReproduÃ§Ã£o: {acao}"
         else:
             # Linux/macOS: usar comandos alternativos
             logger.info(f"[MEDIA] AÃ§Ã£o: {acao} (Linux/macOS)")
-            return f"âœ“ ReproduÃ§Ã£o: {acao}"
+            return f"âœ" ReproduÃ§Ã£o: {acao}"
     
     async def _controlar_volume(self, acao: str, valor: Optional[int] = None) -> str:
         """Controla volume do sistema."""
         if sys.platform == "win32":
             logger.info(f"[MEDIA] Volume: {acao} {valor}")
             if acao == "set":
-                return f"âœ“ Volume ajustado para {valor}%"
+                return f"âœ" Volume ajustado para {valor}%"
             else:
-                return f"âœ“ Volume {acao}"
+                return f"âœ" Volume {acao}"
         else:
             logger.info(f"[MEDIA] Volume: {acao} {valor} (Linux/macOS)")
-            return f"âœ“ Volume {acao}"
+            return f"âœ" Volume {acao}"
     
     async def _abrir_app(self, app: str) -> str:
         """Abre aplicativo (Spotify ou YouTube)."""
@@ -137,12 +137,12 @@ class MediaTool(MotorTool):
                 else:
                     await asyncio.create_subprocess_exec("open", "-a", "Spotify")
                 
-                return "âœ“ Abrindo Spotify..."
+                return "âœ" Abrindo Spotify..."
             
             elif app == "youtube":
                 import webbrowser
                 webbrowser.open("https://www.youtube.com")
-                return "âœ“ Abrindo YouTube no navegador..."
+                return "âœ" Abrindo YouTube no navegador..."
             
             else:
                 raise ValueError(f"Aplicativo desconhecido: {app}")

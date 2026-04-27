@@ -124,7 +124,7 @@ O FastAPI roda em uvicorn com mÃºltiplos workers (por padrÃ£o 4).
 Cada worker tem seu prÃ³prio event loop e estado Python separado.
 
 Para rastrear sessÃµes WebSocket, usamos:
-1. active_sessions: Dict[session_id] â†’ WebSocket connection
+1. active_sessions: Dict[session_id] â†' WebSocket connection
 2. Lock assÃ­ncrono: para operaÃ§Ãµes thread-safe
 
 Em produÃ§Ã£o com mÃºltiplos workers, considerarÃ­amos:
@@ -134,7 +134,7 @@ Em produÃ§Ã£o com mÃºltiplos workers, considerarÃ­amos:
 Para agora (desenvolvimento local), usamos Dict simples com async Lock.
 """
 
-active_sessions: Dict[str, WebSocket] = {}  # session_id â†’ WebSocket
+active_sessions: Dict[str, WebSocket] = {}  # session_id â†' WebSocket
 sessions_lock = asyncio.Lock()  # Protege acesso a active_sessions
 
 
@@ -268,7 +268,7 @@ async def lifespan(app: FastAPI):
         app.state.voice_command_orchestrator = voice_command_orchestrator
         logger.info("[STARTUP] Runtime autÃ´nomo ativo")
         
-        logger.info("[STARTUP] âœ“ Gateway PRONTO (Fase 3-6 integrada!)")
+        logger.info("[STARTUP] âœ" Gateway PRONTO (Fase 3-6 integrada!)")
     
     except Exception as e:
         logger.error(f"[STARTUP] Erro: {e}", exc_info=True)
@@ -338,7 +338,7 @@ async def lifespan(app: FastAPI):
         active_sessions.clear()
         logger.info(f"[SHUTDOWN] {closed} sessÃµes fechadas")
     
-    logger.info("[SHUTDOWN] âœ“ Gateway encerrado")
+    logger.info("[SHUTDOWN] âœ" Gateway encerrado")
 
 
 app = FastAPI(
@@ -660,11 +660,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     WebSocket Endpoint: ConduÃ­te Neural entre Frontend e Brain.
     
     FLUXO:
-    1. Cliente conecta â†’ Registra sessÃ£o
-    2. Cliente envia JSON â†’ Gateway parseia
+    1. Cliente conecta â†' Registra sessÃ£o
+    2. Cliente envia JSON â†' Gateway parseia
     3. Gateway encaminha para Brain (ainda mock)
-    4. Brain responde â†’ Gateway retorna JSON ao cliente
-    5. Cliente desconecta â†’ Limpa sessÃ£o
+    4. Brain responde â†' Gateway retorna JSON ao cliente
+    5. Cliente desconecta â†' Limpa sessÃ£o
     
     TRATAMENTO DE CONCORRÃŠNCIA:
     
@@ -681,7 +681,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     Exemplo de race condition SEM lock:
     > Thread A lÃª: len(active_sessions) = 5
     > Thread B lÃª: len(active_sessions) = 5
-    > Thread A escreve: active_sessions[id] = ws â†’ agora 6
+    > Thread A escreve: active_sessions[id] = ws â†' agora 6
     > Thread B nÃ£o viu a alteraÃ§Ã£o de A
     > Estado inconsistente!
     

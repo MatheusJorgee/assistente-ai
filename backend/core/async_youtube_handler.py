@@ -123,7 +123,7 @@ class AsyncYouTubeHandler:
             """
             
             await page.evaluate(codigo_magico)
-            print(f"[YT] âœ“ Motor furtivo injetado!")
+            print(f"[YT] âœ" Motor furtivo injetado!")
             
             if video_resolvido and video_resolvido.get("title"):
                 return f"â–¶ Tocando: {video_resolvido['title']}"
