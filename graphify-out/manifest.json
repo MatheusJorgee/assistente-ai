@@ -1,0 +1,526 @@
+{
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\painel-controle.ps1": {
+    "mtime": 1777859854.8487647,
+    "hash": "a454af34bf4b703c869dc02c3b502db1"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\quinta_manager.py": {
+    "mtime": 1777859854.8497653,
+    "hash": "0bb8812b1f28affaabfae787da74ffcd"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\automation.py": {
+    "mtime": 1777859854.70751,
+    "hash": "ac26a909698327a9125bb1e34d11afc6"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\automation_power_method.py": {
+    "mtime": 1777859854.7085106,
+    "hash": "36a732e6fbdc37ccbd817885c74e17fc"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\diagnose_system.py": {
+    "mtime": 1777859854.7813697,
+    "hash": "e9b9845f4aa2b2a63ad0f66d3aaaa7e3"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\main.py": {
+    "mtime": 1777859854.7843716,
+    "hash": "80a47ad9dfd83eef555de9d665417a00"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\oracle.py": {
+    "mtime": 1777859854.7853725,
+    "hash": "43ca0505bc4c69e28e269638f8473e54"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\process_manager.py": {
+    "mtime": 1777859854.7873745,
+    "hash": "52a92939018a9c13025dbd09ebbbf74a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\start_hub.py": {
+    "mtime": 1777859854.793214,
+    "hash": "ce1c0272e46fceadb89349d51e1db138"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\whatsapp_tools.py": {
+    "mtime": 1777859854.8032224,
+    "hash": "4a5e8c3daf7f917e977848238ad5a552"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\__init__.py": {
+    "mtime": 1777859854.7055075,
+    "hash": "074f84d713314b66010d11cff942b186"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\brain\\quinta_feira_brain.py": {
+    "mtime": 1777859854.710513,
+    "hash": "d596de598a7b58e342ad3b69fb436659"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\brain\\__init__.py": {
+    "mtime": 1777859854.7095125,
+    "hash": "ccf68f060a4eef1f720251d4978fc054"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\async_youtube_handler.py": {
+    "mtime": 1777859854.7198844,
+    "hash": "b335b625b228fd7f3c294bc6b98590c5"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\brain_optimization_guide.py": {
+    "mtime": 1777859854.72589,
+    "hash": "53479a0fdc0e4b53cc303ee5cbc9b4ce"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\browser_detection.py": {
+    "mtime": 1777859854.7268908,
+    "hash": "798a0d7d4465b727115a64d417a341a7"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\config.py": {
+    "mtime": 1777859854.7278924,
+    "hash": "2e37ad13a1dc316ae105a9a00b2f55f5"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\cortex_bilingue.py": {
+    "mtime": 1777859854.7288935,
+    "hash": "7f31e00392cda8f8420ae8fff50b729f"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\database.py": {
+    "mtime": 1777859854.7303188,
+    "hash": "146f79912eca8d2ce9fd428cd680a516"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\errors.py": {
+    "mtime": 1777859854.731316,
+    "hash": "6ef469d5ca37a48ffc9f4d7d2df113a5"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\gemini_provider.py": {
+    "mtime": 1777859854.7323177,
+    "hash": "28898126dce41518c8b2081f69d0ffed"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\latency_aware.py": {
+    "mtime": 1777859854.7363205,
+    "hash": "ca3da4bc17bcae59d48e7dc3904a769d"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\llm_provider.py": {
+    "mtime": 1777859854.7373214,
+    "hash": "f6dde83163fdf9a29dde27682cfaeee9"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\logger.py": {
+    "mtime": 1777859854.738323,
+    "hash": "7cfb6fd1e8dc95e2471b88b334b6c1f1"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\media_queue.py": {
+    "mtime": 1777859854.745329,
+    "hash": "9b6aa582dc9d19a5a9b94f8ce7f0a847"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\obsidian_manager.py": {
+    "mtime": 1777859854.7492955,
+    "hash": "7ba1601173a0b2bc24ec4d7f52e662bb"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\playwright_manager.py": {
+    "mtime": 1777859854.7510352,
+    "hash": "6f51f2c2f9912ca9b2137d2601002ef6"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\preferences.py": {
+    "mtime": 1777859854.7540345,
+    "hash": "5478fa6aaeed9506242f568238b44f56"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\search_reasoning.py": {
+    "mtime": 1777859854.7550359,
+    "hash": "1279b6ba1333b06b75c4b0a455c1e0c7"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\sliding_window_context.py": {
+    "mtime": 1777859854.756037,
+    "hash": "e0d8e5aa1c1d3aa7dde11dfc9af39433"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tool_registry.py": {
+    "mtime": 1777859854.7600403,
+    "hash": "e5f7b8e0c979fe5cce24be73d78457d8"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tool_registry_clean.py": {
+    "mtime": 1777859854.7600403,
+    "hash": "2d916af50993df307001627f1f5d7a86"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\whatsapp_sender.py": {
+    "mtime": 1777859854.7773654,
+    "hash": "fa3f97a4fc76031d754ac71625e13d19"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\youtube_loop.py": {
+    "mtime": 1777859854.778366,
+    "hash": "41a1244ca4e5ae7725a4655632b96675"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\zero_trace.py": {
+    "mtime": 1777859854.7793677,
+    "hash": "a9fdb02f84f9718aabd86706edb4997b"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\zero_trace_decorators.py": {
+    "mtime": 1777859854.780368,
+    "hash": "fe2e9438a39402042d36ac9c9a15874f"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\__init__.py": {
+    "mtime": 1777859854.7125149,
+    "hash": "c9aa4cbd9f77453cb9632d3da29667ae"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\api\\brain_router.py": {
+    "mtime": 1777859854.7148798,
+    "hash": "c6bc59f3be94a6e18a09aa87f88ff744"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\api\\connection_manager.py": {
+    "mtime": 1777859854.7158809,
+    "hash": "327f61b0d22a7503adf46d7bb1c0da02"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\api\\dtos.py": {
+    "mtime": 1777859854.7168825,
+    "hash": "57e27d558b394290513c25ab44a6f8e8"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\api\\gateway_manager.py": {
+    "mtime": 1777859854.7178826,
+    "hash": "5f8810142ba1b5a3a8a068db4e51b99e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\api\\ws_router.py": {
+    "mtime": 1777859854.718884,
+    "hash": "bb32152e8f311d754e94c3edf338a551"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\api\\__init__.py": {
+    "mtime": 1777859854.7138822,
+    "hash": "895f2db1807d345d039bfe61b10f2b18"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\audio\\audio_adapter.py": {
+    "mtime": 1777859854.7228873,
+    "hash": "7a49e24684d353ab3108d576fd39dd8d"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\audio\\local_audio_pipeline.py": {
+    "mtime": 1777859854.7238889,
+    "hash": "b014d06209e982ee642d90b426c01a06"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\audio\\wake_word_listener.py": {
+    "mtime": 1777859854.7248888,
+    "hash": "4b061f217bcc6ad7c203f10c4f4bfc58"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\audio\\__init__.py": {
+    "mtime": 1777859854.7208865,
+    "hash": "97401cab76eaef836bc8fee869a80786"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\host\\filesystem_adapter.py": {
+    "mtime": 1777859854.7343194,
+    "hash": "2f54684327d2c0a538aa527d7735019e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\host\\powershell_executor.py": {
+    "mtime": 1777859854.73532,
+    "hash": "0bcd6a2e0724f3d5353e40f84f4e19bc"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\host\\process_adapter.py": {
+    "mtime": 1777859854.73532,
+    "hash": "f0dea6ce93e5aed34c82ae6ded0477eb"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\host\\__init__.py": {
+    "mtime": 1777859854.7333179,
+    "hash": "2ed929e6bc26a2317a815ba25049366a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\loop\\action_orchestrator.py": {
+    "mtime": 1777859854.7413251,
+    "hash": "eef076e02b80a9790c963b5174e3260c"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\loop\\autonomous_worker.py": {
+    "mtime": 1777859854.7413251,
+    "hash": "617a6ee109e876a3d4292b018c0439db"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\loop\\event_bus.py": {
+    "mtime": 1777859854.743327,
+    "hash": "c65164800fbdf4b3bf0a7ae2329a1696"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\loop\\manual_command_handler.py": {
+    "mtime": 1777859854.7443275,
+    "hash": "ff90dcfae65f60640daf5eba6959b904"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\loop\\__init__.py": {
+    "mtime": 1777859854.7393234,
+    "hash": "0a7994f5990214a7b392d6792e8276d5"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\memory\\memory_manager.py": {
+    "mtime": 1777859854.7472928,
+    "hash": "1f044cc0e0043a25226df69753ac7f05"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\memory\\sliding_window_context.py": {
+    "mtime": 1777859854.7482946,
+    "hash": "d37c9a5eb6c1ba3375b1f7737e5f549a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\memory\\__init__.py": {
+    "mtime": 1777859854.746295,
+    "hash": "172836c43f88431b82dea870a702d2a8"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\policy\\policy_engine.py": {
+    "mtime": 1777859854.7530334,
+    "hash": "6db6621ea307973e01df75e2fcec525a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\policy\\__init__.py": {
+    "mtime": 1777859854.7520325,
+    "hash": "d01aa7c0ae6f593ca9229b4554514dd1"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\telemetry\\audit_logger.py": {
+    "mtime": 1777859854.7580385,
+    "hash": "9cbbae953ae7cc26ade9c17cdadb2940"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\telemetry\\__init__.py": {
+    "mtime": 1777859854.7570372,
+    "hash": "d75bba54fe9822de13c3c4515af3307a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\base.py": {
+    "mtime": 1777859854.7633567,
+    "hash": "6c8dfda64195e3abe9089488294696d5"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\clipboard_tool.py": {
+    "mtime": 1777859854.7643533,
+    "hash": "2568e7131b42b6e7d3cf1bc6771637fe"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\file_ops_tool.py": {
+    "mtime": 1777859854.7653542,
+    "hash": "76464d9f95cca501f52d05e9682f495e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\media_tool.py": {
+    "mtime": 1777859854.7653542,
+    "hash": "3e3be4a308f76201ebf51afb347568da"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\memory_tools.py": {
+    "mtime": 1777859854.767356,
+    "hash": "5223c65311622339a54a5def76acf385"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\network_scan_tool.py": {
+    "mtime": 1777859854.7683575,
+    "hash": "9f256922606458cbd1d4404c4b808ad9"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\obsidian_tool.py": {
+    "mtime": 1777859854.7693589,
+    "hash": "4c048460bb0748366f61322d410a617a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\os_tools.py": {
+    "mtime": 1777859854.7703588,
+    "hash": "0a9cd9f1e5fbfc3b012b53bd4abac358"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\security.py": {
+    "mtime": 1777859854.77136,
+    "hash": "5fe63a4ba91c7e17c4798def2cb3a497"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\system_tool.py": {
+    "mtime": 1777859854.772361,
+    "hash": "9f055f708cb64ab901234e571032d64e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\terminal_tool.py": {
+    "mtime": 1777859854.7733617,
+    "hash": "0142adb4487e8e6dd1f6d50a17d17bd7"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\vision_tool.py": {
+    "mtime": 1777859854.7733617,
+    "hash": "5282d21e63808732f7e39477e57845ef"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\vlc_tool.py": {
+    "mtime": 1777859854.7743626,
+    "hash": "81ea085c6b24dc8f85dbe6e88ab753f3"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\whatsapp_tool.py": {
+    "mtime": 1777859854.7753634,
+    "hash": "b5e4c07bd2d584352cabb4f18a14ccf7"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\youtube_tool.py": {
+    "mtime": 1777859854.7763646,
+    "hash": "053586ddf49ad5e311a847c34a8cbc99"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\core\\tools\\__init__.py": {
+    "mtime": 1777859854.7621384,
+    "hash": "438e26d2180c273a839d59135f33aa5e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\diagnostics\\__init__.py": {
+    "mtime": 1777859854.7833714,
+    "hash": "ff82f83f3a70d118ce099ff5fba0b78e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\persistence\\__init__.py": {
+    "mtime": 1777859854.7863734,
+    "hash": "ff82f83f3a70d118ce099ff5fba0b78e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\services\\database.py": {
+    "mtime": 1777859854.791215,
+    "hash": "592590f04f97bf4626a6eb5f3aae0cd9"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\services\\voice_provider.py": {
+    "mtime": 1777859854.7922125,
+    "hash": "d22e63d6458f9d1ef8850f2571eb9536"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\services\\__init__.py": {
+    "mtime": 1777859854.790377,
+    "hash": "dd529468b111a3990404cdc857d11f9a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\tools\\media_tools.py": {
+    "mtime": 1777859854.7962162,
+    "hash": "79a6deed50d5ed0e9e9c949e40d80fc2"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\tools\\memory_tools.py": {
+    "mtime": 1777859854.7972171,
+    "hash": "4b8d5610c57ee69d4a813ebbe5bf1a27"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\tools\\system_tools.py": {
+    "mtime": 1777859854.7982185,
+    "hash": "5debec54a69b54ba36d820aa7e54bfb0"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\tools\\terminal_tools.py": {
+    "mtime": 1777859854.7982185,
+    "hash": "7f6b2c37c90535b12be8b30363d768ba"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\tools\\tocar_youtube_invisivel_tool.py": {
+    "mtime": 1777859854.7992187,
+    "hash": "589d8addba934b334f7c62331df20689"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\tools\\vision_tools.py": {
+    "mtime": 1777859854.8002198,
+    "hash": "4c6af7bf6bf129d5c32b6c6d9b6ca9a2"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\tools\\__init__.py": {
+    "mtime": 1777859854.7942145,
+    "hash": "4c6af7bf6bf129d5c32b6c6d9b6ca9a2"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\voice\\__init__.py": {
+    "mtime": 1777859854.8022215,
+    "hash": "da0708065a7444c2cf8fd6a95944bfa0"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\docs\\__init__.py": {
+    "mtime": 1777859854.8052242,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\eslint.config.mjs": {
+    "mtime": 1777859854.8313036,
+    "hash": "6c4307ffa009658f5c97f5629094c0c2"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\FRONTEND_WEBSOCKET_GUIDE.tsx": {
+    "mtime": 1777859854.8082268,
+    "hash": "87fa4ae39f46315c5e10c50a301c945c"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\global.d.ts": {
+    "mtime": 1777859854.8323045,
+    "hash": "0ed79c85de5bb2f1af5976079d448b19"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\next.config.ts": {
+    "mtime": 1777859854.8373091,
+    "hash": "169d3254abf622956de7a6aff3d0648f"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\postcss.config.mjs": {
+    "mtime": 1777859854.8403115,
+    "hash": "481fac0fdecd70e1821cc30b86030c1a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\app\\layout.tsx": {
+    "mtime": 1777859854.8162482,
+    "hash": "73bf547fe90bbd3b946135f5d39c5ff2"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\app\\page-with-websocket.tsx": {
+    "mtime": 1777859854.8172493,
+    "hash": "ed0ac480d61099c7dc9489af8037d62a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\app\\page.tsx": {
+    "mtime": 1777859854.8182502,
+    "hash": "ed1968ad49e82102227895f98272e079"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\app\\diagnose\\page.tsx": {
+    "mtime": 1777859854.8132455,
+    "hash": "bbcafc609e8c344495a0d1cecc433ea7"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\app\\terminal\\page.tsx": {
+    "mtime": 1777859854.8202527,
+    "hash": "0c0a93d803ae61058f01102a7c89899f"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\AudioPlayer.tsx": {
+    "mtime": 1777859854.8222544,
+    "hash": "cba2de4290f89fa64c927dc250dc1d4f"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\ChatMessage.tsx": {
+    "mtime": 1777859854.8232546,
+    "hash": "8ec6ef5cd72bbb1668f98da2b05f7128"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\ChatOverlay.tsx": {
+    "mtime": 1777859854.8242555,
+    "hash": "55d6ffa7fd33b46bce5772da1a2993bc"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\ControlDeck.tsx": {
+    "mtime": 1777859854.8252563,
+    "hash": "056af86ada61a12752ebb213d75e79f3"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\MediaPlayer.tsx": {
+    "mtime": 1777859854.8262572,
+    "hash": "30c039bbb078e9c660447a5d97ce3b9d"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\QuintaTerminal.tsx": {
+    "mtime": 1777859854.827259,
+    "hash": "95bfe19fc13ddcae7378dc896e09c11f"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\StatusIndicator.tsx": {
+    "mtime": 1777859854.8282592,
+    "hash": "8d409fed23a0bd3de0a6736312b0d52b"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\VoiceControl.tsx": {
+    "mtime": 1777859854.8297987,
+    "hash": "5bca901023a70171efce84d85b650bc4"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\components\\VoiceOrb.tsx": {
+    "mtime": 1777859854.8303056,
+    "hash": "2d98d09854373f1c93c3a5af64e20a92"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\hooks\\useQuintaFeira.ts": {
+    "mtime": 1777859854.834306,
+    "hash": "e73c17483217b56f91ce4f2f4b98c168"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\hooks\\useQuintaFeiraUI.ts": {
+    "mtime": 1777859854.835307,
+    "hash": "bbed3db3309c0a7bb53ebcfb232b5588"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\hooks\\useSpeechRecognition.ts": {
+    "mtime": 1777859854.8363087,
+    "hash": "c5b6995ab3a8b5ba381a4053556f1a95"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\types\\index.ts": {
+    "mtime": 1777859854.847767,
+    "hash": "3b162e139253eb1816a5c500ab13e2a6"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\scripts\\install_startup_task.ps1": {
+    "mtime": 1777859854.8515487,
+    "hash": "f1a0749c7dd2f99308aaa6163421c0cf"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\scripts\\open_quinta_feira.ps1": {
+    "mtime": 1777859854.8525496,
+    "hash": "872291cd994e7cbb20600855b5928c99"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\scripts\\start_quintafeira_v2.ps1": {
+    "mtime": 1777859854.8545523,
+    "hash": "e62273b93cafb45b87243210dac2c8fc"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\scripts\\start_quinta_feira.ps1": {
+    "mtime": 1777859854.8535504,
+    "hash": "98b67d53922886a48a91b780ce91aa50"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\scripts\\__init__.py": {
+    "mtime": 1777859854.8505507,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\CERTIFICADO_CONCLUSAO.txt": {
+    "mtime": 1777859854.7015047,
+    "hash": "f27bfc20cb16295ac8d71a1a07481750"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\README.md": {
+    "mtime": 1777859854.703506,
+    "hash": "bc355e72d872263ed2453847e2b0b60a"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\backend\\requirements.txt": {
+    "mtime": 1777859854.7883751,
+    "hash": "42ce7181c5ff491ce92436e7f426eb53"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\build_output.txt": {
+    "mtime": 1777859854.8212526,
+    "hash": "9dbe860244905845945fd4e1d2960df4"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\README.md": {
+    "mtime": 1777859854.8102288,
+    "hash": "9162add00befbcdb432430f405c4ad8d"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\public\\file.svg": {
+    "mtime": 1777859854.8423154,
+    "hash": "d09f95206c3fa0bb9bd9fefabfd0ea71"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\public\\globe.svg": {
+    "mtime": 1777859854.8423154,
+    "hash": "2aaafa6a49b6563925fe440891e32717"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\public\\next.svg": {
+    "mtime": 1777859854.8433144,
+    "hash": "8e061864f388b47f33a1c3780831193e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\public\\vercel.svg": {
+    "mtime": 1777859854.8443153,
+    "hash": "c0af2f507b369b085b35ef4bbe3bcf1e"
+  },
+  "C:\\Users\\mathe\\Documents\\assistente-ai\\.claude\\worktrees\\objective-greider-b43645\\frontend\\public\\window.svg": {
+    "mtime": 1777859854.8453162,
+    "hash": "a2760511c65806022ad20adf74370ff3"
+  }
+}
