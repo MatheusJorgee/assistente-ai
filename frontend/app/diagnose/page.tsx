@@ -4,6 +4,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { obterToken, protocolosDoToken } from '@/lib/quintaAuth';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 interface DiagnosticResult {
@@ -78,7 +79,8 @@ export default function DiagnosticsPage() {
 
     try {
       const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:8000/ws`;
-      const ws = new WebSocket(wsUrl);
+      await obterToken();
+      const ws = new WebSocket(wsUrl, protocolosDoToken());
       
       const wsPromise = new Promise((resolve) => {
         const timeout = setTimeout(() => resolve(false), 3000);
@@ -104,7 +106,7 @@ export default function DiagnosticsPage() {
           help: wsConnected ? '' : 'Verifique se backend está rodando: python -m uvicorn main:app --reload'
         } : r
       ));
-    } catch (error) {
+    } catch {
       setDiagnostics(prev => prev.map((r, i) => 
         i === 3 ? {
           ...r,

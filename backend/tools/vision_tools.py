@@ -1,4 +1,4 @@
-﻿"""
+"""
 Ferramentas de Visão: Captura de tela com compressão e detecção de monitor.
 """
 

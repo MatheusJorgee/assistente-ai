@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 SCRIPT DE DIAGNÃ"STICO COMPLETO - Quinta-Feira v2.1
@@ -143,11 +143,11 @@ def main():
     report.add_check(
         "Gemini API Key",
         api_key_ok,
-        "âœ" Configurada" if api_key_ok else "✗ Não encontrada",
+        "[OK] Configurada" if api_key_ok else "✗ Não encontrada",
         "Adicione GEMINI_API_KEY ao .env"
     )
     
-    # ========== IMPORTS CRÃTICOS ==========
+    # ========== IMPORTS CRÃTICOS ==========
     
     # FastAPI
     try:
@@ -159,7 +159,7 @@ def main():
     # Google GenAI
     try:
         from google import genai
-        report.add_check("Google GenAI", True, "Instalado âœ"", "")
+        report.add_check("Google GenAI", True, "Instalado [OK]", "")
     except ImportError:
         report.add_check("Google GenAI", False, "Não instalado", "pip install google-genai")
     
@@ -173,7 +173,7 @@ def main():
     # PIL/Pillow
     try:
         from PIL import Image
-        report.add_check("Pillow", True, "Instalado âœ"", "")
+        report.add_check("Pillow", True, "Instalado [OK]", "")
     except ImportError:
         report.add_check("Pillow", False, "Não instalado", "pip install pillow")
     
@@ -186,7 +186,7 @@ def main():
         report.add_check(
             "QuintaFeiraBrain v2",
             True,
-            "Importação OK âœ"",
+            "Importação OK [OK]",
             ""
         )
     except Exception as e:
@@ -206,7 +206,7 @@ def main():
         report.add_check(
             "Database Module",
             True,
-            "services.database importável âœ"",
+            "services.database importável [OK]",
             ""
         )
     except Exception as e:
@@ -223,7 +223,7 @@ def main():
         report.add_check(
             "Oracle Module",
             True,
-            "OraculoEngine importável âœ"",
+            "OraculoEngine importável [OK]",
             ""
         )
     except Exception as e:
@@ -240,7 +240,7 @@ def main():
         report.add_check(
             "Core Modules",
             True,
-            "tool_registry, EventBus, DIContainer âœ"",
+            "tool_registry, EventBus, DIContainer [OK]",
             ""
         )
     except Exception as e:

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Services - Exposição de database, voz e outras dependências.
 """
 

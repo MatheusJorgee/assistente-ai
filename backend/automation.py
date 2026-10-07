@@ -298,23 +298,44 @@ class OSAutomation:
         if "letra" not in query.lower() and "lyrics" not in query.lower():
             tentativas.append(f"{query} official audio")
 
-        if not _YT_SEARCH_AVAILABLE or VideosSearch is None:
-            return None
-
+        # Olha vários resultados e escolhe o que PARECE o pedido (música/álbum do artista), não o primeiro:
+        # o primeiro costuma ser entrevista, notícia ou reação. Se nada convence, não toca um vídeo errado.
+        # (A busca é via yt-dlp: a youtube-search-python quebrou com o httpx 0.28 e o erro era engolido.)
+        from core.media.busca_youtube import buscar
+        from core.media.escolha_video import escolher
+        viu_resultados = False
+        ultimo_erro = ""
         for tentativa in tentativas:
             try:
-                resultados = VideosSearch(tentativa, limit=3).result()
-                videos = resultados.get("result", [])
-                if videos:
-                    return {
-                        "id": videos[0].get("id", ""),
-                        "title": videos[0].get("title", ""),
-                        "query": tentativa,
-                    }
-            except Exception:
+                videos = buscar(tentativa, 10)
+            except Exception as exc:
+                ultimo_erro = f"{type(exc).__name__}: {exc}"
+                print(f">>> [YOUTUBE] busca falhou ('{tentativa}'): {ultimo_erro}")
                 continue
+            if videos:
+                viu_resultados = True
+            melhor = escolher(videos, pesquisa)
+            if melhor:
+                print(f">>> [YOUTUBE] escolhido: {melhor.get('title')!r} ({melhor.get('channel')}) de {len(videos)} resultados")
+                return {
+                    "id": melhor.get("id", ""),
+                    "title": melhor.get("title", ""),
+                    "query": tentativa,
+                }
 
-        return None
+        if viu_resultados:
+            return {"nenhum": True}
+        return {"erro": ultimo_erro or "busca sem resultados"}
+
+    def _recusa_de_video(self, resolvido, pesquisa: str) -> str:
+        """Texto de erro honesto quando não há vídeo confiável; '' se pode tocar. Nunca clica em resultado às cegas."""
+        if resolvido and resolvido.get("id"):
+            return ""
+        if resolvido and resolvido.get("nenhum"):
+            return (f"[ERRO] Não achei no YouTube um vídeo que seja mesmo '{pesquisa}' (só apareceram entrevistas, "
+                    "reações ou coisas sobre o artista). Não coloquei nada para tocar; confirme o nome exato da música/álbum.")
+        detalhe = (resolvido or {}).get("erro", "")
+        return f"[ERRO] Não consegui pesquisar '{pesquisa}' no YouTube agora ({detalhe}). Não coloquei nada para tocar."
 
     def _shutdown_controlado(self, comando: str) -> bool:
         c = (comando or "").strip().lower()
@@ -713,6 +734,45 @@ class OSAutomation:
             return f"Erro no Spotify: {str(e)}"
 
     # ===== MÉTODO UTILITÁRIO: INICIALIZAR BROWSER ASSÍNCRONO PERSISTENTE =====
+    @staticmethod
+    def _erro_de_navegador_fechado(exc: BaseException) -> bool:
+        """O usuário (ou o sistema) fechou a janela/processo do player: a referência guardada morreu."""
+        t = f"{type(exc).__name__} {exc}".lower()
+        return any(k in t for k in (
+            "has been closed", "target closed", "targetclosed", "browser closed", "connection closed",
+            "browser has been closed", "context or browser", "not connected", "pipe closed",
+        ))
+
+    async def _resetar_browser(self) -> None:
+        """Esquece o navegador morto (sem exigir que ele responda) para o próximo pedido criar um novo."""
+        for nome in ("page", "browser"):
+            obj = getattr(self, nome, None)
+            setattr(self, nome, None)
+            if obj is not None:
+                try:
+                    await asyncio.wait_for(obj.close(), timeout=3)
+                except Exception:
+                    pass
+        pw, self.playwright = getattr(self, "playwright", None), None
+        if pw is not None:
+            try:
+                await asyncio.wait_for(pw.stop(), timeout=3)
+            except Exception:
+                pass
+
+    async def _nova_pagina(self):
+        """Abre uma aba no navegador do player. Se ele foi fechado, recria o navegador e tenta UMA vez de novo."""
+        try:
+            await self._init_browser()
+            return await self.browser.new_page()
+        except Exception as exc:
+            if not self._erro_de_navegador_fechado(exc):
+                raise
+            print(f"[PLAYWRIGHT ASYNC] navegador do player foi fechado ({type(exc).__name__}); recriando...")
+            await self._resetar_browser()
+            await self._init_browser()
+            return await self.browser.new_page()
+
     async def _init_browser(self):
         """Inicializa o Playwright assíncrono e o browser Chromium persistentes.
         Se já iniciado, reutiliza as instâncias. O navegador fica aberto em background."""
@@ -720,26 +780,42 @@ class OSAutomation:
             # Browser já está inicializado e pronto
             return
         
-        print("[PLAYWRIGHT ASYNC] Inicializando Chromium persistente...")
+        print("[PLAYWRIGHT ASYNC] Inicializando Edge com perfil persistente...")
+        # Perfil dedicado: mantem o login do YouTube/Google entre sessoes.
+        # Logado (e com Premium) => sem anuncios e sem deteccao de bot.
+        profile_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".yt_profile"))
+        os.makedirs(profile_dir, exist_ok=True)
+        launch_args = [
+            "--autoplay-policy=no-user-gesture-required",
+            "--disable-blink-features=AutomationControlled",
+            "--ignore-certificate-errors",
+        ]
         try:
-            # Inicializar async_playwright
             self.playwright = await async_playwright().start()
-            
-            # Lançar Chromium com ignore-certificate-errors para HTTPS
-            self.browser = await self.playwright.chromium.launch(
-                headless=False,  # Visível para debug de audio
-                channel="msedge",  # Usa Microsoft Edge nativo do host
-                args=[
-                    "--autoplay-policy=no-user-gesture-required",
-                    "--disable-blink-features=AutomationControlled",
-                    "--ignore-certificate-errors"
-                ]
+            # launch_persistent_context retorna um CONTEXT (tem .new_page()/.close(),
+            # entao funciona no lugar de self.browser sem outras mudancas).
+            self.browser = await self.playwright.chromium.launch_persistent_context(
+                user_data_dir=profile_dir,
+                channel="msedge",          # Edge nativo do host (menos detectavel que Chromium)
+                headless=False,
+                args=launch_args,
+                viewport=None,
             )
-            print("[PLAYWRIGHT ASYNC] [OK] Browser persistente pronto (headless mode)")
+            print("[PLAYWRIGHT ASYNC] [OK] Edge + perfil persistente pronto")
         except Exception as e:
-            print(f"[ERRO PLAYWRIGHT] Falha ao inicializar: {type(e).__name__}: {str(e)}")
-            print(traceback.format_exc())
-            raise
+            print(f"[PLAYWRIGHT ASYNC] Edge indisponivel ({e}); tentando Chromium...")
+            try:
+                self.browser = await self.playwright.chromium.launch_persistent_context(
+                    user_data_dir=profile_dir,
+                    headless=False,
+                    args=launch_args,
+                    viewport=None,
+                )
+                print("[PLAYWRIGHT ASYNC] [OK] Chromium + perfil persistente pronto")
+            except Exception as e2:
+                print(f"[ERRO PLAYWRIGHT] Falha ao inicializar: {type(e2).__name__}: {str(e2)}")
+                print(traceback.format_exc())
+                raise
 
     # --- FUNÇÃO 2: YOUTUBE PLAYWRIGHT (BLINDADO CONTRA ANTI-BOT) ---
     async def tocar_youtube_invisivel_async(self, pesquisa: str, **kwargs) -> str:
@@ -747,8 +823,11 @@ class OSAutomation:
         O navegador fica aberto em background para próximas requisições."""
         print(f">>> [YOUTUBE ASYNC] A preparar motor web para: '{pesquisa}'...")
         query_url = urllib.parse.quote(pesquisa)
-        video_resolvido = self._resolver_video_youtube(pesquisa)
-        
+        video_resolvido = await asyncio.to_thread(self._resolver_video_youtube, pesquisa)  # rede: fora do event loop
+        recusa = self._recusa_de_video(video_resolvido, pesquisa)
+        if recusa:
+            return recusa
+
         try:
             # ===== INICIALIZAR BROWSER PERSISTENTE =====
             await self._init_browser()
@@ -760,7 +839,7 @@ class OSAutomation:
                 except:
                     pass
             
-            self.page = await self.browser.new_page()
+            self.page = await self._nova_pagina()  # se o navegador foi fechado, recria e tenta de novo
             
             # CAPA DE INVISIBILIDADE
             await self.page.add_init_script(
@@ -800,20 +879,35 @@ class OSAutomation:
                     try {
                         const video = document.querySelector('video');
                         if (!video) return;
-                        
-                        const isAd = document.querySelector('.ytp-ad-player-overlay');
+
+                        // Deteccao robusta (UI nova e antiga): a classe 'ad-showing'
+                        // no player raiz e o sinal mais estavel do YouTube atual.
+                        const player = document.querySelector('#movie_player');
+                        const isAd = (player && player.classList.contains('ad-showing'))
+                            || document.querySelector(
+                                '.ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, '
+                                + '.ytp-ad-player-overlay-instream-info, .ytp-ad-text'
+                            );
                         if (isAd) {
+                            // Muta e clica em "pular" quando aparecer. NAO mexer em
+                            // playbackRate/currentTime: e detectado como bot e trava o video.
                             video.muted = true;
                             video.volume = 0;
-                            video.playbackRate = 16.0;
-                            document.querySelectorAll('.ytp-ad-skip-button').forEach(b => b.click());
+                            document.querySelectorAll(
+                                '.ytp-skip-ad-button, .ytp-ad-skip-button, '
+                                + '.ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot button, '
+                                + '.ytp-ad-skip-button-container button, '
+                                + 'button[class*="ytp-ad-skip"], button[id^="skip-button"]'
+                            ).forEach(b => b.click());
                         } else {
                             video.muted = false;
                             video.volume = window.__assistentePreferredVolume;
                             video.playbackRate = 1.0;
                         }
+                        // Banners sobre o video
+                        document.querySelectorAll('.ytp-ad-overlay-close-button').forEach(b => b.click());
                     } catch (err) {}
-                }, 150);
+                }, 250);
             }
             """
             codigo_magico = codigo_magico.replace("__DEFAULT_VOLUME__", str(self.youtube_default_volume))
@@ -903,6 +997,9 @@ class OSAutomation:
                 return f"Ação '{acao}' não reconhecida. Tente: pausar, retomar (play), pular (skip), ou loop (repetir)."
                 
         except Exception as e:
+            if self._erro_de_navegador_fechado(e):
+                self.page = None  # a janela foi fechada: o próximo "toca ..." abre outra
+                return "Erro: O YouTube não está aberto no momento (a janela foi fechada)."
             print(f"\n[ERRO FATAL PLAYWRIGHT]")
             print(traceback.format_exc())
             print("\n")
@@ -1014,7 +1111,14 @@ class OSAutomation:
             str: Mensagem de resultado
         """
         acao_lower = acao.lower().strip()
-        
+
+        # `delay` vem do LLM e é interpolado em os.system abaixo: força inteiro limitado
+        # (antes, "10 & calc" virava um segundo comando).
+        try:
+            delay = max(0, min(int(delay), 3600))
+        except (TypeError, ValueError):
+            delay = 10
+
         # Normalizar comandos
         if acao_lower in ['desligar', 'shutdown', 'shudown', 'deslizar']:
             acao_normalizada = 'shutdown'
@@ -1076,7 +1180,10 @@ class OSAutomation:
             await self._inicializar_async_playwright()
             
             # Resolver a URL do vídeo
-            video_resolvido = self._resolver_video_youtube(pesquisa)
+            video_resolvido = await asyncio.to_thread(self._resolver_video_youtube, pesquisa)
+            recusa = self._recusa_de_video(video_resolvido, pesquisa)
+            if recusa:
+                return recusa
             query_url = urllib.parse.quote(pesquisa)
             
             # Usar lock para evitar condições de corrida com outras operações de página
@@ -1175,22 +1282,17 @@ class OSAutomation:
                                 lastUrl = location.href;
                             }}
 
-                            // DETEÇÃO DEFINITIVA: Olha para todos os elementos que o YouTube usa para exibir anúncios
-                            const isAd = document.querySelector('.ytp-ad-player-overlay, .ytp-ad-player-overlay-instream-info, .ad-showing');
+                            // Deteccao robusta (UI nova e antiga) — 'ad-showing' no player raiz
+                            const player = document.querySelector('#movie_player');
+                            const isAd = (player && player.classList.contains('ad-showing'))
+                                || document.querySelector('.ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytp-ad-player-overlay-instream-info');
 
                             if (isAd) {{
-                                // É ANÚNCIO: Muta, zera o volume e acelera
+                                // É ANÚNCIO: muta e clica em "pular" quando existir.
+                                // NAO mexer em playbackRate/currentTime: e detectado como bot.
                                 video.muted = true;
                                 video.volume = 0;
-                                video.playbackRate = 16.0;
-
-                                // Clica em qualquer botão de pular que existir
-                                document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button').forEach(b => b.click());
-
-                                // Salto no tempo (se for inpulável)
-                                if (video.duration > 0 && video.currentTime < video.duration - 1) {{
-                                    video.currentTime = video.duration - 0.5; 
-                                }}
+                                document.querySelectorAll('.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot button, button[class*="ytp-ad-skip"], button[id^="skip-button"]').forEach(b => b.click());
                             }} else {{
                                 // NÃO É ANÚNCIO: Restaura o som e a velocidade com segurança
                                 if (video.muted || video.playbackRate !== 1.0 || trocouDeMusica || urlMudou || video.volume !== obterVolumePreferido()) {{

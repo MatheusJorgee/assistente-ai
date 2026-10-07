@@ -1,4 +1,4 @@
-﻿"""
+"""
 Terminal Security Validator - Validação de comandos antes de executar.
 
 Segurança em múltiplas camadas:
@@ -43,7 +43,7 @@ class TerminalSecurityValidator:
     Estratégia: Lista negra de padrões perigosos + Lista branca de permitidos.
     """
     
-    # Padrões CRÃTICOS - absolutamente bloqueados
+    # Padrões CRÃTICOS - absolutamente bloqueados
     CRITICAL_PATTERNS = [
         # Destruição de dados
         r"(?i)^del\s+/s\s+/f",          # del /s /f C:\
@@ -142,7 +142,7 @@ class TerminalSecurityValidator:
         # 1. Verificar whitelist (permissão rápida)
         for pattern in self.WHITELIST:
             if re.match(pattern, command):
-                logger.debug(f"[SECURITY] âœ" Whitelist: {command[:50]}")
+                logger.debug(f"[SECURITY] [OK] Whitelist: {command[:50]}")
                 return SecurityCheckResult(
                     allowed=True,
                     action=SecurityAction.ALLOW,
@@ -150,11 +150,11 @@ class TerminalSecurityValidator:
                     risk_level="low"
                 )
         
-        # 2. Verificar padrões CRÃTICOS
+        # 2. Verificar padrões CRÃTICOS
         for pattern in self.CRITICAL_PATTERNS:
             if re.search(pattern, command):
                 risk_reason = f"Padrão crítico detectado: {pattern}"
-                logger.warning(f"[SECURITY] âŒ CRÃTICO: {command[:50]} | {risk_reason}")
+                logger.warning(f"[SECURITY] âŒ CRÃTICO: {command[:50]} | {risk_reason}")
                 self._increment_violation(command)
                 
                 return SecurityCheckResult(
@@ -169,7 +169,7 @@ class TerminalSecurityValidator:
             if re.search(pattern, command):
                 if self.mode == "strict":
                     reason = f"Padrão médio detectado (strict mode): {pattern}"
-                    logger.warning(f"[SECURITY] ⚠ï¸  MÉDIO (bloqueado): {command[:50]}")
+                    logger.warning(f"[SECURITY] ⚠ï¸  MÉDIO (bloqueado): {command[:50]}")
                     self._increment_violation(command)
                     
                     return SecurityCheckResult(
@@ -180,7 +180,7 @@ class TerminalSecurityValidator:
                     )
                 else:
                     reason = f"Padrão médio detectado (requer confirmação): {pattern}"
-                    logger.warning(f"[SECURITY] ⚠ï¸  MÉDIO (prompt): {command[:50]}")
+                    logger.warning(f"[SECURITY] ⚠ï¸  MÉDIO (prompt): {command[:50]}")
                     
                     return SecurityCheckResult(
                         allowed=True,  # É permitido, mas com prompt
@@ -190,7 +190,7 @@ class TerminalSecurityValidator:
                     )
         
         # 4. Se passou em todas as verificações
-        logger.debug(f"[SECURITY] âœ" Comando ok: {command[:50]}")
+        logger.debug(f"[SECURITY] [OK] Comando ok: {command[:50]}")
         return SecurityCheckResult(
             allowed=True,
             action=SecurityAction.ALLOW,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { obterToken, protocolosDoToken } from "@/lib/quintaAuth";
 
 type RuntimeEnvelope = {
   type: string;
@@ -130,7 +131,7 @@ export default function TerminalPage() {
       clearReconnectTimer();
       reconnectTimerRef.current = setTimeout(() => {
         reconnectTimerRef.current = null;
-        connect();
+        void obterToken(true).then(() => connect());
       }, delay);
     };
 
@@ -138,7 +139,7 @@ export default function TerminalPage() {
       if (isUnmountingRef.current) return;
       setStatus(attemptRef.current > 0 ? "reconnecting" : "connecting");
 
-      const socket = new WebSocket(wsUrl);
+      const socket = new WebSocket(wsUrl, protocolosDoToken());
       wsRef.current = socket;
 
       socket.onopen = () => {
@@ -201,7 +202,7 @@ export default function TerminalPage() {
       };
     };
 
-    connect();
+    void obterToken(true).then(() => connect());
 
     const throughputTimer = setInterval(() => {
       const cutoff = Date.now() - 60_000;

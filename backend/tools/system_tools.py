@@ -1,4 +1,4 @@
-﻿"""
+"""
 Ferramenta de Controle de Energia: Desligar, Reiniciar, Dormir
 """
 

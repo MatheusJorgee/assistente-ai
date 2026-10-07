@@ -1,4 +1,4 @@
-﻿"""
+"""
 Ferramentas de Automação para Terminal/PowerShell
 Implementa segurança aprimorada com Regex avan\u00e7ado.
 """
@@ -24,7 +24,7 @@ class TerminalSecurityValidator:
     def __init__(self, security_profile: str = "trusted-local"):
         self.security_profile = security_profile
         
-        # Padrões CRÃTICOS: Comandos destrutivos, persistentes, admin escalation
+        # Padrões CRÃTICOS: Comandos destrutivos, persistentes, admin escalation
         self.critical_patterns = [
             # Formatação/Apagamento de disco
             (r"\bformat\b[^a-z]*(?:/fs|/v)?\s+[A-Z]:", "DESTRUIÇÃO DE DISCO"),
@@ -86,7 +86,7 @@ class TerminalSecurityValidator:
         
         Returns:
             {
-                'risk': 'CRÃTICO' | 'MÉDIO' | 'BAIXO' | 'SEGURO',
+                'risk': 'CRÃTICO' | 'MÉDIO' | 'BAIXO' | 'SEGURO',
                 'pattern': str (padrão que correspondeu),
                 'reason': str (explicação humana),
                 'allowed': bool (deve executar?),
@@ -99,7 +99,7 @@ class TerminalSecurityValidator:
         for pattern, reason in self.critical_patterns:
             if re.search(pattern, cmd_lower, re.IGNORECASE):
                 return {
-                    'risk': 'CRÃTICO',
+                    'risk': 'CRÃTICO',
                     'pattern': pattern,
                     'reason': reason,
                     'allowed': False,

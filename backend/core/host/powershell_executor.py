@@ -1,4 +1,4 @@
-﻿"""
+"""
 PowerShell Executor: execução segura de comandos no Windows PowerShell.
 
 Recursos:
@@ -26,6 +26,8 @@ except ImportError:
         PolicyContext = None
         PolicyEngine = None
 
+
+from .safe_env import build_env
 
 MAX_CAPTURE_CHARS = 8000
 
@@ -106,7 +108,8 @@ class PowerShellExecutor:
                 text=True,
                 timeout=command.timeout_seconds,
                 cwd=command.cwd,
-                env=dict(env) if env else None,
+                # Sem `env` explícito, o filho NÃO herda mais o ambiente inteiro (chaves de API).
+                env=dict(env) if env else build_env(),
                 check=False,
             )
             duration_ms = int((time.perf_counter() - started) * 1000)

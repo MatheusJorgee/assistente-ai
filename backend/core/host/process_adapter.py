@@ -1,4 +1,4 @@
-﻿"""
+"""
 Process Adapter: abstração para operações de processo no host.
 
 Fornece um contrato tipado para listar/iniciar/finalizar processos no Windows,
@@ -12,6 +12,8 @@ import csv
 import io
 import subprocess
 from typing import Optional
+
+from .safe_env import build_env
 
 try:
     from ..policy.policy_engine import OSAction, PolicyContext, PolicyEngine
@@ -111,6 +113,7 @@ class ProcessAdapter:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
+            env=build_env(),  # o programa iniciado pelo LLM não herda as chaves de API
         )
         return ProcessStartResult(
             pid=proc.pid,

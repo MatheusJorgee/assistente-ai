@@ -1,4 +1,4 @@
-﻿"""
+"""
 Database Service - Persistência de memória com SQLite.
 
 Implementação local para services (usa backend/data/quinta_feira.db).

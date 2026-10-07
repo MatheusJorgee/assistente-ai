@@ -1,4 +1,4 @@
-﻿"""
+"""
 Factory canônica de ferramentas para Function Calling.
 
 Centraliza criação e registro das tools em um único ponto de entrada.

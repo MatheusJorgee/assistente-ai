@@ -1,4 +1,4 @@
-﻿"""
+"""
 Terminal Tool - Executar comandos PowerShell/Bash com segurança.
 """
 
@@ -9,10 +9,12 @@ from typing import Optional
 try:
     from ..tools.base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
     from ..tools.security import get_security_validator
+    from ..host.safe_env import build_env
     from .. import get_logger
 except ImportError:
     from .base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
     from .security import get_security_validator
+    from ..host.safe_env import build_env
     from .. import get_logger
 
 logger = get_logger(__name__)
@@ -80,7 +82,9 @@ class TerminalTool(MotorTool):
             shell = "/bin/bash"
             shell_args = ["-c"]
         
-        # 3. Executar com timeout
+        # 3. Executar com timeout.
+        # env=build_env(): o comando NÃO enxerga GEMINI_API_KEY, TAVILY_API_KEY, tokens etc.
+        # (antes herdava o os.environ inteiro, até depois de uma aprovação sua na tela).
         try:
             if sys.platform == "win32":
                 # PowerShell no Windows
@@ -89,14 +93,16 @@ class TerminalTool(MotorTool):
                     *shell_args,
                     comando,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
+                    env=build_env(),
                 )
             else:
                 # Bash no Linux/macOS
                 process = await asyncio.create_subprocess_shell(
                     comando,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
+                    env=build_env(),
                 )
             
             # Aguardar conclusão

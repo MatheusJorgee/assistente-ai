@@ -1,204 +1,216 @@
-﻿"""
-System Tool - Informações e controle do sistema (processos, serviços, arquivos).
+"""
+System Tool: o que está acontecendo no PC, com dados REAIS (somente leitura).
+
+Antes, listar_processos e listar_servicos devolviam listas inventadas ("Simulação para teste") e
+listar_arquivos mostrava só 10 itens. Agora tudo vem do sistema de verdade (psutil / os), e há
+medição de uso de disco para responder "o que está ocupando espaço?".
 """
 
 import asyncio
+import datetime as _dt
 import json
+import platform
 import sys
-from typing import Optional, Dict, List, Any
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 try:
     from ..tools.base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
+    from ..host import disk_usage as du
     from .. import get_logger
 except ImportError:
     from .base import MotorTool, ToolMetadata, ToolParameter, SecurityLevel
+    from ..host import disk_usage as du
     from .. import get_logger
 
 logger = get_logger(__name__)
 
+ACOES = ["info_sistema", "discos", "uso_de_disco", "maiores_arquivos", "listar_processos",
+         "listar_servicos", "listar_arquivos", "info_arquivo"]
+
+
+def _fmt_itens_pastas(res: Dict[str, Any]) -> str:
+    if res.get("erro"):
+        return f"[ERRO] {res['erro']}"
+    linhas = [f"Maiores itens em {res['raiz']}:"]
+    for i in res["itens"]:
+        linhas.append(f"  {du.formatar_bytes(i['bytes']):>10}  {i['nome']}" + ("  (medição parcial)" if i.get("parcial") else ""))
+    if not res.get("completo"):
+        linhas.append(f"[Prazo esgotado: valores parciais; ficaram sem medir/terminar: {', '.join(res.get('nao_medidas') or []) or 'algumas pastas'}."
+                      " Para aprofundar, rode de novo numa subpasta ou com limite_s maior.]")
+    return "\n".join(linhas)
+
+
+def _fmt_arquivos(res: Dict[str, Any]) -> str:
+    if not res["itens"]:
+        return f"Nenhum arquivo grande em {res['raiz']}" + ("" if res["completo"] else " (busca parcial: prazo esgotado).")
+    linhas = [f"Maiores arquivos em {res['raiz']}:"]
+    linhas += [f"  {du.formatar_bytes(i['bytes']):>10}  {i['caminho']}" for i in res["itens"]]
+    if not res["completo"]:
+        linhas.append("[Prazo esgotado: pode haver arquivos maiores que não foram vistos.]")
+    return "\n".join(linhas)
+
 
 class SystemTool(MotorTool):
-    """Ferramenta para consultar e controlar sistema."""
-    
+    """Consulta o sistema com dados reais."""
+
     def __init__(self):
         super().__init__(
             metadata=ToolMetadata(
                 name="sistema",
-                description="Consulta informações do sistema (processos, serviços, arquivos)",
+                description=(
+                    "Consulta o PC com dados REAIS (somente leitura, sem pedir aprovação). Use para: "
+                    "'o que está ocupando espaço?' -> acao=uso_de_disco (pastas maiores; sem caminho = a sua "
+                    "pasta de usuário; caminho='C:\\\\' para o disco todo) e acao=maiores_arquivos; "
+                    "espaço livre das unidades -> acao=discos; processos e consumo -> acao=listar_processos; "
+                    "serviços do Windows -> acao=listar_servicos; conteúdo de uma pasta -> listar_arquivos; "
+                    "detalhes de um arquivo -> info_arquivo; visão geral (CPU, RAM, uptime) -> info_sistema. "
+                    "Nunca invente números: rode a ação."
+                ),
                 category="system",
                 parameters=[
-                    ToolParameter(
-                        name="acao",
-                        type="string",
-                        description="Ação: listar_processos, listar_servicos, info_arquivo, listar_arquivos",
-                        required=True,
-                        choices=["listar_processos", "listar_servicos", "info_arquivo", "listar_arquivos", "info_sistema"]
-                    ),
-                    ToolParameter(
-                        name="filtro",
-                        type="string",
-                        description="Filtro opcional (nome de processo, serviço ou caminho)",
-                        required=False,
-                        default=None
-                    ),
-                    ToolParameter(
-                        name="caminho",
-                        type="string",
-                        description="Para info_arquivo/listar_arquivos: caminho da pasta",
-                        required=False,
-                        default=None
-                    ),
+                    ToolParameter(name="acao", type="string", description="Ação a executar", required=True, choices=ACOES),
+                    ToolParameter(name="filtro", type="string", description="Filtro por nome (processos/serviços)", required=False, default=None),
+                    ToolParameter(name="caminho", type="string", description="Pasta ou arquivo alvo", required=False, default=None),
+                    ToolParameter(name="top", type="int", description="Quantos itens mostrar (padrão 15)", required=False, default=15),
+                    ToolParameter(name="min_mb", type="int", description="maiores_arquivos: tamanho mínimo em MB (padrão 100)", required=False, default=100),
+                    ToolParameter(name="limite_s", type="int", description="Tempo máximo da medição em segundos (padrão 40, máx 120)", required=False, default=40),
                 ],
-                examples=[
-                    "acao=listar_processos",
-                    "acao=listar_processos, filtro=python",
-                    "acao=listar_arquivos, caminho=c:\\Users",
-                    "acao=info_sistema"
-                ],
+                examples=["acao=uso_de_disco", "acao=uso_de_disco, caminho=C:\\\\", "acao=maiores_arquivos, min_mb=500",
+                          "acao=listar_processos", "acao=discos"],
                 security_level=SecurityLevel.LOW,
-                tags=["system", "processo", "informação"]
+                tags=["system", "disco", "processo"],
             )
         )
-    
-    def validate_input(self, **kwargs) -> bool:
-        """Valida se ação foi fornecida."""
-        acao = kwargs.get("acao", "").lower()
-        valid_acoes = [
-            "listar_processos", "listar_servicos", "info_arquivo",
-            "listar_arquivos", "info_sistema"
-        ]
-        return acao in valid_acoes
-    
-    async def execute(self, **kwargs) -> str:
-        """Executa ação do sistema."""
-        acao = kwargs.get("acao", "").lower()
-        filtro = kwargs.get("filtro", None)
-        caminho = kwargs.get("caminho", None)
-        
-        try:
-            if acao == "listar_processos":
-                return await self._listar_processos(filtro)
-            elif acao == "listar_servicos":
-                return await self._listar_servicos(filtro)
-            elif acao == "info_arquivo":
-                if not caminho:
-                    raise ValueError("caminho é obrigatório para info_arquivo")
-                return await self._info_arquivo(caminho)
-            elif acao == "listar_arquivos":
-                if not caminho:
-                    caminho = "."
-                return await self._listar_arquivos(caminho)
-            elif acao == "info_sistema":
-                return await self._info_sistema()
-            else:
-                raise ValueError(f"Ação desconhecida: {acao}")
-        
-        except Exception as e:
-            raise RuntimeError(f"Erro ao executar ação de sistema: {str(e)}")
-    
-    async def _listar_processos(self, filtro: Optional[str] = None) -> str:
-        """Lista processos em execução."""
-        try:
-            if sys.platform == "win32":
-                cmd = "Get-Process | Select-Object Name, Id, PrivateMemorySize | ConvertTo-Json"
-            else:
-                cmd = "ps aux"
-            
-            # Simulação para teste (não executar de verdade)
-            logger.info(f"[SYSTEM] Listando processos (filtro: {filtro})")
-            
-            # Mock data
-            if filtro:
-                return f"âœ" Processos contendo '{filtro}':\n  - python.exe (PID: 1234)\n  - python.exe (PID: 5678)"
-            else:
-                return "âœ" Processos do sistema:\n  - System (PID: 4)\n  - explorer.exe (PID: 2048)\n  - python.exe (PID: 1234)"
-        
-        except Exception as e:
-            raise RuntimeError(f"Erro ao listar processos: {str(e)}")
-    
-    async def _listar_servicos(self, filtro: Optional[str] = None) -> str:
-        """Lista serviços do sistema."""
-        try:
-            if sys.platform == "win32":
-                cmd = "Get-Service | Select-Object Name, Status | ConvertTo-Json"
-            else:
-                cmd = "systemctl list-units --type=service"
-            
-            logger.info(f"[SYSTEM] Listando serviços (filtro: {filtro})")
-            
-            if filtro:
-                return f"âœ" Serviços contendo '{filtro}':\n  - {filtro}Service (Running)"
-            else:
-                return "âœ" Alguns serviços:\n  - wuauserv (Running)\n  - WinDefend (Running)\n  - AudioSrv (Running)"
-        
-        except Exception as e:
-            raise RuntimeError(f"Erro ao listar serviços: {str(e)}")
-    
-    async def _info_arquivo(self, caminho: str) -> str:
-        """Obtém informações de arquivo."""
-        try:
-            import os
-            from pathlib import Path
-            
-            logger.info(f"[SYSTEM] Informações de arquivo: {caminho}")
-            
-            path = Path(caminho)
-            if not path.exists():
-                raise ValueError(f"Caminho não encontrado: {caminho}")
-            
-            info = {
-                "caminho": str(path.absolute()),
-                "tipo": "diretório" if path.is_dir() else "arquivo",
-                "tamanho_bytes": path.stat().st_size if path.is_file() else "N/A",
-                "modificado": str(path.stat().st_mtime)
-            }
-            
-            return json.dumps(info, indent=2, ensure_ascii=False)
-        
-        except Exception as e:
-            raise RuntimeError(f"Erro ao obter informações: {str(e)}")
-    
-    async def _listar_arquivos(self, caminho: str = ".") -> str:
-        """Lista arquivos em diretório."""
-        try:
-            from pathlib import Path
-            
-            logger.info(f"[SYSTEM] Listando arquivos: {caminho}")
-            
-            path = Path(caminho)
-            if not path.is_dir():
-                raise ValueError(f"Não é um diretório: {caminho}")
-            
-            files = []
-            for item in list(path.iterdir())[:10]:  # Limitar a 10 arquivos
-                files.append({
-                    "nome": item.name,
-                    "tipo": "ðŸ" dir" if item.is_dir() else "ðŸ"„ arquivo",
-                    "tamanho": str(item.stat().st_size) if item.is_file() else "N/A"
-                })
-            
-            return json.dumps(files, indent=2, ensure_ascii=False)
-        
-        except Exception as e:
-            raise RuntimeError(f"Erro ao listar arquivos: {str(e)}")
-    
-    async def _info_sistema(self) -> str:
-        """Obtém informações do sistema."""
-        try:
-            import platform
-            
-            logger.info("[SYSTEM] Obtendo informações do sistema")
-            
-            info = {
-                "so": platform.system(),
-                "versao": platform.release(),
-                "maquina": platform.machine(),
-                "processor": platform.processor(),
-                "python_version": platform.python_version()
-            }
-            
-            return json.dumps(info, indent=2, ensure_ascii=False)
-        
-        except Exception as e:
-            raise RuntimeError(f"Erro ao obter informações: {str(e)}")
 
+    def validate_input(self, **kwargs) -> bool:
+        return str(kwargs.get("acao", "")).lower() in ACOES
+
+    async def execute(self, **kwargs) -> str:
+        acao = str(kwargs.get("acao", "")).lower()
+        filtro = kwargs.get("filtro")
+        caminho = kwargs.get("caminho")
+        top = max(1, min(int(kwargs.get("top") or 15), 100))
+        limite = max(5, min(int(kwargs.get("limite_s") or 40), 120))
+        try:
+            if acao == "info_sistema":
+                return await asyncio.to_thread(self._info_sistema)
+            if acao == "discos":
+                return self._discos()
+            if acao == "uso_de_disco":
+                raiz = Path(caminho).expanduser() if caminho else Path.home()
+                return _fmt_itens_pastas(await asyncio.to_thread(du.medir_pastas, raiz, top, float(limite)))
+            if acao == "maiores_arquivos":
+                raiz = Path(caminho).expanduser() if caminho else Path.home()
+                min_b = max(1, int(kwargs.get("min_mb") or 100)) * 1024 * 1024
+                return _fmt_arquivos(await asyncio.to_thread(du.maiores_arquivos, raiz, top, min_b, float(limite)))
+            if acao == "listar_processos":
+                return await asyncio.to_thread(self._listar_processos, filtro, top)
+            if acao == "listar_servicos":
+                return await asyncio.to_thread(self._listar_servicos, filtro)
+            if acao == "listar_arquivos":
+                return await asyncio.to_thread(self._listar_arquivos, caminho or ".", top if kwargs.get("top") else 50)
+            if acao == "info_arquivo":
+                if not caminho:
+                    return "[ERRO] caminho é obrigatório para info_arquivo"
+                return await asyncio.to_thread(self._info_arquivo, caminho)
+            return f"[ERRO] Ação desconhecida: {acao}"
+        except Exception as exc:
+            logger.warning(f"[SYSTEM] {acao} falhou: {exc}")
+            return f"[ERRO] {acao} falhou: {type(exc).__name__}: {exc}"
+
+    # ------------------------------------------------------------------ ações
+
+    @staticmethod
+    def _discos() -> str:
+        discos = du.resumo_discos()
+        if not discos:
+            return "[ERRO] Não consegui ler as unidades de disco."
+        return "\n".join(
+            f"{d['unidade']}  total {du.formatar_bytes(d['total'])} | usado {du.formatar_bytes(d['usado'])} "
+            f"({d['usado'] / d['total'] * 100:.0f}%) | livre {du.formatar_bytes(d['livre'])}" for d in discos
+        )
+
+    def _info_sistema(self) -> str:
+        info: Dict[str, Any] = {
+            "so": f"{platform.system()} {platform.release()} ({platform.version()})",
+            "maquina": platform.machine(), "processador": platform.processor(), "python": platform.python_version(),
+        }
+        try:
+            import psutil
+            info["cpu_nucleos"] = psutil.cpu_count(logical=True)
+            info["cpu_uso_pct"] = psutil.cpu_percent(interval=0.3)
+            vm = psutil.virtual_memory()
+            info["ram"] = f"{du.formatar_bytes(vm.used)} de {du.formatar_bytes(vm.total)} ({vm.percent:.0f}%)"
+            info["ligado_ha"] = str(_dt.timedelta(seconds=int(_dt.datetime.now().timestamp() - psutil.boot_time())))
+            bat = psutil.sensors_battery()
+            if bat is not None:
+                info["bateria"] = f"{bat.percent:.0f}% ({'na tomada' if bat.power_plugged else 'na bateria'})"
+        except Exception:
+            pass
+        info["discos"] = self._discos().splitlines()
+        return json.dumps(info, indent=2, ensure_ascii=False)
+
+    @staticmethod
+    def _listar_processos(filtro: Optional[str], top: int) -> str:
+        import psutil
+        alvo = (filtro or "").lower()
+        linhas: List[Dict[str, Any]] = []
+        for p in psutil.process_iter(["pid", "name", "memory_info", "cpu_percent"]):
+            try:
+                nome = p.info.get("name") or ""
+                if alvo and alvo not in nome.lower():
+                    continue
+                mem = p.info["memory_info"].rss if p.info.get("memory_info") else 0
+                linhas.append({"pid": p.info["pid"], "nome": nome, "mem": mem})
+            except Exception:
+                continue
+        linhas.sort(key=lambda x: x["mem"], reverse=True)
+        cab = f"{len(linhas)} processo(s)" + (f" contendo '{filtro}'" if filtro else "") + f"; os {min(top, len(linhas))} que mais usam memória:"
+        return "\n".join([cab] + [f"  {du.formatar_bytes(x['mem']):>10}  {x['nome']} (PID {x['pid']})" for x in linhas[:top]])
+
+    @staticmethod
+    def _listar_servicos(filtro: Optional[str]) -> str:
+        if sys.platform != "win32":
+            return "[ERRO] Serviços do Windows só existem no Windows."
+        import psutil
+        alvo = (filtro or "").lower()
+        itens = []
+        for s in psutil.win_service_iter():
+            try:
+                d = s.as_dict()
+                if alvo and alvo not in d["name"].lower() and alvo not in (d.get("display_name") or "").lower():
+                    continue
+                itens.append(f"  {d['status']:<9} {d['name']} — {d.get('display_name', '')}")
+            except Exception:
+                continue
+        return f"{len(itens)} serviço(s)" + (f" contendo '{filtro}'" if filtro else "") + ":\n" + "\n".join(itens[:60])
+
+    @staticmethod
+    def _info_arquivo(caminho: str) -> str:
+        p = Path(caminho).expanduser()
+        if not p.exists():
+            return f"[ERRO] Caminho não encontrado: {caminho}"
+        st = p.stat()
+        info = {
+            "caminho": str(p.resolve()), "tipo": "pasta" if p.is_dir() else "arquivo",
+            "tamanho": du.formatar_bytes(st.st_size) if p.is_file() else "use acao=uso_de_disco para medir a pasta",
+            "modificado": _dt.datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+        }
+        return json.dumps(info, indent=2, ensure_ascii=False)
+
+    @staticmethod
+    def _listar_arquivos(caminho: str, limite: int) -> str:
+        p = Path(caminho).expanduser()
+        if not p.is_dir():
+            return f"[ERRO] Não é uma pasta: {caminho}"
+        itens = []
+        for e in p.iterdir():
+            try:
+                itens.append((e.is_dir(), e.name, e.stat().st_size if e.is_file() else 0))
+            except OSError:
+                continue
+        itens.sort(key=lambda x: (not x[0], x[1].lower()))
+        linhas = [f"  {'[pasta]' if d else du.formatar_bytes(t):>10}  {n}" for d, n, t in itens[:limite]]
+        extra = f"\n  ... e mais {len(itens) - limite}" if len(itens) > limite else ""
+        return f"{len(itens)} item(ns) em {p}:\n" + "\n".join(linhas) + extra

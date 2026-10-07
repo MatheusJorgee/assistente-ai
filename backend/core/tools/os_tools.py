@@ -1,4 +1,4 @@
-﻿"""
+"""
 OS Tools (v2): thin tools que conectam o cérebro aos adapters de host.
 
 Estas ferramentas foram desenhadas para function calling semântico:
@@ -363,6 +363,26 @@ class ProcessControlTool(MotorTool):
             context=context,
         )
         return str(asdict(result))
+
+    def _emit_telemetry(
+        self,
+        *,
+        kwargs: dict,
+        decision: str,
+        success: bool,
+        duration_ms: int,
+        message: str,
+    ) -> None:
+        if not self._telemetry:
+            return
+        self._telemetry.emit(
+            tool_name=self.metadata.name,
+            parameters=kwargs,
+            decision=decision,
+            duration_ms=duration_ms,
+            success=success,
+            message=message,
+        )
 
 
 def _memory_kb(mem_usage: str) -> int:

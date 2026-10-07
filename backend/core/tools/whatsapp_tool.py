@@ -36,12 +36,23 @@ _CDP_URL = "http://localhost:9222"
 _WA_BOOT_TIMEOUT_MS = 60_000
 _WA_SEND_TIMEOUT_MS = 120_000
 
+# Caixa de mensagem (compositor). WhatsApp Web 2024+: contenteditable lexical
+# com data-tab=10, role=textbox e aria-label "Digite uma mensagem...". Vários
+# fallbacks pra resistir a mudanças de DOM.
 _MSG_BOX_SELECTOR = (
-    'div[contenteditable="true"][data-tab="10"], '
-    'div[contenteditable="true"][data-tab="11"], '
-    'footer .lexical-rich-text-input'
+    '#main div[contenteditable="true"][data-tab="10"], '
+    '#main div[contenteditable="true"][role="textbox"], '
+    '#main footer div[contenteditable="true"], '
+    'div[contenteditable="true"][aria-label^="Digite uma mensagem"], '
+    'div[contenteditable="true"][aria-label^="Type a message"]'
 )
-_SEARCH_BOX_SELECTOR = 'div[contenteditable="true"][data-tab="3"]'
+# Busca virou um <input> de verdade (não é mais contenteditable!) — data-tab=3,
+# role=textbox, aria-label "Pesquisar ou começar uma nova conversa".
+_SEARCH_BOX_SELECTOR = (
+    'div[role="textbox"][data-tab="3"], input[data-tab="3"], '
+    '[aria-label="Pesquisar ou começar uma nova conversa"], '
+    '[aria-label="Search or start new chat"]'
+)
 
 
 def _is_phone(destinatario: str) -> bool:
@@ -57,25 +68,58 @@ def _normalize_phone(phone: str) -> str:
     return digits
 
 
-async def _connect(pw) -> tuple:
-    """Conecta ao Edge; lanca o processo se necessario. Retorna (browser, ctx, page)."""
-    from playwright.async_api import async_playwright  # noqa (ja importado pelo caller)
+def _edge_path() -> str:
+    """Acha o msedge.exe instalado (x86 ou x64)."""
+    import os
 
+    candidatos = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ]
+    for c in candidatos:
+        if os.path.exists(c):
+            return c
+    return candidatos[0]
+
+
+def _launch_edge() -> None:
+    subprocess.Popen([
+        _edge_path(),
+        "--remote-debugging-port=9222",
+        r"--user-data-dir=C:\wa_bot_profile",
+        "--no-first-run",
+        "--no-default-browser-check",
+    ])
+
+
+async def _connect(pw) -> tuple:
+    """
+    Conecta ao Edge; lanca o processo se necessario. Retorna (browser, ctx, page).
+
+    Robusto contra: Edge frio (demora pra abrir a porta CDP), Edge que caiu no
+    meio de uma sincronizacao pesada do WhatsApp (relanca e tenta de novo).
+    """
+    browser = None
     try:
-        browser = await pw.chromium.connect_over_cdp(_CDP_URL)
+        browser = await pw.chromium.connect_over_cdp(_CDP_URL, timeout=4000)
         logger.info("[WHATSAPP] Conectado ao Edge via CDP.")
     except Exception:
         logger.warning("[WHATSAPP] Edge nao encontrado -- iniciando processo...")
-        subprocess.Popen([
-            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            "--remote-debugging-port=9222",
-            r"--user-data-dir=C:\wa_bot_profile",
-            "--no-first-run",
-            "--no-default-browser-check",
-        ])
-        await asyncio.sleep(5)
-        logger.info("[WHATSAPP] Reconectando ao Edge...")
-        browser = await pw.chromium.connect_over_cdp(_CDP_URL)
+        _launch_edge()
+        ultima_falha = None
+        for tentativa in range(12):  # ate ~36s de espera pelo CDP
+            await asyncio.sleep(3)
+            try:
+                browser = await pw.chromium.connect_over_cdp(_CDP_URL, timeout=3000)
+                logger.info("[WHATSAPP] Conectado ao Edge apos %ds.", 3 * (tentativa + 1))
+                break
+            except Exception as exc:
+                ultima_falha = exc
+        if browser is None:
+            raise RuntimeError(
+                f"Edge nao abriu a porta CDP em 36s ({ultima_falha}). "
+                "Verifique se ha outro Edge travando o perfil C:\\wa_bot_profile."
+            )
 
     ctx = browser.contexts[0] if browser.contexts else await browser.new_context()
 
@@ -96,16 +140,32 @@ async def _connect(pw) -> tuple:
     return browser, ctx, page
 
 
-async def _boot_whatsapp(page) -> None:
-    """Boot suave: abre web.whatsapp.com e espera a UI principal."""
+async def _boot_whatsapp(page) -> str:
+    """
+    Boot suave: abre web.whatsapp.com e espera a UI principal.
+    Tolera a fase "Carregando conversas" (sincronizacao pesada pode levar minutos
+    quando o Edge ficou dias fechado). Retorna o estado: 'logado' | 'qr' | 'carregando'.
+    """
     logger.info("[WHATSAPP] Boot: aguardando UI principal...")
-    await page.goto("https://web.whatsapp.com", timeout=_WA_SEND_TIMEOUT_MS)
-    try:
-        await page.wait_for_selector("canvas, #pane-side", timeout=_WA_BOOT_TIMEOUT_MS)
-        logger.info("[WHATSAPP] UI principal carregada.")
-        await asyncio.sleep(2)
-    except Exception:
-        logger.warning("[WHATSAPP] Boot timeout -- continuando mesmo assim...")
+    if "web.whatsapp.com" not in page.url:
+        await page.goto("https://web.whatsapp.com", timeout=_WA_SEND_TIMEOUT_MS)
+
+    import time as _time
+    inicio = _time.time()
+    while _time.time() - inicio < 120:  # ate 2 min de sincronizacao
+        try:
+            if await page.locator("#pane-side").count():
+                logger.info("[WHATSAPP] UI principal carregada (logado).")
+                await asyncio.sleep(2)
+                return "logado"
+            if await page.locator("canvas").count():
+                logger.warning("[WHATSAPP] QR code na tela -- sessao deslogada.")
+                return "qr"
+        except Exception:
+            pass  # pagina pode estar recarregando durante o sync
+        await asyncio.sleep(3)
+    logger.warning("[WHATSAPP] Boot timeout (sync nao terminou em 2min).")
+    return "carregando"
 
 
 async def _playwright_send(destinatario: str, message: str) -> str:
@@ -129,7 +189,13 @@ async def _playwright_send(destinatario: str, message: str) -> str:
             )
             logger.info("[WHATSAPP] Rota NUMERO -> deep link para %s", phone_digits)
 
-            await _boot_whatsapp(page)
+            estado = await _boot_whatsapp(page)
+            if estado == "qr":
+                raise PermissionError(
+                    "Sessao do WhatsApp deslogada: o QR code esta na tela do Edge. "
+                    "Peca ao Matheus para escanear o QR com o celular (WhatsApp > "
+                    "Aparelhos conectados) na janela do Edge que esta aberta."
+                )
 
             logger.info("[WHATSAPP] Navegando para deep link de envio...")
             await page.goto(url_envio, timeout=_WA_SEND_TIMEOUT_MS)
@@ -150,15 +216,20 @@ async def _playwright_send(destinatario: str, message: str) -> str:
             # ── Fluxo por NOME: pesquisa na UI ───────────────────────────
             logger.info("[WHATSAPP] Rota NOME -> pesquisando contato '%s'", destinatario)
 
-            # 0. Acessa o WhatsApp apenas se nao estiver la (evita refresh)
-            if "web.whatsapp.com" not in page.url:
-                await page.goto("https://web.whatsapp.com", timeout=_WA_SEND_TIMEOUT_MS)
+            estado = await _boot_whatsapp(page)
+            if estado == "qr":
+                raise PermissionError(
+                    "Sessao do WhatsApp deslogada: o QR code esta na tela do Edge. "
+                    "Peca ao Matheus para escanear o QR com o celular na janela aberta."
+                )
 
-            # 1. Aguarda barra de pesquisa com seletor inquebravel
-            search_box_selector = '#side div[contenteditable="true"]'
-            await page.wait_for_selector(search_box_selector, timeout=30000)
+            # 1. Aguarda a barra de busca (agora um <input>, não mais contenteditable)
+            await page.wait_for_selector(_SEARCH_BOX_SELECTOR, timeout=30000)
             await asyncio.sleep(1)
-            await page.click(search_box_selector)
+            await page.click(_SEARCH_BOX_SELECTOR)
+            # Limpa qualquer texto residual e digita o contato
+            await page.keyboard.press("Control+a")
+            await page.keyboard.press("Delete")
             await page.keyboard.type(destinatario)
             await asyncio.sleep(2)  # aguarda resultados filtrarem
 
@@ -241,8 +312,12 @@ async def triagem_notificacoes_whatsapp() -> str:
     async with async_playwright() as pw:
         _browser, _ctx, page = await _connect(pw)
 
-        if "web.whatsapp.com" not in page.url:
-            await _boot_whatsapp(page)
+        estado = await _boot_whatsapp(page)
+        if estado == "qr":
+            return (
+                "Sessao do WhatsApp deslogada: ha um QR code na tela do Edge. "
+                "O Matheus precisa escanear com o celular para reconectar."
+            )
 
         try:
             await page.wait_for_selector("#pane-side", timeout=10000)
@@ -286,8 +361,12 @@ async def triagem_notificacoes_whatsapp() -> str:
                     else:
                         nome = partes[0].strip()
 
-                    # Contagem de nao lidas: regex no texto bruto
-                    m = _re.search(r"(\d+)\s*mensagem", texto_lower)
+                    # Contagem de nao lidas: regex tolerante (qualquer espacamento/
+                    # quebra entre o numero e "mensagem"); fallback: badge numerico
+                    # no fim da linha ("... | 3")
+                    m = _re.search(r"(\d+)[\s ]*mensage", texto_limpo, _re.IGNORECASE)
+                    if not m:
+                        m = _re.search(r"\|\s*(\d{1,3})\s*$", texto_limpo)
                     nao_lidas = int(m.group(1)) if m else (1 if tem_nao_lida else 0)
 
                     print(f"[WHATSAPP RADAR] Detectado: nome={nome!r} | pinned={is_pinned} | nao_lidas={nao_lidas} | grupo={is_grupo} | mention={has_mention}")
@@ -296,6 +375,8 @@ async def triagem_notificacoes_whatsapp() -> str:
                         "is_pinned": is_pinned,
                         "tem_nova_mensagem": tem_nao_lida,
                         "has_mention": has_mention,
+                        "is_grupo": is_grupo,
+                        "nao_lidas": nao_lidas,
                         "raw_text": texto_limpo[:200],
                     })
             except Exception as e:
@@ -319,15 +400,15 @@ async def ler_mensagens_whatsapp(contato: str, limite: int = 5) -> str:
     async with async_playwright() as pw:
         _browser, _ctx, page = await _connect(pw)
 
-        if "web.whatsapp.com" not in page.url:
-            await _boot_whatsapp(page)
+        estado = await _boot_whatsapp(page)
+        if estado == "qr":
+            return json.dumps(
+                {"ok": False, "error": "Sessao deslogada: QR code na tela do Edge, precisa escanear."},
+                ensure_ascii=False,
+            )
 
         # 1. Abrir barra de busca e digitar contato
-        try:
-            await page.wait_for_selector(_SEARCH_BOX_SELECTOR, timeout=15000)
-        except Exception:
-            await page.wait_for_selector('#side div[contenteditable="true"]', timeout=15000)
-
+        await page.wait_for_selector(_SEARCH_BOX_SELECTOR, timeout=15000)
         search_sel = _SEARCH_BOX_SELECTOR
         await page.click(search_sel)
         await asyncio.sleep(0.3)
@@ -389,6 +470,44 @@ async def ler_mensagens_whatsapp(contato: str, limite: int = 5) -> str:
     return json.dumps({"ok": True, "contato": contato, "mensagens": mensagens}, ensure_ascii=False)
 
 
+async def _status_whatsapp() -> str:
+    """Estado da sessao: logado / qr (precisa escanear) / carregando / edge_off."""
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        raise RuntimeError("playwright nao instalado.")
+
+    async with async_playwright() as pw:
+        try:
+            _browser, _ctx, page = await _connect(pw)
+        except Exception as exc:
+            return json.dumps(
+                {"ok": False, "estado": "edge_off", "detalhe": str(exc)[:200]},
+                ensure_ascii=False,
+            )
+        estado = await _boot_whatsapp(page)
+    mensagens = {
+        "logado": "Sessao ativa: WhatsApp Web logado e pronto.",
+        "qr": "Deslogado: QR code na tela do Edge — o Matheus precisa escanear com o celular.",
+        "carregando": "WhatsApp ainda sincronizando mensagens (Edge ficou tempo fechado). Tente de novo em 1-2 minutos.",
+    }
+    return json.dumps(
+        {"ok": estado == "logado", "estado": estado, "detalhe": mensagens.get(estado, "")},
+        ensure_ascii=False,
+    )
+
+
+def _status_in_thread() -> str:
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_status_whatsapp())
+    finally:
+        loop.close()
+
+
 def _ler_in_thread(contato: str, limite: int) -> str:
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -439,9 +558,13 @@ class WhatsAppTool(MotorTool):
                     ToolParameter(
                         name="acao",
                         type="string",
-                        description="Acao: 'enviar_mensagem', 'criar_sessao', 'triagem' ou 'ler_mensagens'.",
+                        description=(
+                            "Acao: 'enviar_mensagem', 'criar_sessao', 'triagem', 'ler_mensagens' "
+                            "ou 'status' (verifica se a sessao esta logada — use quando o WhatsApp "
+                            "parecer com problema, para explicar ao usuario o que falta)."
+                        ),
                         required=True,
-                        choices=["enviar_mensagem", "criar_sessao", "triagem", "ler_mensagens"],
+                        choices=["enviar_mensagem", "criar_sessao", "triagem", "ler_mensagens", "status"],
                     ),
                     ToolParameter(
                         name="destinatario",
@@ -479,7 +602,7 @@ class WhatsAppTool(MotorTool):
 
     def validate_input(self, **kwargs: Any) -> bool:
         acao = str(kwargs.get("acao", "")).strip().lower()
-        if acao not in {"enviar_mensagem", "criar_sessao", "triagem", "ler_mensagens"}:
+        if acao not in {"enviar_mensagem", "criar_sessao", "triagem", "ler_mensagens", "status"}:
             return False
         if acao == "enviar_mensagem":
             return (
@@ -490,8 +613,27 @@ class WhatsAppTool(MotorTool):
             return bool(str(kwargs.get("destinatario", "")).strip())
         return True
 
+    @staticmethod
+    async def _run_resiliente(fn, *args) -> str:
+        """
+        Roda a operacao em thread; se o browser caiu no MEIO dela (visto em
+        sincronizacoes pesadas do WhatsApp), tenta UMA segunda vez do zero.
+        """
+        try:
+            return await asyncio.to_thread(fn, *args)
+        except Exception as exc:
+            texto = f"{type(exc).__name__}: {exc}".lower()
+            if any(s in texto for s in ("closed", "disconnected", "crash", "cdp")):
+                logger.warning("[WHATSAPP] Browser caiu no meio da acao — repetindo 1x...")
+                await asyncio.sleep(4)
+                return await asyncio.to_thread(fn, *args)
+            raise
+
     async def execute(self, **kwargs: Any) -> str:
         acao = str(kwargs.get("acao", "")).strip().lower()
+
+        if acao == "status":
+            return await self._run_resiliente(_status_in_thread)
 
         if acao == "criar_sessao":
             return json.dumps(
@@ -512,19 +654,19 @@ class WhatsAppTool(MotorTool):
             mensagem = str(kwargs.get("mensagem", "")).strip()
 
             logger.info("[WHATSAPP] Enviando para '%s' via CDP...", destinatario)
-            result = await asyncio.to_thread(_send_in_thread, destinatario, mensagem)
+            result = await self._run_resiliente(_send_in_thread, destinatario, mensagem)
             logger.info("[WHATSAPP] Entregue para '%s'.", destinatario)
             return result
 
         if acao == "triagem":
-            result = await asyncio.to_thread(_triagem_in_thread)
+            result = await self._run_resiliente(_triagem_in_thread)
             return result
 
         if acao == "ler_mensagens":
             destinatario = str(kwargs.get("destinatario", "")).strip()
             limite = int(kwargs.get("limite", 5))
             logger.info("[WHATSAPP] Lendo %d mensagens de '%s'...", limite, destinatario)
-            result = await asyncio.to_thread(_ler_in_thread, destinatario, limite)
+            result = await self._run_resiliente(_ler_in_thread, destinatario, limite)
             return result
 
         raise ValueError(f"Acao desconhecida: {acao}")

@@ -1,10 +1,18 @@
 'use client'
 
-import { useQuintaFeiraUI } from '@/hooks/useQuintaFeiraUI'
+import { useCallback } from 'react'
+import { useQuintaFeiraUI, HTTP_BASE } from '@/hooks/useQuintaFeiraUI'
+import { useSystemContext } from '@/hooks/useSystemContext'
 import { VoiceOrb } from '@/components/VoiceOrb'
 import { ChatOverlay } from '@/components/ChatOverlay'
 import { ControlDeck } from '@/components/ControlDeck'
 import { MediaPlayer } from '@/components/MediaPlayer'
+import { Visor } from '@/components/Visor'
+import { HologramLayer } from '@/components/holo/HologramLayer'
+import { SystemHUD } from '@/components/SystemHUD'
+import { MemoryPanel } from '@/components/MemoryPanel'
+import { ApprovalCard } from '@/components/ApprovalCard'
+import { NowStrip } from '@/components/NowStrip'
 
 // Label de estado exibido abaixo do orbe
 const STATE_LABEL: Record<string, string> = {
@@ -18,19 +26,54 @@ export default function Page() {
   const {
     orbState,
     isChatOpen,
+    isMemoryOpen,
     isMuted,
+    narrationOn,
+    ambientOn,
+    micWarning,
     messages,
     isConnected,
+    isLoading,
     status,
+    intermediateStatus,
     activeMedia,
+    activeVisor,
+    activeHolo,
+    clearHolo,
+    narrationIndex,
+    proactiveAlert,
+    approvals,
+    respondApproval,
+    autonomyMode,
+    cycleAutonomy,
+    activity,
+    streamingText,
+    canStop,
+    stopEverything,
     toggleChat,
+    toggleMemory,
     toggleMute,
+    toggleNarration,
+    toggleAmbient,
+    showNews,
     endSession,
     clearMedia,
+    clearVisor,
     sendTextMessage,
     onAudioStart,
     onAudioEnd,
   } = useQuintaFeiraUI()
+
+  const { snapshot, online } = useSystemContext(HTTP_BASE)
+
+  // Chip de sugestão: abre o chat e já envia a pergunta
+  const askQuick = useCallback(
+    (text: string) => {
+      if (!isChatOpen) toggleChat()
+      void sendTextMessage(text)
+    },
+    [isChatOpen, toggleChat, sendTextMessage],
+  )
 
   return (
     <main className="w-screen h-screen overflow-hidden flex items-center justify-center relative select-none deck-bg">
@@ -85,47 +128,108 @@ export default function Page() {
             }}
           />
         </div>
-
       </div>
+
+      {/* --- HUD de sistema (relógio, clima, CPU/RAM, bateria, app em foco) --- */}
+      <SystemHUD snapshot={snapshot} online={online} />
 
       {/* --- VoiceOrb central --- */}
       <div className="relative z-10 flex flex-col items-center gap-5">
         <VoiceOrb state={orbState} onClick={toggleMute} />
 
-        {/* Label de estado */}
-        <p
-          className="text-xs font-mono tracking-[0.20em] uppercase transition-all duration-300"
-          style={{
-            color:
-              orbState === 'idle'
-                ? 'rgba(100,116,139,0.55)'
-                : 'rgba(6,182,212,0.70)',
-            textShadow:
-              orbState !== 'idle'
-                ? '0 0 12px rgba(6,182,212,0.35)'
-                : 'none',
-          }}
-        >
-          {STATE_LABEL[orbState]}
-        </p>
+        {/* Label de estado + passo intermediário */}
+        <div className="flex flex-col items-center gap-1.5 min-h-[40px]">
+          <p
+            className="text-xs font-mono tracking-[0.20em] uppercase transition-all duration-300"
+            style={{
+              color:
+                orbState === 'idle'
+                  ? 'rgba(100,116,139,0.55)'
+                  : 'rgba(6,182,212,0.70)',
+              textShadow:
+                orbState !== 'idle'
+                  ? '0 0 12px rgba(6,182,212,0.35)'
+                  : 'none',
+            }}
+          >
+            {STATE_LABEL[orbState]}
+          </p>
+          {/* Faixa "Agora": o que ela está fazendo (ferramenta, aprovação pendente ou pensando) */}
+          <NowStrip activity={activity} isLoading={isLoading} waitingApproval={approvals.length > 0} />
+          {micWarning && !isMuted ? (
+            <p className="max-w-xs text-center text-[11px] leading-relaxed text-amber-300/80">
+              {micWarning}
+            </p>
+          ) : null}
+          {!micWarning && orbState === 'listening' ? (
+            <p className="text-[10px] font-mono tracking-widest text-emerald-300/50">
+              diga &quot;Quinta&quot; + seu comando
+            </p>
+          ) : null}
+        </div>
       </div>
 
-      {/* --- ChatOverlay (painel lateral) --- */}
+      {/* --- Chips de sugestão (só com a tela limpa) --- */}
+      {!isChatOpen && !isMemoryOpen ? (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 flex flex-wrap justify-center gap-2 max-w-[92vw]">
+          {[
+            { label: 'O que importa hoje?', run: showNews },
+            { label: 'Como está o sistema?', run: () => askQuick('Como está o sistema agora? CPU, memória, bateria.') },
+            { label: 'Me dá um conselho', run: () => askQuick('Olha meu contexto de agora e me dá um conselho útil.') },
+            { label: 'O que você sabe de mim?', run: toggleMemory },
+          ].map((chip) => (
+            <button
+              key={chip.label}
+              onClick={chip.run}
+              className="px-3.5 py-1.5 rounded-full text-[11px] font-mono transition-all
+                         text-slate-400 hover:text-cyan-200 hover:scale-105"
+              style={{
+                background: 'rgba(10,20,32,0.62)',
+                border: '1px solid rgba(6,182,212,0.14)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+              }}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {/* --- ChatOverlay (painel lateral direito) --- */}
       <ChatOverlay
         isOpen={isChatOpen}
         messages={messages}
+        isConnected={isConnected}
+        isLoading={isLoading}
+        intermediateStatus={intermediateStatus}
+        streamingText={streamingText}
         onClose={toggleChat}
         onSendMessage={sendTextMessage}
       />
+
+      {/* --- MemoryPanel (painel lateral esquerdo: o que ela aprendeu) --- */}
+      <MemoryPanel isOpen={isMemoryOpen} httpBase={HTTP_BASE} onClose={toggleMemory} />
 
       {/* --- ControlDeck (dock inferior) --- */}
       <ControlDeck
         isChatOpen={isChatOpen}
         isMuted={isMuted}
+        isMemoryOpen={isMemoryOpen}
+        narrationOn={narrationOn}
+        ambientOn={ambientOn}
+        canStop={canStop}
         isConnected={isConnected}
         status={status}
+        autonomyMode={autonomyMode}
+        onCycleAutonomy={cycleAutonomy}
         onToggleChat={toggleChat}
         onToggleMute={toggleMute}
+        onShowNews={showNews}
+        onToggleMemory={toggleMemory}
+        onToggleNarration={toggleNarration}
+        onToggleAmbient={toggleAmbient}
+        onStop={stopEverything}
         onEndSession={endSession}
       />
 
@@ -136,6 +240,34 @@ export default function Page() {
         onPlayStart={onAudioStart}
         onPlayEnd={onAudioEnd}
       />
+
+      {/* --- Visor visual (card de notícia / gráfico / imagem) --- */}
+      <Visor content={activeVisor} onClose={clearVisor} activeIndex={narrationIndex} />
+
+      {/* --- Holograma (globo 3D + painéis de mapa/viagem) --- */}
+      <HologramLayer holo={activeHolo} onClose={clearHolo} />
+
+      {/* --- Aprovação: a Quinta pergunta antes de agir (WhatsApp, terminal, arquivos...) --- */}
+      <ApprovalCard approvals={approvals} onRespond={respondApproval} />
+
+      {/* --- Toast de aviso proativo (bateria, CPU, clima, pausa...) --- */}
+      {proactiveAlert ? (
+        <div
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-50 max-w-[90vw]
+                     rounded-full border border-cyan-500/30 bg-zinc-950/90 backdrop-blur-xl
+                     px-5 py-2.5 shadow-2xl shadow-cyan-950/40 flex items-center gap-3"
+          style={{ animation: 'fadeInDown 0.35s ease-out' }}
+        >
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse flex-shrink-0" />
+          <span className="text-sm text-zinc-100">{proactiveAlert}</span>
+          <style>{`
+            @keyframes fadeInDown {
+              0%   { opacity: 0; transform: translate(-50%, -10px); }
+              100% { opacity: 1; transform: translate(-50%, 0); }
+            }
+          `}</style>
+        </div>
+      ) : null}
 
       {/* Animações CSS dos blobs (preservadas do design original) */}
       <style>{`

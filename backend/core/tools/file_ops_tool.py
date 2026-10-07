@@ -1,4 +1,4 @@
-﻿"""
+"""
 v2_file_ops: thin tool para operações de arquivo em sandbox controlado.
 """
 
@@ -28,7 +28,8 @@ class FileOpsTool(MotorTool):
     - read_file: lê conteúdo UTF-8 de arquivo permitido
     - write_file: escreve conteúdo UTF-8 em arquivo permitido
     - list_dir: lista conteúdo de diretório permitido
-    - delete: remove arquivo/diretório permitido
+    - delete: move arquivo/diretório para a quarentena (30 dias); undo restaura
+    - undo: desfaz a última escrita, sobrescrita ou exclusão (pilha de 10)
 
     Regras para paths:
     - Preferir caminhos absolutos em Windows (ex: C:\\Users\\...)
@@ -52,9 +53,9 @@ class FileOpsTool(MotorTool):
                     ToolParameter(
                         name="action",
                         type="string",
-                        description="Ação: read_file, write_file, list_dir ou delete.",
+                        description="Ação: read_file, write_file, list_dir, delete ou undo (desfaz a última escrita/exclusão).",
                         required=True,
-                        choices=["read_file", "write_file", "list_dir", "delete"],
+                        choices=["read_file", "write_file", "list_dir", "delete", "undo"],
                     ),
                     ToolParameter(
                         name="path",
@@ -107,8 +108,10 @@ class FileOpsTool(MotorTool):
     def validate_input(self, **kwargs) -> bool:
         action = str(kwargs.get("action", "")).lower()
         path = kwargs.get("path")
-        if action not in {"read_file", "write_file", "list_dir", "delete"}:
+        if action not in {"read_file", "write_file", "list_dir", "delete", "undo"}:
             return False
+        if action == "undo":
+            return True
         if not isinstance(path, str) or not path.strip():
             return False
         if action == "write_file" and "content" not in kwargs:
@@ -118,10 +121,15 @@ class FileOpsTool(MotorTool):
     async def execute(self, **kwargs) -> str:
         started = time.perf_counter()
         action = str(kwargs["action"]).lower()
-        path = str(kwargs["path"])
+        path = str(kwargs.get("path") or "")
         context = PolicyContext(actor="llm", tags=frozenset({"tool:v2_file_ops", f"action:{action}"}))
 
         try:
+            if action == "undo":
+                msg = self._fs.undo.desfazer()
+                self._emit(kwargs=kwargs, decision="ALLOW", success=True, duration_ms=_duration_ms(started), message=msg[:80])
+                return msg
+
             if action == "read_file":
                 result = self._fs.read_file(path=path, context=context)
                 self._emit(kwargs=kwargs, decision="ALLOW", success=True, duration_ms=_duration_ms(started), message="OK")

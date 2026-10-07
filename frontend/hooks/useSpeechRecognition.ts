@@ -17,6 +17,7 @@ type SpeechRecognitionInstance = {
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
 };
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
@@ -49,6 +50,8 @@ interface UseSpeechRecognitionConfig {
   onWakewordDetected?: () => void;
   onBrowserWarning?: (msg: string) => void;
   isWakeWordEnabled?: boolean;  // ← Novo: Controlar se está em modo radar
+  ambientMode?: boolean;  // ← Escuta ambiente: roteia falas sem wake word p/ triagem
+  onAmbientSpeech?: (text: string) => void;  // ← Fala captada SEM wake word (vai pra /ambient)
 }
 
 interface TranscriptionResult {
@@ -88,6 +91,8 @@ export function useSpeechRecognition({
   continuous = true,
   interimResults = true,
   isWakeWordEnabled = false,  // ← Novo: Default false (desativado por segurança)
+  ambientMode = false,
+  onAmbientSpeech,
 }: UseSpeechRecognitionConfig = {}) {
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
@@ -130,6 +135,19 @@ export function useSpeechRecognition({
   // ===== PREVENT INFINITE COMPAT UPDATES =====
   const prevCompatRef = useRef<string>("");
 
+  // ===== NETWORK ERROR TRACKING: STT sem backend (Brave) avisa em vez de morrer =====
+  const networkErrorCountRef = useRef(0);
+  // ===== A10: robustez de áudio =====
+  const semMicrofoneRef = useRef(false);        // 'audio-capture': nenhum microfone disponível
+  const ultimoTickWatchdogRef = useRef(Date.now());  // detecta suspensão do Windows (relógio pulou)
+  // ===== PERMISSION DENIED: falha permanente — não reiniciar em loop infinito =====
+  const permissionDeniedRef = useRef(false);
+  // ===== ESCUTA AMBIENTE: refs sempre atualizadas (sem recriar callbacks) =====
+  const ambientModeRef = useRef(ambientMode);
+  const onAmbientSpeechRef = useRef(onAmbientSpeech);
+  useEffect(() => { ambientModeRef.current = ambientMode; }, [ambientMode]);
+  useEffect(() => { onAmbientSpeechRef.current = onAmbientSpeech; }, [onAmbientSpeech]);
+
   const getSpeechRecognitionConstructor = useCallback(() => {
     if (typeof window === "undefined") return undefined;
     const w = window as typeof window & {
@@ -146,13 +164,14 @@ export function useSpeechRecognition({
     }
     
     const ua = navigator.userAgent;
-    const isChrome = /Chrome/.test(ua) && !/Chromium/.test(ua) && !/Brave/.test(ua);
-    const isBrave = /Brave/.test(ua);
+    // Brave NÃO se identifica no UserAgent — a detecção confiável é navigator.brave
+    const isBrave = !!(navigator as unknown as { brave?: unknown }).brave;
+    const isChrome = /Chrome/.test(ua) && !/Chromium/.test(ua) && !isBrave;
     const isEdge = /Edg/.test(ua);
-    
+
     let warning: string | undefined;
     if (isBrave) {
-      warning = "⚠️ AVISO: Brave + Speech Recognition = erro de 'network'. Use Google Chrome para melhor compatibilidade.";
+      warning = "Voz indisponível no Brave (o reconhecimento de fala é bloqueado). Abra esta página no Edge ou Chrome para falar com ela.";
     }
     
     const compat = { isChrome, isBrave, isEdge, warning };
@@ -274,7 +293,7 @@ export function useSpeechRecognition({
   // Extrai comando após wake
   const extrairComando = useCallback((texto: string): string => {
     // ===== BYPASS: Remover "Quinta Feira" do comando final =====
-    let comando = normalizeText(texto)
+    const comando = normalizeText(texto)
       .replace(/quintafeira/gi, "")
       .replace(/quinta[\s-]*feira/gi, "")
       .replace(/quinta[\s-]*fera/gi, "")  // ← Adicionar variante
@@ -312,7 +331,6 @@ export function useSpeechRecognition({
         // ✓ FIX: Usar startRef para evitar dependência circular
         // Capturar via closure em vez de dependência
         try {
-          // @ts-ignore - chamada dinâmica sem dependência
           if (typeof start === 'function') {
             start();
           }
@@ -356,6 +374,13 @@ export function useSpeechRecognition({
             timestamp: Date.now()
           });
           onTranscription?.(comando);
+        }
+      } else if (ambientModeRef.current && onAmbientSpeechRef.current) {
+        // ESCUTA AMBIENTE: sem wake word, mas o backend decide se foi com ela.
+        // Ignora frases curtíssimas (ruído) — o resto vai pra triagem.
+        if (normalized.split(/\s+/).filter(Boolean).length >= 2) {
+          console.log('[AMBIENT] Fala captada p/ triagem:', normalized.slice(0, 60));
+          onAmbientSpeechRef.current(text.trim());
         }
       } else {
         handlePartialQuinta(text);
@@ -513,9 +538,50 @@ export function useSpeechRecognition({
         setIsListening(false);
         return;
       }
-      
-      // Erros transitórios — onend reinicia o stream automaticamente
-      if (event.error === 'no-speech' || event.error === 'network') return;
+
+      // 'network' repetido = navegador sem backend de fala (típico do Brave):
+      // avisar o usuário UMA vez em vez de morrer em silêncio
+      if (event.error === 'network') {
+        networkErrorCountRef.current += 1;
+        if (networkErrorCountRef.current === 3 && onBrowserWarning) {
+          onBrowserWarning(
+            "Reconhecimento de voz falhando neste navegador (erro de rede do serviço de fala). " +
+            "Abra esta página no Edge ou Chrome para usar a voz."
+          );
+        }
+        return;
+      }
+
+      // Erro transitório — onend reinicia o stream automaticamente
+      if (event.error === 'no-speech') return;
+
+      // Permissão negada: falha PERMANENTE — avisar uma vez e PARAR de tentar
+      // (sem isto, onend reinicia em loop infinito floodando o console).
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        if (!permissionDeniedRef.current) {
+          permissionDeniedRef.current = true;
+          intentionalStopRef.current = true;  // impede o restart no onend
+          onBrowserWarning?.(
+            "Microfone bloqueado. Clique no cadeado da barra de endereço, permita o microfone e recarregue a página para falar com ela."
+          );
+          setDiagnostic("🔇 Microfone bloqueado");
+        }
+        return;
+      }
+
+      // Sem microfone (desconectado/desativado): erro CLARO uma vez e para de tentar; volta
+      // sozinho quando um dispositivo de áudio aparecer (devicechange).
+      if (event.error === 'audio-capture') {
+        if (!semMicrofoneRef.current) {
+          semMicrofoneRef.current = true;
+          intentionalStopRef.current = true;
+          onBrowserWarning?.(
+            "Nenhum microfone encontrado. Conecte ou ative um microfone (Configurações do Windows > Som > Entrada); eu volto a ouvir sozinha quando ele aparecer."
+          );
+          setDiagnostic("🎙️ Sem microfone");
+        }
+        return;
+      }
 
       setDiagnostic(`❌ Erro mic: ${event.error}`);
       onError?.(event.error);
@@ -572,7 +638,7 @@ export function useSpeechRecognition({
       setDiagnostic(`❌ Erro ao iniciar microfone`);
       onError?.((e as Error).message);
     }
-  }, [isSupported, getSpeechRecognitionConstructor, language, continuous, interimResults, maxAlternatives, flushTimeout, flushBuffer, onError, isWakeWordEnabled]);
+  }, [isSupported, getSpeechRecognitionConstructor, language, continuous, interimResults, maxAlternatives, flushTimeout, flushBuffer, onError, onBrowserWarning, isWakeWordEnabled]);
 
   // ===== WATCHDOG CONTROL: Pausar e resumir (durante fala de utilizador) =====
   const pauseWatchdog = useCallback(() => {
@@ -627,7 +693,23 @@ export function useSpeechRecognition({
     
     watchdogPausedRef.current = false;  // Resetar estado de pausa
     
+    ultimoTickWatchdogRef.current = Date.now();
     microphoneWatchdogRef.current = setInterval(() => {
+      // A10: o timer é de 3 s; se o relógio pulou bem mais que isso, o PC suspendeu/hibernou e a
+      // conexão do serviço de fala morreu por baixo. Derruba a instância velha e recomeça limpo.
+      const agoraTick = Date.now();
+      const salto = agoraTick - ultimoTickWatchdogRef.current;
+      ultimoTickWatchdogRef.current = agoraTick;
+      if (salto > 20000 && isWakeWordEnabled && !semMicrofoneRef.current && !permissionDeniedRef.current) {
+        console.warn(`[WATCHDOG] Relógio pulou ${Math.round(salto / 1000)}s (suspensão?) — reiniciando o reconhecimento`);
+        try { recognitionRef.current?.abort?.(); } catch { /* já morta */ }
+        recognitionRef.current = null;
+        isTransitioningRef.current = false;
+        networkErrorCountRef.current = 0;
+        setIsListening(false);
+        return;  // o próximo tick (3 s) ressuscita pelo caminho normal
+      }
+
       // ✓ CRÍTICO: NÃO ressuscitar se Watchdog está pausado (durante fala)
       if (watchdogPausedRef.current) {
         console.log('[WATCHDOG] Pausado - utilizador está a falar ou resultado recente');
@@ -655,6 +737,28 @@ export function useSpeechRecognition({
       }
     }, 3000);  // ← AUMENTADO: Verificar a cada 3s (era 2s)
   }, [isWakeWordEnabled, start, isListening]);
+
+  // ===== A10: microfone plugado/ativado depois do erro 'audio-capture' => volta sozinha =====
+  useEffect(() => {
+    const md = typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined;
+    if (!md?.addEventListener) return;
+    const aoMudarDispositivo = async () => {
+      if (!semMicrofoneRef.current) return;
+      try {
+        const lista = await md.enumerateDevices();
+        if (lista.some((d) => d.kind === 'audioinput')) {
+          semMicrofoneRef.current = false;
+          intentionalStopRef.current = false;
+          setDiagnostic('🎙️ Microfone encontrado — voltando a ouvir');
+          start();
+        }
+      } catch (e) {
+        console.error('[DEVICECHANGE] Falha ao listar dispositivos:', e);
+      }
+    };
+    md.addEventListener('devicechange', aoMudarDispositivo);
+    return () => md.removeEventListener('devicechange', aoMudarDispositivo);
+  }, [start]);
 
   // ===== CLEANUP RIGOROSO: Remover recursos ao desmontar (ESSENCIAL para evitar vazamento de memória) =====
   useEffect(() => {
@@ -698,17 +802,16 @@ export function useSpeechRecognition({
         try {
           recognitionRef.current.stop();
           console.log('[CLEANUP] recognition.stop() executado');
-        } catch (e) {
+        } catch {
           console.log('[CLEANUP] stop() falhou (já foi abortado ou terminado)');
         }
         
         try {
-          // @ts-ignore - abort() não está no tipo TypeScript, mas funciona
-          if ((recognitionRef.current as any).abort) {
-            (recognitionRef.current as any).abort();
+          if (recognitionRef.current?.abort) {
+            recognitionRef.current.abort?.();
             console.log('[CLEANUP] recognition.abort() executado');
           }
-        } catch (e) {
+        } catch {
           console.log('[CLEANUP] abort() falhou');
         }
         
