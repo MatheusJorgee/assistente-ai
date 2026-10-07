@@ -1,4 +1,4 @@
-﻿"""
+"""
 Ferramentas de Memória e Aprendizado.
 """
 

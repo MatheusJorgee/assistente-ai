@@ -128,6 +128,18 @@ class ConversationMemory:
     def get_messages(self) -> list[Message]:
         return list(self._short_term)
 
+    def registrar_fala_interrompida(self, falado: str) -> bool:
+        """B5: troca a última resposta do assistente pelo que foi REALMENTE falado + [interrompido]."""
+        from .interrupcao import texto_interrompido
+        for msg in reversed(self._short_term):
+            if msg.role == "assistant" and msg.content:
+                novo = texto_interrompido(msg.content, falado)
+                if novo != msg.content:
+                    msg.content = novo
+                    return True
+                return False
+        return False
+
     def clear(self) -> None:
         self._short_term.clear()
         if self._pending_task and not self._pending_task.done():

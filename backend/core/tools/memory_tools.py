@@ -1,4 +1,4 @@
-﻿"""
+"""
 Tool de memória de longo prazo (episódica e semântica).
 """
 
@@ -342,7 +342,6 @@ class MemorizarInformacaoTool(MotorTool):
         return isinstance(fato, str) and bool(fato.strip())
 
     async def execute(self, **kwargs) -> str:
-        _logger.info(f"[DEBUG] MemorizarInformacaoTool EXECUTADA! Args: {kwargs}")
         fato = str(kwargs.get("fato") or kwargs.get("content") or kwargs.get("query") or "").strip()
         tipo = str(kwargs.get("tipo_memoria") or kwargs.get("tipo") or "").strip().lower()
         if not tipo:
@@ -351,13 +350,12 @@ class MemorizarInformacaoTool(MotorTool):
         entidade = str(kwargs.get("entidade") or kwargs.get("category") or "usuario").strip()
 
         if not fato:
-            msg = f"ERRO: fato vazio. kwargs recebidos: {kwargs}"
-            _logger.error(f"{msg}")
-            return msg
+            _logger.error(f"[MEMORY] fato vazio. kwargs recebidos: {kwargs}")
+            return "ERRO: nada para memorizar (campo 'fato' vazio)."
 
-        _logger.info(f"[DEBUG] CHAMANDO memorizar_informacao(fato={fato!r}, tipo={tipo!r}, entidade={entidade!r})")
+        _logger.debug(f"[MEMORY] memorizar_informacao(fato={fato!r}, tipo={tipo!r}, entidade={entidade!r})")
         resultado = memorizar_informacao(fato=fato, tipo_memoria=tipo, entidade=entidade)
-        _logger.info(f"[DEBUG] RESULTADO DA ESCRITA: {resultado}")
+        _logger.debug(f"[MEMORY] resultado: {resultado}")
         return resultado
 
 
