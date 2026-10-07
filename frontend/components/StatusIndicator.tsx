@@ -23,7 +23,6 @@ export function StatusIndicator({
   wsConnected, 
   isListening, 
   isLoading,
-  status = 'idle'
 }: StatusIndicatorProps) {
   
   let displayStatus = 'connected';

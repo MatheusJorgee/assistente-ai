@@ -1,4 +1,4 @@
-﻿"""
+"""
 Worker autônomo em background para reagir a eventos do Event Bus.
 """
 
@@ -8,6 +8,8 @@ import asyncio
 import json
 from collections import deque
 from typing import Any, Optional
+
+from ..policy.approvals import ORIGEM_AUTONOMO, origem_atual
 
 try:
     from .event_bus import AsyncEventBus, LoopEvent
@@ -125,6 +127,17 @@ class AutonomousWorker:
 
         self._audit_ring.append(f"{event.timestamp} [{event.type}] {json.dumps(event.payload)}")
 
+        # Não chamar a LLM em timer_tick puro sem atividade relevante no audit log.
+        # Só aciona o brain se houver eventos além de timer_tick/user_idle no buffer.
+        if event.type == "timer_tick":
+            non_trivial = [
+                e for e in self._audit_ring
+                if "[timer_tick]" not in e and "[user_idle]" not in e
+            ]
+            if not non_trivial:
+                logger.debug("[AUTONOMOUS] timer_tick sem atividade relevante — pulando chamada LLM")
+                return
+
         async with self._semaphore:
             audit_tail = self._get_audit_tail()
             memory_context = await self._build_memory_context(event)
@@ -139,6 +152,8 @@ class AutonomousWorker:
                 "Se não houver ação necessária, responda EXATAMENTE: NADA."
             )
 
+            # Origem autônoma: ninguém está olhando, então ação CRÍTICA é negada (não perguntada).
+            _origem_token = origem_atual.set(ORIGEM_AUTONOMO)
             try:
                 response = await self._brain.ask(
                     prompt,
@@ -149,6 +164,8 @@ class AutonomousWorker:
             except Exception as exc:
                 logger.warning(f"[AUTONOMOUS] Falha ao consultar brain: {exc}")
                 return
+            finally:
+                origem_atual.reset(_origem_token)
 
             if not text or text.upper() == "NADA":
                 logger.info(f"[AUTONOMOUS] Evento '{event.type}' processado sem ação proativa")

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Action Orchestrator: fecha o ciclo ReAct (Reason -> Act -> Observe).
 
 Implementa Circuit Breaker + Heurística de Fallback para evitar consumo

@@ -87,15 +87,22 @@ class AsyncEventBus:
                     break
                 continue
 
-            handlers = [*self._subscribers.get(event.type, []), *self._subscribers.get("*", [])]
-            for handler in handlers:
-                try:
-                    result = handler(event)
-                    if asyncio.iscoroutine(result):
-                        task = asyncio.create_task(result)
-                        self._inflight_tasks.add(task)
-                        task.add_done_callback(self._inflight_tasks.discard)
-                except Exception:
-                    # Não deixamos um subscriber quebrar o bus.
+            try:
+                # Blindagem: um evento malformado (ex.: dict cru em vez de LoopEvent)
+                # NUNCA pode derrubar o dispatcher inteiro e parar todo o runtime.
+                if not isinstance(event, LoopEvent):
                     continue
-            self._queue.task_done()
+
+                handlers = [*self._subscribers.get(event.type, []), *self._subscribers.get("*", [])]
+                for handler in handlers:
+                    try:
+                        result = handler(event)
+                        if asyncio.iscoroutine(result):
+                            task = asyncio.create_task(result)
+                            self._inflight_tasks.add(task)
+                            task.add_done_callback(self._inflight_tasks.discard)
+                    except Exception:
+                        # Não deixamos um subscriber quebrar o bus.
+                        continue
+            finally:
+                self._queue.task_done()

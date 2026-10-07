@@ -1,4 +1,4 @@
-﻿"""
+"""
 Router WebSocket de observabilidade em tempo real.
 
 Implementa o padrao WebSocket Pub/Sub Bridge (Observer Pattern):

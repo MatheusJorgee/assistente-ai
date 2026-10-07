@@ -1,4 +1,4 @@
-﻿"""
+"""
 Ports and Adapters para entrada/saida de audio.
 
 Objetivo:

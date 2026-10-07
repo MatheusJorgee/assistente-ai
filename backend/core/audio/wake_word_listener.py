@@ -1,4 +1,4 @@
-﻿"""
+"""
 Wake Word Listener + Voice Command Orchestrator.
 
 - WakeWordListener: captura audio continuo em thread dedicada e publica
@@ -82,10 +82,12 @@ class WakeWordListener:
         logger.info("[WAKE] Listener encerrado")
 
     def _thread_main(self) -> None:
+        import time as _time
         while self._running:
             try:
                 phrase = self._run_listen_blocking(timeout=2.0, phrase_time_limit=6.0)
                 if not phrase:
+                    _time.sleep(0.5)  # evita busy-wait quando não há fala
                     continue
 
                 normalized = phrase.lower().strip()

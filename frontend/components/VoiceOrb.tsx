@@ -195,7 +195,7 @@ export function VoiceOrb({ state, onClick }: VoiceOrbProps) {
 
   return (
     <div
-      className="relative flex items-center justify-center select-none"
+      className="orb-voz relative flex items-center justify-center select-none"
       style={{ width: 200, height: 200 }}
     >
       {/* Glow ambiente — blur radial atrás do orbe */}

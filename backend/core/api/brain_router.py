@@ -166,6 +166,190 @@ async def websocket_brain_endpoint(websocket: WebSocket) -> None:
     session_id = await manager.connect(websocket, tags={"brain_command"})
     logger.info(f"[Brain Router] Cliente {session_id} conectado à rota /ws/quinta")
     
+    # ===== FILA DE MENSAGENS (fora do loop de recepcao) =====
+    # O brain.ask pode ficar minutos esperando o Matheus aprovar uma acao critica. Se o
+    # loop de recepcao estivesse preso nele, a resposta da aprovacao nunca seria lida.
+    # Entao: o loop so RECEBE e enfileira; um trabalhador processa uma mensagem por vez,
+    # na ordem (mesma semantica de antes), e o loop segue livre p/ ping e approval_response.
+    from ..policy.approvals import com_origem, get_broker
+
+    broker = get_broker()
+    for _ev in broker.eventos_pendentes():  # tela que reconecta ve os pedidos ainda abertos
+        await manager.send_to_client(session_id, _ev)
+
+    fila_mensagens: asyncio.Queue = asyncio.Queue()
+
+    async def _processar(request_id, user_input) -> None:
+        """Processa UMA mensagem do usuario (roda no trabalhador)."""
+        # ===== EMITIR STATUS: "PENSANDO" =====
+        # Sem await aqui? Errado! É assíncrono, sempre precisa await!
+        await emit_status(
+            manager,
+            session_id,
+            step="thinking",
+            progress=0.0,
+            request_id=request_id,
+        )
+        
+        # ===== CHAMAR BRAIN (ASSÍNCRONO, SEM BLOQUEIO) =====
+        # Importante: brain.ask() é async def, retorna coroutine
+        # asyncio.create_task() empacota em Task (não bloqueia)
+        # await espera resultado (libera event loop para outras tasks)
+        try:
+            # Telemetria: registra o comando no EventBus como LoopEvent.
+            # NÃO usamos "manual_command_requested" aqui porque esta rota já
+            # chama brain.ask() diretamente abaixo — reusar aquele tipo causaria
+            # processamento duplicado (ManualCommandHandler chamaria o brain de novo).
+            if event_bus:
+                try:
+                    from ..loop import LoopEvent
+                    await event_bus.publish(
+                        LoopEvent(
+                            type="frontend_message_received",
+                            payload={"text": user_input.text},
+                            source="frontend_websocket",
+                        )
+                    )
+                except Exception:
+                    pass  # telemetria não pode quebrar o fluxo principal
+
+            # ===== AWAITAR BRAIN (PONTO CRÍTICO) =====
+            # Por QUE await? brain.ask() retorna uma coroutine que:
+            # 1. Pode fazer chamadas assíncronas (network, file, etc)
+            # 2. Pode ser cancelada
+            # 3. Precisa de controle de timeouts
+            # await brain.ask() não bloqueia! O event loop executa outras tasks
+            # Timeout: sem ele, um pedido travado deixava o chat pendurado para sempre
+            # (o `except asyncio.TimeoutError` abaixo nunca disparava). 300s dá folga ao modo
+            # agente (até 16 voltas de tool) E às aprovações (até 60s cada, esperando o Matheus);
+            # ajuste em WS_BRAIN_TIMEOUT_SECONDS.
+            try:
+                from ..config import get_config as _get_config
+                _timeout_brain = float(getattr(_get_config(), "WS_BRAIN_TIMEOUT_SECONDS", 300.0))
+            except Exception:
+                _timeout_brain = 300.0
+            # Progresso em tempo real (0.6): o brain avisa "usando X" e "terminei X"; aqui
+            # isso vira mensagem para a tela e alimenta `tools_used` da resposta final.
+            import time as _t
+            from ..runtime_progress import com_progresso
+
+            usadas: list = []
+            inicio = _t.time()
+            from ..telemetry.traces import Trace
+            trace = Trace(request_id)  # B11: tempo por etapa
+
+            async def _progresso(tipo: str, dados: dict) -> None:
+                if tipo == "tool_call_start":
+                    trace.ferramenta(str(dados.get("tool") or ""))
+                elif tipo == "text_delta":
+                    trace.marca("primeiro_texto")
+                if tipo == "tool_call_start" and dados.get("tool") not in usadas:
+                    usadas.append(dados.get("tool"))
+                await manager.send_to_client(session_id, {
+                    "type": tipo,
+                    "payload": dados,
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "request_id": request_id,
+                })
+
+            with com_progresso(_progresso):
+                brain_response = await asyncio.wait_for(
+                    brain.ask(
+                        message=user_input.text,
+                        image_data=None,
+                        include_vision=False
+                    ),
+                    timeout=_timeout_brain,
+                )
+            
+            trace.marca("resposta_final")
+            trace.gravar(ok=True)
+
+            # ===== EMITIR STATUS: "PROCESSADO" =====
+            await emit_status(
+                manager,
+                session_id,
+                step="processing",
+                progress=0.5,
+                request_id=request_id,
+            )
+            
+            # ===== RETORNAR RESPOSTA DO BRAIN =====
+            # brain_response é um BrainResponse object, não dict
+            response_msg = MessageFactory.create_brain_response(
+                text=brain_response.text,
+                tools_used=usadas,
+                execution_time_ms=int((_t.time() - inicio) * 1000),
+                request_id=request_id,
+                visor=getattr(brain_response, "visor", None),
+            )
+            
+            await manager.send_to_client(session_id, response_msg.dict())
+            
+            logger.info(
+                f"[Brain Router] Resposta enviada para {session_id} "
+                f"({len(response_msg.payload.get('text', ''))} chars)"
+            )
+            
+        except asyncio.TimeoutError:
+            await emit_error(
+                manager,
+                session_id,
+                ErrorCode.TIMEOUT,
+                "Brain demorou muito tempo para responder",
+                request_id=request_id,
+            )
+        
+        except Exception as e:
+            logger.error(f"[Brain Router] Erro ao processar: {e}", exc_info=True)
+            await emit_error(
+                manager,
+                session_id,
+                ErrorCode.INTERNAL_ERROR,
+                f"Erro interno: {str(e)[:100]}",
+                request_id=request_id,
+            )
+    
+
+    # PARAR (0.7): `stop` cancela a execucao atual e descarta a fila. A execucao roda numa task
+    # propria (`tarefa`) para poder ser cancelada sem derrubar o trabalhador nem a conexao.
+    estado_exec: dict = {"task": None, "parar": False}
+
+    async def _executar(request_id, user_input) -> None:
+        with com_origem("chat"):
+            await _processar(request_id, user_input)
+
+    async def _avisar_parada(descartadas: int) -> None:
+        await manager.send_to_client(session_id, {
+            "type": "run_cancelled",
+            "payload": {"descartadas": descartadas},
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "request_id": "stop",
+        })
+
+    async def _trabalhador() -> None:
+        while True:
+            request_id, user_input = await fila_mensagens.get()
+            estado_exec["parar"] = False
+            tarefa = asyncio.create_task(_executar(request_id, user_input))
+            estado_exec["task"] = tarefa
+            try:
+                await tarefa
+            except asyncio.CancelledError:
+                if estado_exec["parar"]:
+                    # Foi um PARAR do usuario (nao o fim da conexao): avisa a tela e segue.
+                    await _avisar_parada(int(estado_exec.get("descartadas", 0)))
+                else:
+                    tarefa.cancel()
+                    raise
+            except Exception as exc:
+                logger.error(f"[Brain Router] Falha no trabalhador: {exc}", exc_info=True)
+            finally:
+                estado_exec["task"] = None
+                fila_mensagens.task_done()
+
+    trabalhador = asyncio.create_task(_trabalhador())
+
     try:
         # 4. LOOP PRINCIPAL: receber e processar mensagens
         while True:
@@ -196,9 +380,74 @@ async def websocket_brain_endpoint(websocket: WebSocket) -> None:
                 await manager.send_to_client(session_id, pong_msg.dict())
                 continue
             
+            elif envelope.type == MessageType.STOP:
+                # PARAR: descarta o que ainda esta na fila E cancela o que esta rodando.
+                # Cancelar derruba o brain.ask e qualquer aprovacao pendente (o cartao fecha).
+                # Limite honesto: uma tool que JA comecou num thread (ex.: enviar WhatsApp) nao
+                # e desfeita; o que para e tudo que viria depois dela.
+                descartadas = 0
+                while not fila_mensagens.empty():
+                    try:
+                        fila_mensagens.get_nowait()
+                        fila_mensagens.task_done()
+                        descartadas += 1
+                    except asyncio.QueueEmpty:
+                        break
+                tarefa_atual = estado_exec["task"]
+                if tarefa_atual is not None and not tarefa_atual.done():
+                    estado_exec["parar"] = True
+                    estado_exec["descartadas"] = descartadas
+                    tarefa_atual.cancel()
+                else:
+                    await _avisar_parada(descartadas)  # nada rodando: a tela so limpa o estado
+                logger.info(f"[Brain Router] PARAR pedido por {session_id} (fila descartada: {descartadas})")
+                continue
+
+            elif envelope.type == MessageType.VOICE_TRACE:
+                # B11: a tela mede quando o 1º audio comecou a tocar
+                try:
+                    from ..telemetry.traces import registrar_cliente
+                    registrar_cliente(str((envelope.payload or {}).get("request_id") or request_id), envelope.payload or {})
+                except Exception as exc:
+                    logger.debug(f"[Brain Router] voice_trace ignorado: {exc}")
+                continue
+
+            elif envelope.type == MessageType.SPOKEN_REPORT:
+                # B5: ela foi interrompida; o historico passa a dizer so o que foi falado.
+                try:
+                    falado = str((envelope.payload or {}).get("falado") or "")[:4000]
+                    b = getattr(websocket.app.state, "brain", None)
+                    hist = getattr(b, "message_history", None)
+                    if hist is not None:
+                        hist.registrar_fala_interrompida(falado)
+                except Exception as exc:
+                    logger.debug(f"[Brain Router] spoken_report ignorado: {exc}")
+                continue
+
+            elif envelope.type == MessageType.APPROVAL_RESPONSE:
+                # Resposta ao cartao de aprovacao: destrava o gate que esta esperando
+                dados = envelope.payload or {}
+                if not broker.responder(str(dados.get("approval_id", "")), bool(dados.get("permitido"))):
+                    logger.info("[Brain Router] Resposta de aprovacao sem pedido aberto (expirou?)")
+                continue
+
             elif envelope.type == MessageType.USER_MESSAGE:
                 # MENSAGEM DO USUÁRIO: Processa com Brain
-                
+
+                # Aprendizado: as falas espontâneas recentes contam como RESPONDIDAS
+                try:
+                    from ..proactive.reacao import get_reacao
+                    get_reacao().usuario_falou()
+                except Exception:
+                    pass
+
+                # Registra atividade do usuário (usado pelo monitor proativo p/ "pausa")
+                try:
+                    import time as _time
+                    websocket.app.state.last_user_activity = _time.time()
+                except Exception:
+                    pass
+
                 try:
                     user_input = validate_user_message_input(envelope)
                 except ValueError as e:
@@ -211,85 +460,11 @@ async def websocket_brain_endpoint(websocket: WebSocket) -> None:
                     )
                     continue
                 
-                # ===== EMITIR STATUS: "PENSANDO" =====
-                # Sem await aqui? Errado! É assíncrono, sempre precisa await!
-                await emit_status(
-                    manager,
-                    session_id,
-                    step="thinking",
-                    progress=0.0,
-                    request_id=request_id,
-                )
-                
-                # ===== CHAMAR BRAIN (ASSÍNCRONO, SEM BLOQUEIO) =====
-                # Importante: brain.ask() é async def, retorna coroutine
-                # asyncio.create_task() empacota em Task (não bloqueia)
-                # await espera resultado (libera event loop para outras tasks)
-                try:
-                    # Publicar evento de comando manual no EventBus (se disponível)
-                    if event_bus:
-                        await event_bus.publish({
-                            "type": "manual_command_requested",
-                            "payload": {"text": user_input.text},
-                            "source": "frontend_websocket",
-                        })
-                    
-                    # ===== AWAITAR BRAIN (PONTO CRÍTICO) =====
-                    # Por QUE await? brain.ask() retorna uma coroutine que:
-                    # 1. Pode fazer chamadas assíncronas (network, file, etc)
-                    # 2. Pode ser cancelada
-                    # 3. Precisa de controle de timeouts
-                    # await brain.ask() não bloqueia! O event loop executa outras tasks
-                    brain_response = await brain.ask(
-                        message=user_input.text,
-                        image_data=None,
-                        include_vision=False
-                    )
-                    
-                    # ===== EMITIR STATUS: "PROCESSADO" =====
-                    await emit_status(
-                        manager,
-                        session_id,
-                        step="processing",
-                        progress=0.5,
-                        request_id=request_id,
-                    )
-                    
-                    # ===== RETORNAR RESPOSTA DO BRAIN =====
-                    # brain_response é um BrainResponse object, não dict
-                    response_msg = MessageFactory.create_brain_response(
-                        text=brain_response.text,
-                        tools_used=[],
-                        execution_time_ms=0,
-                        request_id=request_id,
-                    )
-                    
-                    await manager.send_to_client(session_id, response_msg.dict())
-                    
-                    logger.info(
-                        f"[Brain Router] Resposta enviada para {session_id} "
-                        f"({len(response_msg.payload.get('text', ''))} chars)"
-                    )
-                    
-                except asyncio.TimeoutError:
-                    await emit_error(
-                        manager,
-                        session_id,
-                        ErrorCode.TIMEOUT,
-                        "Brain demorou muito tempo para responder",
-                        request_id=request_id,
-                    )
-                
-                except Exception as e:
-                    logger.error(f"[Brain Router] Erro ao processar: {e}", exc_info=True)
-                    await emit_error(
-                        manager,
-                        session_id,
-                        ErrorCode.INTERNAL_ERROR,
-                        f"Erro interno: {str(e)[:100]}",
-                        request_id=request_id,
-                    )
-            
+                # Enfileira: o trabalhador processa em ordem, e este loop continua livre
+                # para receber approval_response/ping enquanto o brain espera a aprovacao.
+                fila_mensagens.put_nowait((request_id, user_input))
+                continue
+
             else:
                 # Tipo de mensagem desconhecido
                 await emit_error(
@@ -314,6 +489,8 @@ async def websocket_brain_endpoint(websocket: WebSocket) -> None:
             await websocket.close(code=1011, reason="Internal error")
         except Exception:
             pass  # WebSocket já pode estar fechado
+    finally:
+        trabalhador.cancel()  # solta o brain e qualquer aprovacao pendente desta sessao
 
 
 # ===== ROTAS AUXILIARES (NÃO SÃO WebSocket) =====

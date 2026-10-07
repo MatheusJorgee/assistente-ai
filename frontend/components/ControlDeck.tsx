@@ -3,37 +3,56 @@
 /**
  * ControlDeck — Dock de ações fixo na parte inferior da tela.
  *
- * 4 botões em pílula de vidro:
- *   MessageSquare → abre/fecha ChatOverlay
- *   Mic / MicOff  → ativa/desativa microfone
- *   Settings      → placeholder de configurações
- *   Power         → encerra sessão
+ * Botões em pílula de vidro:
+ *   MessageSquare    → abre/fecha ChatOverlay
+ *   Mic / MicOff     → ativa/desativa microfone
+ *   Newspaper        → recarrega o carrossel de notícias no visor
+ *   BrainCircuit     → abre/fecha o painel de memória (o que ela aprendeu)
+ *   Volume2/VolumeX  → liga/desliga a narração por voz (persistido)
+ *   Square           → PARAR tudo: fala + execução + fila (só aparece enquanto ela trabalha/fala)
+ *   Power            → encerra sessão
  *
- * Indicador de conexão no canto inferior direito do dock.
- *
- * Requer: npm install framer-motion lucide-react
+ * Indicador de conexão no canto direito do dock.
  */
 
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare,
   Mic,
   MicOff,
-  Settings,
+  Newspaper,
+  BrainCircuit,
+  Volume2,
+  VolumeX,
+  Square,
   Power,
   Wifi,
   WifiOff,
+  Ear,
+  ShieldCheck,
+  ShieldQuestion,
+  ShieldOff,
 } from 'lucide-react'
-import type { ConnectionStatus } from '@/types'
+import type { ConnectionStatus, AutonomyMode } from '@/types'
 
 interface ControlDeckProps {
   isChatOpen: boolean
   isMuted: boolean
+  isMemoryOpen: boolean
+  narrationOn: boolean
+  ambientOn: boolean
+  canStop: boolean
   isConnected: boolean
   status: ConnectionStatus
+  autonomyMode: AutonomyMode | null
+  onCycleAutonomy: () => void
   onToggleChat: () => void
   onToggleMute: () => void
-  onSettings?: () => void
+  onShowNews: () => void
+  onToggleMemory: () => void
+  onToggleNarration: () => void
+  onToggleAmbient: () => void
+  onStop: () => void
   onEndSession: () => void
 }
 
@@ -80,6 +99,21 @@ function DeckButton({ icon, label, onClick, active = false, danger = false }: De
   )
 }
 
+function Separator() {
+  return (
+    <span
+      className="w-px h-5 mx-0.5 rounded-full"
+      style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+    />
+  )
+}
+
+const AUTONOMIA_ROTULO: Record<AutonomyMode, string> = {
+  perguntar_sempre: 'Autonomia: pergunto antes de qualquer ação (clique para mudar)',
+  so_perigoso: 'Autonomia: pergunto só nas ações críticas (clique para mudar)',
+  autonoma: 'Autonomia: SEM perguntar, tudo liberado (clique para mudar)',
+}
+
 const STATUS_DOT: Record<ConnectionStatus, { color: string; glow: string }> = {
   connected:    { color: 'rgba(52,211,153,0.9)',  glow: 'rgba(52,211,153,0.5)' },
   connecting:   { color: 'rgba(251,191,36,0.9)',  glow: 'rgba(251,191,36,0.4)' },
@@ -90,11 +124,21 @@ const STATUS_DOT: Record<ConnectionStatus, { color: string; glow: string }> = {
 export function ControlDeck({
   isChatOpen,
   isMuted,
+  isMemoryOpen,
+  narrationOn,
+  ambientOn,
+  canStop,
   isConnected,
   status,
+  autonomyMode,
+  onCycleAutonomy,
   onToggleChat,
   onToggleMute,
-  onSettings,
+  onShowNews,
+  onToggleMemory,
+  onToggleNarration,
+  onToggleAmbient,
+  onStop,
   onEndSession,
 }: ControlDeckProps) {
   const dot = STATUS_DOT[status]
@@ -119,7 +163,7 @@ export function ControlDeck({
             '0 8px 40px rgba(0,0,0,0.50), 0 1px 0 rgba(255,255,255,0.05) inset',
         }}
       >
-        {/* Divider visual entre grupos */}
+        {/* Conversa */}
         <DeckButton
           icon={<MessageSquare size={16} />}
           label={isChatOpen ? 'Fechar chat' : 'Abrir chat'}
@@ -134,17 +178,81 @@ export function ControlDeck({
           active={!isMuted}
         />
 
-        {/* Separador */}
-        <span
-          className="w-px h-5 mx-0.5 rounded-full"
-          style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+        {/* Escuta ambiente: ela decide sozinha se a fala foi com ela */}
+        <DeckButton
+          icon={<Ear size={16} />}
+          label={ambientOn ? 'Escuta ambiente LIGADA (ela entende se é com ela)' : 'Ligar escuta ambiente (sem precisar dizer "Quinta")'}
+          onClick={onToggleAmbient}
+          active={ambientOn}
+        />
+
+        <Separator />
+
+        {/* Conteúdo */}
+        <DeckButton
+          icon={<Newspaper size={16} />}
+          label="Notícias do dia"
+          onClick={onShowNews}
         />
 
         <DeckButton
-          icon={<Settings size={16} />}
-          label="Configurações"
-          onClick={onSettings ?? (() => {})}
+          icon={<BrainCircuit size={16} />}
+          label={isMemoryOpen ? 'Fechar memória' : 'O que ela aprendeu'}
+          onClick={onToggleMemory}
+          active={isMemoryOpen}
         />
+
+        <Separator />
+
+        {/* Voz */}
+        <DeckButton
+          icon={narrationOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          label={narrationOn ? 'Desligar narração por voz' : 'Ligar narração por voz'}
+          onClick={onToggleNarration}
+          active={narrationOn}
+        />
+
+        {/* PARAR — só existe enquanto ela trabalha ou fala; corta a voz, cancela a execução
+            e descarta a fila (Esc faz o mesmo) */}
+        <AnimatePresence>
+          {canStop ? (
+            <motion.div
+              initial={{ width: 0, opacity: 0, scale: 0.6 }}
+              animate={{ width: 'auto', opacity: 1, scale: 1 }}
+              exit={{ width: 0, opacity: 0, scale: 0.6 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <DeckButton
+                icon={<Square size={13} fill="currentColor" />}
+                label="Parar tudo (Esc): para de falar e cancela o que ela estiver fazendo"
+                onClick={onStop}
+                danger
+              />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <Separator />
+
+        {/* Autonomia: quando ela pergunta antes de agir. Clique alterna o modo. */}
+        {autonomyMode ? (
+          <DeckButton
+            icon={
+              autonomyMode === 'perguntar_sempre' ? (
+                <ShieldQuestion size={16} />
+              ) : autonomyMode === 'so_perigoso' ? (
+                <ShieldCheck size={16} />
+              ) : (
+                <ShieldOff size={16} />
+              )
+            }
+            label={AUTONOMIA_ROTULO[autonomyMode]}
+            onClick={onCycleAutonomy}
+            active={autonomyMode !== 'autonoma'}
+            danger={autonomyMode === 'autonoma'}
+          />
+        ) : null}
 
         <DeckButton
           icon={<Power size={15} />}

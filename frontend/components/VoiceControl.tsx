@@ -102,7 +102,6 @@ export function VoiceControl({
   onCommand, 
   isDisabled = false, 
   isWakeWordEnabled = false,  // ← Novo
-  onWakeWordEnabledChange,  // ← Novo
   size = 'md',
   onBargein,
   onBrowserWarning,

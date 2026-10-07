@@ -19,7 +19,7 @@ Padrão de Serialização:
 - Saída (Backend → Frontend): JSON serializado
 """
 
-from pydantic import BaseModel, Field, UUID4
+from pydantic import BaseModel, Field, UUID4, field_validator
 from typing import Optional, Dict, Any, Literal, List
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -38,6 +38,19 @@ class MessageType(str, enum.Enum):
     ERROR = "error"
     PING = "ping"
     PONG = "pong"
+    # Aprovacao de acoes criticas (core/policy/approvals.py)
+    APPROVAL_REQUESTED = "approval_requested"   # servidor -> tela: "posso fazer isto?"
+    APPROVAL_RESPONSE = "approval_response"     # tela -> servidor: {approval_id, permitido}
+    APPROVAL_RESOLVED = "approval_resolved"     # servidor -> telas: fecha o cartao
+    # Progresso em tempo real e parada (core/runtime_progress.py)
+    TOOL_CALL_START = "tool_call_start"         # servidor -> tela: "estou usando X"
+    TOOL_CALL_RESULT = "tool_call_result"       # servidor -> tela: "terminei X (ok/erro, ms)"
+    STOP = "stop"                               # tela -> servidor: pare o que esta fazendo
+    RUN_CANCELLED = "run_cancelled"             # servidor -> tela: parei
+    SPOKEN_REPORT = "spoken_report"             # tela -> servidor: {falado} o que tocou antes de ser cortada
+    VOICE_TRACE = "voice_trace"                 # tela -> servidor: {request_id, primeiro_audio_ms}
+    HOLO_SHOW = "holo_show"                     # servidor -> tela: abre o holograma
+    HOLO_HIDE = "holo_hide"                     # servidor -> tela: fecha o holograma
 
 
 class BrainMode(str, enum.Enum):
@@ -83,6 +96,14 @@ class MessageEnvelope(BaseModel):
     payload: Dict[str, Any]
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
     request_id: str = Field(default_factory=lambda: str(uuid4()))
+
+    @field_validator("request_id", mode="before")
+    @classmethod
+    def _request_id_como_texto(cls, valor: Any) -> Any:
+        """As fábricas abaixo passam `uuid4()` (objeto UUID) e o pydantic 2 NÃO converte
+        UUID→str sozinho: create_pong()/create_error()/etc. sem request_id estouravam
+        ValidationError ("Input should be a valid string")."""
+        return str(valor) if isinstance(valor, UUID) else valor
 
     class Config:
         use_enum_values = False  # Keep enum objects, not strings
@@ -198,6 +219,7 @@ class MessageFactory:
         tools_used: Optional[List[str]] = None,
         execution_time_ms: float = 0.0,
         request_id: Optional[UUID4] = None,
+        visor: Optional[dict] = None,
     ) -> MessageEnvelope:
         """Cria resposta do Brain."""
         return MessageEnvelope(
@@ -206,6 +228,7 @@ class MessageFactory:
                 "text": text,
                 "tools_used": tools_used or [],
                 "execution_time_ms": execution_time_ms,
+                "visor": visor,
             },
             request_id=request_id or uuid4(),
         )
