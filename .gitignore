@@ -186,6 +186,33 @@ backend/.cache*
 backend/memoria_quinta_feira.db
 
 # ------------------------------------------------------------------------------
-# DOCUMENTAÇÃO E ARQUIVOS DA IA
+# DOCUMENTAï¿½ï¿½O E ARQUIVOS DA IA
 # ------------------------------------------------------------------------------
 ai_docs/
+
+# Cache dos hologramas (respostas de APIs abertas)
+backend/data/holo_cache/
+
+# Dados de runtime da quarentena/desfazer e da faxina da memoria
+backend/data/quarentena/
+backend/data/memoria_preimagem/
+backend/data/consolidacao_assinatura.txt
+backend/data/traces/
+backend/data/tts_cache/
+
+# Ferramentas que a Quinta propos e voce aprovou; servidores MCP configurados so por voce
+backend/plugins_agent/
+backend/.runtime/
+
+# Copias de seguranca da memoria (dados pessoais)
+backend/backups/
+
+# ------------------------------------------------------------------------------
+# PASTA LOCAL DO CLAUDE CODE
+# ------------------------------------------------------------------------------
+# Worktrees que o Claude Code as vezes cria DENTRO do projeto (.claude/worktrees/<nome>/)
+# sao checkouts git aninhados; sem esta regra, viram "gitlinks" commitados sem querer e,
+# se a pasta for movida/renomeada depois, o ponteiro gitdir interno fica morto e quebra
+# git status/add/commit/diff no repositorio inteiro com "fatal: not a git repository: ...".
+# Config local (launch.json etc.) tambem nao e pra versionar.
+.claude/
