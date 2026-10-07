@@ -1,4 +1,4 @@
-﻿"""
+"""
 Errors.py: Exceções Customizadas do Backend
 =============================================
 

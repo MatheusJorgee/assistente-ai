@@ -1,4 +1,4 @@
-﻿"""
+"""
 Backend Core: Fundação do Sistema
 ==================================
 

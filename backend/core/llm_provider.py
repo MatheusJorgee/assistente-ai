@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any, AsyncIterator
+from typing import Optional, List, Dict, Any, AsyncIterator, Tuple
 from enum import Enum
 
 
@@ -19,6 +19,8 @@ class Message:
     tool_calls: Optional[List[Dict[str, Any]]] = None  # [{id, name, arguments}]
     tool_result: Optional[str] = None
     tool_name: Optional[str] = None
+    image_bytes: Optional[bytes] = None   # imagem inline (ex: screenshot) para LLMs com visão
+    image_mime: str = "image/jpeg"
 
 
 @dataclass
@@ -58,16 +60,23 @@ class LLMProvider(ABC):
         tools: Optional[List[ToolDefinition]] = None,
         temperature: float = 0.7,
         max_tokens: int = 2048,
+        thinking_budget: Optional[int] = None,
+        purpose: Optional[str] = None,
+        tier: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> Response:
         """
         Gera resposta do LLM.
-        
+
         Args:
             messages: Histórico de conversa
             tools: Ferramentas disponíveis
             temperature: Criatividade (0-1)
             max_tokens: Limite de tokens
-            
+            purpose: rótulo da chamada p/ custo/política (padrão: inferido de quem chamou)
+            tier: "lite" | "padrao" | "forte" (padrão: o da política da função)
+            model: nome exato do modelo; vence tier
+
         Returns:
             Response com texto e/ou tool_calls
             
@@ -95,6 +104,35 @@ class LLMProvider(ABC):
         """
         pass
     
+    def supports_streaming(self) -> bool:
+        """True se generate_stream() entrega o texto em pedacos de verdade."""
+        return False
+
+    async def generate_stream(
+        self,
+        messages: List[Message],
+        tools: Optional[List[ToolDefinition]] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+        thinking_budget: Optional[int] = None,
+        purpose: Optional[str] = None,
+        tier: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> AsyncIterator[Tuple[str, Any]]:
+        """
+        Geracao em streaming COM ferramentas. Entrega eventos ("delta", texto) conforme o
+        modelo escreve e, no fim, exatamente um ("final", Response) — o mesmo Response que
+        generate() devolveria (texto completo + tool_calls).
+
+        Padrao: sem streaming real — gera tudo e entrega so o evento final. Assim um provider
+        que nao implementa isso continua funcionando.
+        """
+        resposta = await self.generate(
+            messages=messages, tools=tools, temperature=temperature, max_tokens=max_tokens,
+            thinking_budget=thinking_budget, purpose=purpose, tier=tier, model=model,
+        )
+        yield ("final", resposta)
+
     def supports_tools(self) -> bool:
         """Retorna True se LLM suporta function calling."""
         return True

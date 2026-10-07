@@ -1,4 +1,4 @@
-﻿"""
+"""
 Database canônico do Core com SQLite.
 
 Mantém persistência local do projeto em backend/.runtime para respeitar

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Logger.py: Setup Centralizado de Logging
 ==========================================
 

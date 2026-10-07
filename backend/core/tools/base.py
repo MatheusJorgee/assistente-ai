@@ -1,4 +1,4 @@
-﻿"""
+"""
 Motor Base Classes - Interface abstrata para ferramentas do Motor.
 
 Padrões:
@@ -314,6 +314,13 @@ class ToolRegistry:
         self._tools: Dict[str, MotorTool] = {}
         self._aliases: Dict[str, str] = {}  # alias -> nome real
         self._runtime_publisher = None
+        # Gate de aprovacao (core/policy/approvals.py): async (nome, args, risco) -> (ok, motivo).
+        # Sem gate instalado (scripts/testes soltos) o comportamento e o antigo.
+        self._approval_gate = None
+
+    def set_approval_gate(self, gate) -> None:
+        """Instala o gate que decide se uma chamada de risco pode rodar."""
+        self._approval_gate = gate
 
     def set_runtime_publisher(self, publisher) -> None:
         """Injeta publisher em todas as ferramentas ja registradas e nas futuras."""
@@ -348,16 +355,28 @@ class ToolRegistry:
                 self._aliases[alias] = tool_name
                 logger.debug(f"  Alias: {alias} -> {tool_name}")
     
+    @staticmethod
+    def _lacuna(tipo: str, ferramenta: str, kwargs: Dict[str, Any], causa: str) -> None:
+        """Registra onde a Quinta falhou (learning/gaps.py). Nunca atrapalha a execução."""
+        try:
+            from ..learning.gaps import get_ledger
+            acao = str(kwargs.get("acao") or kwargs.get("action") or kwargs.get("tipo") or "")
+            get_ledger().registrar(tipo, ferramenta, acao, causa)
+        except Exception:
+            pass
+
     async def execute(self, tool_name: str, **kwargs) -> ToolResult:
         """Executa uma ferramenta com middleware de segurança e proteção total do event loop."""
         real_name = self._aliases.get(tool_name, tool_name)
 
         if real_name not in self._tools:
+            self._lacuna("ferramenta_inexistente", str(tool_name)[:40], kwargs, "ferramenta pedida não existe")
             error_msg = f"Ferramenta não encontrada: {tool_name}"
             logger.error(error_msg)
             return ToolResult(success=False, output="", error=error_msg)
 
         if _contains_dangerous_content(kwargs):
+            self._lacuna("negado", real_name, kwargs, "padrão destrutivo interceptado")
             logger.warning(f"[SECURITY] Padrão destrutivo bloqueado — ferramenta='{tool_name}' args={kwargs}")
             return ToolResult(
                 success=False,
@@ -365,8 +384,43 @@ class ToolRegistry:
                 error="[POLICY_BLOCKED] Comando perigoso interceptado pelo Sistema de Segurança.",
             )
 
+        # ===== APROVACAO POR RISCO (Fase 0.3) =====
+        # Ponto UNICO por onde passa toda chamada de tool: LLM, passos de macro, comandos
+        # agendados. Falha FECHADA: se classificar/perguntar der erro, nao executa.
+        gate = self._approval_gate
+        if gate is not None:
+            try:
+                from ..policy.tool_risk import Risco, classificar
+
+                from ..policy.target_hash import impressao, mudou
+
+                risco = classificar(real_name, kwargs, self._tools[real_name])
+                antes = impressao(real_name, kwargs)  # B9: o que foi mostrado no cartão
+                permitido, motivo = await gate(real_name, kwargs, risco)
+                if permitido:
+                    alterado = mudou(antes, impressao(real_name, kwargs))
+                    if alterado:
+                        permitido, motivo = False, f"{alterado}. Peça de novo para eu mostrar o que vai rodar."
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.error(f"[REGISTRY] Falha no controle de aprovacao ('{tool_name}'): {exc}")
+                permitido, motivo = False, "falha no controle de aprovação; por segurança não executei."
+            if not permitido:
+                if "recusou" not in str(motivo):  # recusa SUA no cartão não é lacuna dela
+                    self._lacuna("negado", real_name, kwargs, str(motivo))
+                logger.warning(f"[REGISTRY] '{tool_name}' NAO executada: {motivo}")
+                return ToolResult(success=False, output="", error=f"[APROVAÇÃO_NEGADA] {motivo}")
+
         try:
-            return await self._tools[real_name].safe_execute(**kwargs)
+            resultado = await self._tools[real_name].safe_execute(**kwargs)
+            try:
+                from ..runtime_progress import resultado_ok
+                if not resultado.success or not resultado_ok(resultado.output):
+                    self._lacuna("erro_ferramenta", real_name, kwargs, resultado.error or str(resultado.output))
+            except Exception:
+                pass
+            return resultado
         except Exception as exc:
             error_msg = f"[TOOL_EXCEPTION] {type(exc).__name__}: {exc}"
             logger.error(f"[REGISTRY] Exceção não tratada — ferramenta='{tool_name}': {error_msg}")
